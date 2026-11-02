@@ -1,0 +1,102 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Kelas {
+  id        Int              @id @default(autoincrement())
+  namaKelas String           @unique @map("nama_kelas")
+  users     User[]
+  ujian     Ujian[]
+  pengampu  GuruMapelKelas[]
+
+  @@map("kelas")
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  username String  @unique @db.VarChar(50)
+  password String  @db.VarChar(255)
+  role     String  @db.VarChar(20) // 'admin', 'guru', 'siswa'
+  nama     String? @db.VarChar(100)
+  kelasId  Int?    @map("kelas_id")
+
+  kelas    Kelas?           @relation(fields: [kelasId], references: [id], onDelete: SetNull)
+  pengampu GuruMapelKelas[]
+  jawaban  JawabanSiswa[]
+
+  @@map("users")
+}
+
+model Mapel {
+  id       Int              @id @default(autoincrement())
+  nama     String           @db.VarChar(100)
+  pengampu GuruMapelKelas[]
+  ujian    Ujian[]
+
+  @@map("mapel")
+}
+
+model GuruMapelKelas {
+  id      Int @id @default(autoincrement())
+  guruId  Int @map("guru_id")
+  mapelId Int @map("mapel_id")
+  kelasId Int @map("kelas_id")
+
+  guru  User  @relation(fields: [guruId], references: [id], onDelete: Cascade)
+  mapel Mapel @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+
+  @@map("guru_mapel_kelas")
+}
+
+model Ujian {
+  id           Int      @id @default(autoincrement())
+  judul        String   @db.VarChar(150)
+  mapelId      Int      @map("mapel_id")
+  kelasId      Int      @map("kelas_id")
+  waktuMulai   DateTime @map("waktu_mulai")
+  waktuSelesai DateTime @map("waktu_selesai")
+  durasiMenit  Int      @default(60) @map("durasi_menit")
+
+  mapel   Mapel          @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+  kelas   Kelas          @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  soal    Soal[]
+  jawaban JawabanSiswa[]
+
+  @@map("ujian")
+}
+
+model Soal {
+  id           Int     @id @default(autoincrement())
+  ujianId      Int     @map("ujian_id")
+  tipeSoal     String  @db.VarChar(20) // 'pg' atau 'essay'
+  pertanyaan   String  @db.Text
+  pilihanOpsi  Json?   @map("pilihan_opsi")
+  kunciJawaban String? @map("kunci_jawaban") @db.VarChar(10)
+  bobot        Decimal @default(1.0) @db.Decimal(5, 2)
+
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+
+  @@map("soal")
+}
+
+model JawabanSiswa {
+  id            Int      @id @default(autoincrement())
+  siswaId       Int      @map("siswa_id")
+  ujianId       Int      @map("ujian_id")
+  detailJawaban Json?    @map("detail_jawaban")
+  nilaiPg       Decimal  @default(0) @map("nilai_pg") @db.Decimal(5, 2)
+  nilaiEssay    Decimal  @default(0) @map("nilai_essay") @db.Decimal(5, 2)
+  totalNilai    Decimal  @default(0) @map("total_nilai") @db.Decimal(5, 2)
+  waktuSubmit   DateTime @default(now()) @map("waktu_submit")
+
+  siswa User  @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+
+  @@map("jawaban_siswa")
+}
