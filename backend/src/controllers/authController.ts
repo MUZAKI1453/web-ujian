@@ -2,13 +2,17 @@ import { Request, Response } from 'express';
 import prisma from '../config/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cbt_secret_key_2026';
+import { jwtSecret } from '../middleware/auth';
 
 export const loginUser = async (req: Request, res: Response) => {
     try {
         const { username, password } = req.body;
 
+        if (typeof username !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ message: 'Username dan password wajib diisi.' });
+        }
         // 1. Cari user berdasarkan username (bisa NIS, NIP, atau username admin)
         const user = await prisma.user.findUnique({
             where: { username },
@@ -27,9 +31,11 @@ export const loginUser = async (req: Request, res: Response) => {
         }
 
         // 3. Buat token JWT
+        const sesiLogin = user.role === 'siswa' ? randomUUID() : undefined;
+        if (sesiLogin) await prisma.user.update({ where: { id: user.id }, data: { sesiLogin } });
         const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role, nama: user.nama },
-            JWT_SECRET,
+            { id: user.id, username: user.username, role: user.role, nama: user.nama, sesiLogin },
+            jwtSecret,
             { expiresIn: '1d' }
         );
 
@@ -47,5 +53,26 @@ export const loginUser = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+};
+export const changePassword = async (req: Request, res: Response) => {
+    const { passwordLama, passwordBaru } = req.body;
+    if (typeof passwordLama !== 'string' || typeof passwordBaru !== 'string' ||
+        passwordBaru.length < 8 || Buffer.byteLength(passwordBaru) > 72 || passwordBaru === passwordLama) {
+        return res.status(400).json({ message: 'Gunakan password baru yang berbeda, minimal 8 karakter dan maksimal 72 byte.' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { id: res.locals.user.id } });
+        if (!user || !(await bcrypt.compare(passwordLama, user.password))) {
+            return res.status(400).json({ message: 'Password lama salah.' });
+        }
+        const result = await prisma.user.updateMany({
+            where: { id: user.id, password: user.password },
+            data: { password: await bcrypt.hash(passwordBaru, 10) }
+        });
+        if (!result.count) return res.status(409).json({ message: 'Password sudah berubah. Coba lagi.' });
+        res.json({ status: 'SUCCESS', message: 'Password berhasil diubah.' });
+    } catch {
+        res.status(500).json({ message: 'Gagal mengubah password.' });
     }
 };

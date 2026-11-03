@@ -1,5 +1,8 @@
+import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
+import { downloadImportTemplate } from '../../services/downloadImportTemplate';
 import { GraduationCap, Plus, Edit3, Trash2, Search, UploadCloud, BookOpen, X } from 'lucide-react';
 
 interface Mapel {
@@ -10,11 +13,12 @@ interface Mapel {
 interface Kelas {
     id: number;
     namaKelas: string;
+    tingkat: number | null;
 }
 
 interface PengampuItem {
     mapelId: number | string;
-    kelasId: number | string;
+    cakupan: string;
 }
 
 interface Guru {
@@ -24,7 +28,8 @@ interface Guru {
     pengampu?: {
         id: number;
         mapel: Mapel;
-        kelas: Kelas;
+        kelas: Kelas | null;
+        tingkat: number | null;
     }[];
 }
 
@@ -36,12 +41,32 @@ export default function DataGuru() {
     const [searchTerm, setSearchTerm] = useState('');
 
     // State Modal Form (Tambah / Edit)
+    const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [username, setUsername] = useState(''); // NIP (Angka saja)
     const [nama, setNama] = useState('');
     const [penugasanList, setPenugasanList] = useState<PengampuItem[]>([]);
+
+    const [assignmentError, setAssignmentError] = useState('');
+
+    const otherAssignments = guruList
+        .filter(guru => !isEdit || guru.id !== selectedId)
+        .flatMap(guru => guru.pengampu ?? []);
+    const scopes = [...schoolGrades.map(grade => 'tingkat:' + grade), ...kelasList.map(kelas => 'kelas:' + kelas.id)];
+
+    function isOccupied(mapelId: number | string, scope: string) {
+        const [kind, value] = scope.split(':');
+        const id = Number(value);
+        const grade = kind === 'tingkat' ? id : kelasList.find(kelas => kelas.id === id)?.tingkat;
+        return otherAssignments.some(item => {
+            if (item.mapel.id !== Number(mapelId)) return false;
+            if (kind === 'kelas' && item.kelas) return item.kelas.id === id;
+            return (item.kelas ? item.kelas.tingkat : item.tingkat) === grade;
+        });
+    }
 
     // State Modal Import Excel
     const [showImportModal, setShowImportModal] = useState(false);
@@ -76,6 +101,7 @@ export default function DataGuru() {
         setUsername('');
         setNama('');
         setPenugasanList([]);
+        setAssignmentError('');
         setShowModal(true);
     };
 
@@ -86,14 +112,15 @@ export default function DataGuru() {
         setNama(guru.nama);
         const mappedPenugasan = guru.pengampu?.map((p) => ({
             mapelId: p.mapel.id,
-            kelasId: p.kelas.id
+            cakupan: p.kelas ? 'kelas:' + p.kelas.id : 'tingkat:' + p.tingkat
         })) || [];
         setPenugasanList(mappedPenugasan);
+        setAssignmentError('');
         setShowModal(true);
     };
 
     const handleAddPenugasanRow = () => {
-        setPenugasanList([...penugasanList, { mapelId: '', kelasId: '' }]);
+        setPenugasanList([...penugasanList, { mapelId: '', cakupan: '' }]);
     };
 
     const handleRemovePenugasanRow = (index: number) => {
@@ -101,7 +128,7 @@ export default function DataGuru() {
         setPenugasanList(updated);
     };
 
-    const handlePenugasanChange = (index: number, field: 'mapelId' | 'kelasId', value: string) => {
+    const handlePenugasanChange = (index: number, field: 'mapelId' | 'cakupan', value: string) => {
         const updated = [...penugasanList];
         updated[index][field] = value;
         setPenugasanList(updated);
@@ -109,10 +136,22 @@ export default function DataGuru() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (penugasanList.some(item => !item.mapelId || !item.cakupan)) {
+            alert('Lengkapi mata pelajaran dan cakupan pada setiap penugasan.');
+            return;
+        }
+        setAssignmentError('');
+        if (penugasanList.some(item => isOccupied(item.mapelId, item.cakupan))) {
+            setAssignmentError('Mata pelajaran pada cakupan yang dipilih sudah diampu guru lain.');
+            return;
+        }
         const payload = {
             username,
             nama,
-            pengampu: penugasanList.filter(p => p.mapelId && p.kelasId)
+            pengampu: penugasanList.map(({ mapelId, cakupan }) => {
+                const [jenis, id] = cakupan.split(':');
+                return jenis === 'tingkat' ? { mapelId, tingkat: Number(id) } : { mapelId, kelasId: Number(id) };
+            })
         };
 
         if (isEdit && selectedId !== null) {
@@ -121,22 +160,14 @@ export default function DataGuru() {
                     setShowModal(false);
                     fetchData();
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal memperbarui guru'));
+                .catch((err) => setAssignmentError(err.response?.data?.message || 'Gagal memperbarui guru'));
         } else {
             api.post('/admin/guru', payload)
                 .then(() => {
                     setShowModal(false);
                     fetchData();
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal menambah guru'));
-        }
-    };
-
-    const handleDelete = (id: number) => {
-        if (confirm('Yakin ingin menghapus data guru ini?')) {
-            api.delete(`/admin/guru/${id}`)
-                .then(() => fetchData())
-                .catch(() => alert('Gagal menghapus guru'));
+                .catch((err) => setAssignmentError(err.response?.data?.message || 'Gagal menambah guru'));
         }
     };
 
@@ -166,6 +197,10 @@ export default function DataGuru() {
         g.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
         g.username.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const visibleIds = filteredGuru.map(item => item.id);
+    const visibleSelected = visibleIds.filter(id => selectedIds.includes(id));
+    const allSelected = visibleIds.length > 0 && visibleSelected.length === visibleIds.length;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -211,7 +246,21 @@ export default function DataGuru() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
+                        <tr>
+                            <td colSpan={6} className="px-6 py-3">
+                                <button type="button" disabled={!visibleSelected.length}
+                                    onClick={() => setDeleteIds(visibleSelected)}
+                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                    Hapus terpilih ({visibleSelected.length})
+                                </button>
+                            </td>
+                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                            <th className="pl-6">
+                                <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
+                                    checked={allSelected} disabled={!visibleIds.length}
+                                    onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
+                            </th>
                             <th className="py-4 px-6">No</th>
                             <th className="py-4 px-6">NIP / Username</th>
                             <th className="py-4 px-6">Nama Lengkap & Gelar</th>
@@ -222,15 +271,23 @@ export default function DataGuru() {
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400 animate-pulse">Memuat data guru...</td>
+                                <td colSpan={6} className="text-center py-12 text-gray-400 animate-pulse">Memuat data guru...</td>
                             </tr>
                         ) : filteredGuru.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400">Belum ada data guru ditemukan.</td>
+                                <td colSpan={6} className="text-center py-12 text-gray-400">Belum ada data guru ditemukan.</td>
                             </tr>
                         ) : (
                             filteredGuru.map((item, index) => (
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="pl-6">
+                                        <input type="checkbox" aria-label={'Pilih ' + item.nama}
+                                            checked={selectedIds.includes(item.id)}
+                                            onChange={event => {
+                                                const checked = event.target.checked;
+                                                setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
+                                            }} />
+                                    </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-mono font-semibold text-gray-600">{item.username}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
@@ -239,7 +296,7 @@ export default function DataGuru() {
                                             <div className="flex flex-wrap gap-1.5">
                                                 {item.pengampu.map((p) => (
                                                     <span key={p.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
-                                                        <BookOpen size={12} /> {p.mapel?.nama} ({p.kelas?.namaKelas})
+                                                        <BookOpen size={12} /> {p.mapel?.nama} ({p.kelas?.namaKelas ?? 'Tingkat ' + p.tingkat + ' · ' + kelasList.filter(k => k.tingkat === p.tingkat).length + ' kelas'})
                                                     </span>
                                                 ))}
                                             </div>
@@ -257,7 +314,7 @@ export default function DataGuru() {
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(item.id)}
+                                                onClick={() => setDeleteIds([item.id])}
                                                 className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                                                 title="Hapus Guru"
                                             >
@@ -274,6 +331,9 @@ export default function DataGuru() {
             </div>
 
             {/* Modal Tambah / Edit Guru & Penugasan Dinamis */}
+            {deleteIds.length > 0 && (
+                <DeleteAccountDialog role="guru" ids={deleteIds} onClose={() => setDeleteIds([])} onDeleted={() => { setSelectedIds([]); fetchData(); }} />
+            )}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200 overflow-y-auto">
                     <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
@@ -321,7 +381,7 @@ export default function DataGuru() {
 
                                 {penugasanList.length === 0 ? (
                                     <p className="text-xs text-gray-400 italic bg-slate-50 p-3 rounded-xl text-center">
-                                        Belum ada penugasan ditambahkan. Klik tombol di atas untuk menambahkan mapel & kelas.
+                                        Tambahkan mapel dan pilih cakupan. Pilihan yang sudah diampu guru lain akan dinonaktifkan.
                                     </p>
                                 ) : (
                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -335,19 +395,27 @@ export default function DataGuru() {
                                                 >
                                                     <option value="">-- Pilih Mapel --</option>
                                                     {mapelList.map((m) => (
-                                                        <option key={m.id} value={m.id}>{m.nama}</option>
+                                                        <option key={m.id} value={m.id} disabled={p.cakupan ? isOccupied(m.id, p.cakupan) : scopes.length > 0 && scopes.every(scope => isOccupied(m.id, scope))}>{m.nama}</option>
                                                     ))}
                                                 </select>
                                                 <select
-                                                    value={p.kelasId}
-                                                    onChange={(e) => handlePenugasanChange(index, 'kelasId', e.target.value)}
+                                                    value={p.cakupan}
+                                                    aria-label="Cakupan penugasan"
+                                                    onChange={(e) => handlePenugasanChange(index, 'cakupan', e.target.value)}
                                                     className="w-1/2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:border-blue-600"
                                                     required
                                                 >
-                                                    <option value="">-- Pilih Kelas --</option>
-                                                    {kelasList.map((k) => (
-                                                        <option key={k.id} value={k.id}>{k.namaKelas}</option>
-                                                    ))}
+                                                    <option value="">Pilih cakupan</option>
+                                                    <optgroup label="Per tingkat">
+                                                        {schoolGrades.map(grade => (
+                                                            <option key={grade} value={'tingkat:' + grade} disabled={isOccupied(p.mapelId, 'tingkat:' + grade)}>Semua kelas tingkat {grade}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                    <optgroup label="Per kelas">
+                                                        {kelasList.map(k => (
+                                                            <option key={k.id} value={'kelas:' + k.id} disabled={isOccupied(p.mapelId, 'kelas:' + k.id)}>{k.namaKelas}</option>
+                                                        ))}
+                                                    </optgroup>
                                                 </select>
                                                 <button
                                                     type="button"
@@ -363,6 +431,7 @@ export default function DataGuru() {
                                 )}
                             </div>
 
+                            {assignmentError && <p role="alert" className="text-sm text-red-700">{assignmentError}</p>}
                             <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
                                 <button
                                     type="button"
@@ -388,6 +457,14 @@ export default function DataGuru() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                         <h3 className="text-lg font-bold text-gray-800">Import Data Guru via Excel</h3>
+                        <p className="text-sm text-slate-600">Pertahankan judul kolom di baris 11. Ganti contoh dengan NIP dan nama lengkap guru mulai baris 12. Tulis NIP sebagai teks agar nol di depan tetap tersimpan.</p>
+                        <button
+                            type="button"
+                            onClick={() => void downloadImportTemplate('guru')}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                        >
+                            Unduh Template Guru
+                        </button>
                         <form onSubmit={handleImportSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Pilih File Excel (.xlsx / .xls)</label>
@@ -398,7 +475,6 @@ export default function DataGuru() {
                                     onChange={(e) => setFileExcel(e.target.files ? e.target.files[0] : null)}
                                     className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
                                 />
-                                <p className="text-xs text-gray-400 mt-1.5">Format kolom Excel harus memiliki header: <b>NIP</b> dan <b>Nama</b>.</p>
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button

@@ -10,13 +10,11 @@ interface Guru {
 interface Mapel {
     id: number;
     nama: string;
-    guruId?: number;
-    guru?: Guru | null;
+    pengampu: { id: number; guru: Guru; kelas: { namaKelas: string } | null; tingkat: number | null }[];
 }
 
 export default function DataMapel() {
     const [mapelList, setMapelList] = useState<Mapel[]>([]);
-    const [guruList, setGuruList] = useState<Guru[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -25,7 +23,6 @@ export default function DataMapel() {
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [nama, setNama] = useState('');
-    const [guruId, setGuruId] = useState(''); // State untuk pilihan guru pengampu
 
     const fetchMapel = () => {
         setLoading(true);
@@ -42,26 +39,14 @@ export default function DataMapel() {
             });
     };
 
-    const fetchGuru = () => {
-        api.get('/admin/guru')
-            .then((res) => {
-                if (res.data.status === 'SUCCESS') {
-                    setGuruList(res.data.data);
-                }
-            })
-            .catch((err) => console.error('Gagal memuat data guru:', err));
-    };
-
     useEffect(() => {
         fetchMapel();
-        fetchGuru();
     }, []);
 
     const handleOpenAdd = () => {
         setIsEdit(false);
         setSelectedId(null);
         setNama('');
-        setGuruId('');
         setShowModal(true);
     };
 
@@ -69,16 +54,12 @@ export default function DataMapel() {
         setIsEdit(true);
         setSelectedId(item.id);
         setNama(item.nama);
-        setGuruId(item.guruId ? String(item.guruId) : '');
         setShowModal(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const payload = {
-            nama,
-            guruId: guruId ? Number(guruId) : null
-        };
+        const payload = { nama };
 
         if (isEdit && selectedId !== null) {
             api.put(`/admin/mapel/${selectedId}`, payload)
@@ -107,7 +88,7 @@ export default function DataMapel() {
 
     const filteredMapel = mapelList.filter((m) =>
         m.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (m.guru?.nama && m.guru.nama.toLowerCase().includes(searchTerm.toLowerCase()))
+        m.pengampu.some(p => p.guru.nama?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
@@ -170,12 +151,11 @@ export default function DataMapel() {
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
                                     <td className="py-4 px-6">
-                                        {item.guru ? (
-                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
-                                                <GraduationCap size={14} /> {item.guru.nama}
+                                        {item.pengampu.length ? item.pengampu.map(p => (
+                                            <span key={p.id} className="m-0.5 inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
+                                                <GraduationCap size={14} /> {p.guru.nama} · {p.kelas?.namaKelas ?? 'Semua kelas tingkat ' + p.tingkat}
                                             </span>
-                                        ) : (
-                                            <span className="text-xs text-gray-400 italic">Belum ditentukan</span>
+                                        )) : (<span className="text-xs text-gray-400 italic">Belum ditentukan</span>
                                         )}
                                     </td>
                                     <td className="py-4 px-6 text-center">
@@ -223,21 +203,7 @@ export default function DataMapel() {
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Guru Pengampu</label>
-                                <select
-                                    value={guruId}
-                                    onChange={(e) => setGuruId(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm bg-white"
-                                >
-                                    <option value="">-- Pilih Guru Pengampu --</option>
-                                    {guruList.map((g) => (
-                                        <option key={g.id} value={g.id}>
-                                            {g.nama}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            <p className="text-xs text-slate-600">Atur guru pengampu beserta kelasnya melalui Data Guru.</p>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"

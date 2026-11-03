@@ -10,6 +10,7 @@ generator client {
 model Kelas {
   id        Int              @id @default(autoincrement())
   namaKelas String           @unique @map("nama_kelas")
+  tingkat   Int?
   users     User[]
   ujian     Ujian[]
   pengampu  GuruMapelKelas[]
@@ -21,6 +22,7 @@ model User {
   id       Int     @id @default(autoincrement())
   username String  @unique @db.VarChar(50)
   password String  @db.VarChar(255)
+  sesiLogin String? @map("sesi_login")
   role     String  @db.VarChar(20) // 'admin', 'guru', 'siswa'
   nama     String? @db.VarChar(100)
   kelasId  Int?    @map("kelas_id")
@@ -28,6 +30,10 @@ model User {
   kelas    Kelas?           @relation(fields: [kelasId], references: [id], onDelete: SetNull)
   pengampu GuruMapelKelas[]
   jawaban  JawabanSiswa[]
+  ujianDibuat Ujian[]
+  notifikasi NotifikasiUjian[]
+  pesertaSusulan PesertaSusulan[]
+  pengerjaan PengerjaanUjian[]
 
   @@map("users")
 }
@@ -45,11 +51,12 @@ model GuruMapelKelas {
   id      Int @id @default(autoincrement())
   guruId  Int @map("guru_id")
   mapelId Int @map("mapel_id")
-  kelasId Int @map("kelas_id")
+  kelasId Int? @map("kelas_id")
+  tingkat Int?
 
   guru  User  @relation(fields: [guruId], references: [id], onDelete: Cascade)
   mapel Mapel @relation(fields: [mapelId], references: [id], onDelete: Cascade)
-  kelas Kelas @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  kelas Kelas? @relation(fields: [kelasId], references: [id], onDelete: Cascade)
 
   @@map("guru_mapel_kelas")
 }
@@ -62,11 +69,24 @@ model Ujian {
   waktuMulai   DateTime @map("waktu_mulai")
   waktuSelesai DateTime @map("waktu_selesai")
   durasiMenit  Int      @default(60) @map("durasi_menit")
+  guruId       Int?     @map("guru_id")
+  draf         Boolean  @default(false)
+  token        String?  @db.VarChar(6)
+  masukBuka    Boolean  @default(true) @map("masuk_buka")
+  poinKhusus   Json?    @map("poin_khusus")
+  hasilRilis   Boolean  @default(false) @map("hasil_rilis")
+  bahasanRilis Boolean  @default(false) @map("bahasan_rilis")
+  revisiNilai  Int      @default(0) @map("revisi_nilai")
+  kegiatan     KegiatanUjian[]
+  notifikasi   NotifikasiUjian[]
+  guru         User?    @relation(fields: [guruId], references: [id], onDelete: SetNull)
 
   mapel   Mapel          @relation(fields: [mapelId], references: [id], onDelete: Cascade)
   kelas   Kelas          @relation(fields: [kelasId], references: [id], onDelete: Cascade)
   soal    Soal[]
   jawaban JawabanSiswa[]
+  susulan SesiSusulan[]
+  pengerjaan PengerjaanUjian[]
 
   @@map("ujian")
 }
@@ -76,9 +96,12 @@ model Soal {
   ujianId      Int     @map("ujian_id")
   tipeSoal     String  @db.VarChar(20) // 'pg' atau 'essay'
   pertanyaan   String  @db.Text
+  isi          Json?
   pilihanOpsi  Json?   @map("pilihan_opsi")
   kunciJawaban String? @map("kunci_jawaban") @db.VarChar(10)
-  bobot        Decimal @default(1.0) @db.Decimal(5, 2)
+  bobot        Decimal @default(1.0) @db.Decimal(7, 4)
+  dibatalkan   Boolean @default(false)
+  semuaBenar   Boolean @default(false) @map("semua_benar")
 
   ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
 
@@ -90,6 +113,8 @@ model JawabanSiswa {
   siswaId       Int      @map("siswa_id")
   ujianId       Int      @map("ujian_id")
   detailJawaban Json?    @map("detail_jawaban")
+  koreksiEssay  Json?    @map("koreksi_essay")
+  rincianNilai  Json?    @map("rincian_nilai")
   nilaiPg       Decimal  @default(0) @map("nilai_pg") @db.Decimal(5, 2)
   nilaiEssay    Decimal  @default(0) @map("nilai_essay") @db.Decimal(5, 2)
   totalNilai    Decimal  @default(0) @map("total_nilai") @db.Decimal(5, 2)
@@ -99,4 +124,97 @@ model JawabanSiswa {
   ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
 
   @@map("jawaban_siswa")
+}
+
+model SesiSusulan {
+  id           Int      @id @default(autoincrement())
+  ujianId      Int      @map("ujian_id")
+  waktuMulai   DateTime @map("waktu_mulai")
+  waktuSelesai DateTime @map("waktu_selesai")
+
+  token        String? @db.VarChar(6)
+  masukBuka    Boolean @default(true) @map("masuk_buka")
+
+  ujian      Ujian              @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  peserta    PesertaSusulan[]
+  pengerjaan PengerjaanUjian[]
+
+  @@unique([id, ujianId])
+  @@index([ujianId])
+  @@map("sesi_susulan")
+}
+
+model PesertaSusulan {
+  sesiId  Int @map("sesi_id")
+  siswaId Int @map("siswa_id")
+
+  sesi  SesiSusulan @relation(fields: [sesiId], references: [id], onDelete: Cascade)
+  siswa User        @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+
+  @@id([sesiId, siswaId])
+  @@map("peserta_susulan")
+}
+
+model PengerjaanUjian {
+  id             Int       @id @default(autoincrement())
+  ujianId        Int       @map("ujian_id")
+  siswaId        Int       @map("siswa_id")
+  sesiSusulanId  Int?      @map("sesi_susulan_id")
+  mulai          DateTime  @default(now())
+  batasWaktu     DateTime  @map("batas_waktu")
+  waktuKirim     DateTime? @map("waktu_kirim")
+  versiJawaban Int @default(0) @map("versi_jawaban")
+  jawabanTersimpan Json?   @map("jawaban_tersimpan")
+  kirimanOffline   Json?   @map("kiriman_offline")
+  diterimaOffline  DateTime? @map("diterima_offline")
+
+  ujian       Ujian        @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  siswa       User         @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  sesiSusulan SesiSusulan? @relation(fields: [sesiSusulanId, ujianId], references: [id, ujianId], onDelete: Cascade)
+
+  @@unique([ujianId, siswaId])
+  @@index([sesiSusulanId])
+  @@map("pengerjaan_ujian")
+}
+
+model KegiatanUjian {
+  id       Int      @id @default(autoincrement())
+  ujianId  Int      @map("ujian_id")
+  pelakuId Int      @map("pelaku_id")
+  jenis    String
+  alasan   String?
+  status   String   @default("selesai")
+  data     Json?
+  waktu    DateTime @default(now())
+
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+
+  @@index([ujianId, id])
+  @@index([status, id])
+  @@map("kegiatan_ujian")
+}
+
+model NotifikasiUjian {
+  id      Int      @id @default(autoincrement())
+  ujianId Int      @map("ujian_id")
+  siswaId Int      @map("siswa_id")
+  jenis   String
+  waktu   DateTime @default(now())
+  dibaca  Boolean  @default(false)
+
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  siswa User  @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+
+  @@index([siswaId, dibaca])
+  @@map("notifikasi_ujian")
+}
+
+model PercobaanToken {
+  siswaId Int @map("siswa_id")
+  ujianId Int @map("ujian_id")
+  salah Int @default(0)
+  tungguSampai DateTime? @map("tunggu_sampai")
+
+  @@id([siswaId, ujianId])
+  @@map("percobaan_token")
 }

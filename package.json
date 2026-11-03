@@ -4,10 +4,16 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "dev": "concurrently -k -n backend,frontend \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build --workspaces",
+    "db:generate": "npm run db:generate -w backend",
+    "db:push": "npm run db:push -w backend",
+    "db:seed": "npm run db:seed -w backend"
   },
+  "workspaces": ["backend", "frontend"],
   "dependencies": {},
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "typescript": "^5.5.3"
   },
   "private": true

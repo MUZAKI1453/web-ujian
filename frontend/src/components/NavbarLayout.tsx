@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck } from 'lucide-react';
 
+const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
+export type ViewRole = keyof typeof viewLabels;
+
 interface NavbarLayoutProps {
     user: {
         nama: string;
@@ -8,12 +11,14 @@ interface NavbarLayoutProps {
         username?: string;
     };
     onLogout: () => void;
+    viewRole: string;
+    onViewRoleChange?: (role: ViewRole) => void;
     activePage: string;
     onNavigate: (page: string) => void;
     children: React.ReactNode;
 }
 
-export default function NavbarLayout({ user, onLogout, activePage, onNavigate, children }: NavbarLayoutProps) {
+export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogout, activePage, onNavigate, children }: NavbarLayoutProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [dropdownMasterOpen, setDropdownMasterOpen] = useState(false);
     const [dropdownProfileOpen, setDropdownProfileOpen] = useState(false);
@@ -46,6 +51,25 @@ export default function NavbarLayout({ user, onLogout, activePage, onNavigate, c
 
     // Cek apakah halaman aktif berada di dalam ruang lingkup Data Master
     const isMasterActive = ['kelas', 'siswa', 'guru', 'mapel'].includes(activePage);
+    const viewSelector = onViewRoleChange && (
+        <label className="block px-4 py-2 text-xs font-semibold">
+            Tampilan peran
+            <select
+                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+                value={viewRole}
+                onChange={(event) => {
+                    onViewRoleChange(event.currentTarget.value as ViewRole);
+                    setDropdownProfileOpen(false);
+                    setMobileMenuOpen(false);
+                    setMobileMasterOpen(false);
+                }}
+            >
+                {Object.entries(viewLabels).map(([role, label]) => (
+                    <option key={role} value={role}>{label}</option>
+                ))}
+            </select>
+        </label>
+    );
 
     return (
         <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
@@ -71,7 +95,7 @@ export default function NavbarLayout({ user, onLogout, activePage, onNavigate, c
 
                         {/* TENGAH: Menu Navigasi Desktop */}
                         <div className="hidden md:flex items-center space-x-1">
-                            {user.role === 'admin' && (
+                            {viewRole === 'admin' && (
                                 <>
                                     <button
                                         onClick={() => handleMenuClick('dashboard')}
@@ -119,13 +143,14 @@ export default function NavbarLayout({ user, onLogout, activePage, onNavigate, c
                                     {user.nama ? user.nama.charAt(0).toUpperCase() : 'A'}
                                 </div>
                                 <span className="text-sm font-semibold text-white">
-                                    {user.role === 'admin' ? 'Admin' : user.nama}
+                                    {user.role === 'admin' ? viewLabels[viewRole as ViewRole] : user.nama}
                                 </span>
                                 <ChevronDown size={14} className={`text-white/80 transition-transform duration-200 ${dropdownProfileOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {dropdownProfileOpen && (
                                 <div className="absolute right-0 top-14 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                    {viewSelector}
                                     <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
                                         <Key size={16} className="text-slate-400" /> Ganti Password
                                     </button>
@@ -162,12 +187,12 @@ export default function NavbarLayout({ user, onLogout, activePage, onNavigate, c
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold leading-tight">{user.role === 'admin' ? 'Admin' : user.nama}</p>
-                                    <p className="text-[11px] text-blue-200 uppercase tracking-wider">{user.role}</p>
+                                    <p className="text-[11px] text-blue-200 uppercase tracking-wider">{viewRole}</p>
                                 </div>
                             </div>
                         </div>
 
-                        {user.role === 'admin' && (
+                        {viewRole === 'admin' && (
                             <div className="space-y-1">
                                 <button onClick={() => handleMenuClick('dashboard')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-white/10 transition">
                                     <Layers size={18} /> Dashboard
@@ -201,6 +226,7 @@ export default function NavbarLayout({ user, onLogout, activePage, onNavigate, c
                         )}
 
                         <div className="border-t border-blue-700/60 pt-3 mt-3 space-y-1">
+                            {viewSelector}
                             <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium text-blue-100 hover:bg-white/10 transition">
                                 <Key size={18} className="text-blue-300" /> Ganti Password
                             </button>

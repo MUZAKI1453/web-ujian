@@ -1,3 +1,4 @@
+import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
@@ -5,6 +6,7 @@ import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
 interface Kelas {
     id: number;
     namaKelas: string;
+    tingkat: number | null;
     _count?: {
         users: number;
     };
@@ -20,6 +22,7 @@ export default function DataKelas() {
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [namaKelas, setNamaKelas] = useState('');
+    const [tingkat, setTingkat] = useState('');
 
     const fetchKelas = () => {
         setLoading(true);
@@ -44,6 +47,7 @@ export default function DataKelas() {
         setIsEdit(false);
         setSelectedId(null);
         setNamaKelas('');
+        setTingkat('');
         setShowModal(true);
     };
 
@@ -51,26 +55,29 @@ export default function DataKelas() {
         setIsEdit(true);
         setSelectedId(item.id);
         setNamaKelas(item.namaKelas);
+        setTingkat(item.tingkat && schoolGrades.includes(item.tingkat) ? String(item.tingkat) : '');
         setShowModal(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isEdit && selectedId !== null) {
-            api.put(`/admin/kelas/${selectedId}`, { namaKelas })
+            api.put(`/admin/kelas/${selectedId}`, { namaKelas, tingkat: Number(tingkat) })
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
+
                     fetchKelas();
                 })
                 .catch((err) => {
                     alert(err.response?.data?.message || 'Gagal memperbarui kelas');
                 });
         } else {
-            api.post('/admin/kelas', { namaKelas })
+            api.post('/admin/kelas', { namaKelas, tingkat: Number(tingkat) })
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
+
                     fetchKelas();
                 })
                 .catch((err) => {
@@ -152,7 +159,9 @@ export default function DataKelas() {
                             filteredKelas.map((item, index) => (
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
-                                    <td className="py-4 px-6 font-bold text-gray-800">{item.namaKelas}</td>
+                                    <td className="py-4 px-6 font-bold text-gray-800">{item.namaKelas}
+                                        <span className="block text-xs font-normal text-slate-500">{item.tingkat && schoolGrades.includes(item.tingkat) ? 'Tingkat ' + item.tingkat : 'Pilih tingkat 1–3'}</span>
+                                    </td>
                                     <td className="py-4 px-6">
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
                                             <Users size={14} /> {item._count?.users ?? 0} Siswa
@@ -197,12 +206,21 @@ export default function DataKelas() {
                                 <input
                                     type="text"
                                     required
-                                    placeholder="Contoh: VII-A, 12 IPA - 1"
+                                    placeholder="Contoh: 10A"
                                     value={namaKelas}
                                     onChange={(e) => setNamaKelas(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
                                 />
                             </div>
+                            <label className="block text-xs font-bold uppercase text-gray-500">
+                                Tingkat
+                                <select required value={tingkat} onChange={e => setTingkat(e.target.value)}
+                                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm normal-case">
+                                    <option value="">Pilih tingkat</option>
+                                    {schoolGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
+                                </select>
+                            </label>
+                            <p className="text-xs text-slate-600">Buat satu entri untuk setiap kelas. Kelas pada tingkat yang sama otomatis tercakup dalam penugasan guru per tingkat.</p>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"

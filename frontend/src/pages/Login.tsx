@@ -5,11 +5,12 @@ import { Lock, User } from 'lucide-react';
 export default function Login({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [error, setError] = useState(() => sessionStorage.getItem('loginNotice') || '');
     const [loading, setLoading] = useState(false);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        sessionStorage.removeItem('loginNotice');
         setError('');
         setLoading(true);
 

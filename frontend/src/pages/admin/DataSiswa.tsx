@@ -1,5 +1,7 @@
+import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
+import { downloadImportTemplate } from '../../services/downloadImportTemplate';
 import { Users, Plus, Edit3, Trash2, Search, UploadCloud, School, ChevronDown, Download, FileText, CheckCircle2 } from 'lucide-react';
 
 interface Kelas {
@@ -22,6 +24,8 @@ export default function DataSiswa() {
     const [selectedKelasFilter, setSelectedKelasFilter] = useState('');
 
     // State Modal Form (Tambah / Edit)
+    const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -103,29 +107,6 @@ export default function DataSiswa() {
         }
     };
 
-    const handleDelete = (id: number) => {
-        if (confirm('Yakin ingin menghapus data siswa ini?')) {
-            api.delete(`/admin/siswa/${id}`)
-                .then(() => fetchData())
-                .catch(() => alert('Gagal menghapus siswa'));
-        }
-    };
-
-    // Fungsi Download Template Excel dari Backend
-    const handleDownloadTemplate = () => {
-        api.get('/admin/siswa/template', { responseType: 'blob' })
-            .then((res) => {
-                const url = window.URL.createObjectURL(new Blob([res.data]));
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', 'Template_Import_Siswa.xlsx');
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-            })
-            .catch(() => alert('Gagal mendownload template Excel!'));
-    };
-
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!fileExcel) {
@@ -158,6 +139,10 @@ export default function DataSiswa() {
 
         return matchesSearch && matchesKelas;
     });
+
+    const visibleIds = filteredSiswa.map(item => item.id);
+    const visibleSelected = visibleIds.filter(id => selectedIds.includes(id));
+    const allSelected = visibleIds.length > 0 && visibleSelected.length === visibleIds.length;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -223,7 +208,21 @@ export default function DataSiswa() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
+                        <tr>
+                            <td colSpan={6} className="px-6 py-3">
+                                <button type="button" disabled={!visibleSelected.length}
+                                    onClick={() => setDeleteIds(visibleSelected)}
+                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                    Hapus terpilih ({visibleSelected.length})
+                                </button>
+                            </td>
+                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                            <th className="pl-6">
+                                <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
+                                    checked={allSelected} disabled={!visibleIds.length}
+                                    onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
+                            </th>
                             <th className="py-4 px-6">No</th>
                             <th className="py-4 px-6">NIS / Username</th>
                             <th className="py-4 px-6">Nama Lengkap Siswa</th>
@@ -234,15 +233,23 @@ export default function DataSiswa() {
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400 animate-pulse">Memuat data siswa...</td>
+                                <td colSpan={6} className="text-center py-12 text-gray-400 animate-pulse">Memuat data siswa...</td>
                             </tr>
                         ) : filteredSiswa.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400">Belum ada data siswa ditemukan.</td>
+                                <td colSpan={6} className="text-center py-12 text-gray-400">Belum ada data siswa ditemukan.</td>
                             </tr>
                         ) : (
                             filteredSiswa.map((item, index) => (
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="pl-6">
+                                        <input type="checkbox" aria-label={'Pilih ' + item.nama}
+                                            checked={selectedIds.includes(item.id)}
+                                            onChange={event => {
+                                                const checked = event.target.checked;
+                                                setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
+                                            }} />
+                                    </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-mono font-semibold text-gray-600">{item.username}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
@@ -265,7 +272,7 @@ export default function DataSiswa() {
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(item.id)}
+                                                onClick={() => setDeleteIds([item.id])}
                                                 className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                                                 title="Hapus Siswa"
                                             >
@@ -282,6 +289,9 @@ export default function DataSiswa() {
             </div>
 
             {/* Modal Tambah / Edit Siswa */}
+            {deleteIds.length > 0 && (
+                <DeleteAccountDialog role="siswa" ids={deleteIds} onClose={() => setDeleteIds([])} onDeleted={() => { setSelectedIds([]); fetchData(); }} />
+            )}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
@@ -372,8 +382,8 @@ export default function DataSiswa() {
                             </p>
                             <ul className="list-disc pl-5 space-y-1 text-gray-600">
                                 <li className="font-medium text-emerald-950">Download file template Excel resmi terlebih dahulu melalui tombol di bawah.</li>
-                                <li>Pastikan kolom file Excel memiliki header kolom: <b>NIS</b> dan <b>Nama</b>.</li>
-                                <li>Pastikan nomor NIS berupa angka (numerik) dan belum terdaftar di sistem.</li>
+                                <li>Pertahankan judul kolom di baris 11. Ganti contoh dengan NIS, nama lengkap, dan nama kelas mulai baris 12.</li>
+                                <li>Isi NIS sebagai teks agar nol di depan tetap tersimpan. Gunakan nama kelas yang sudah terdaftar.</li>
                             </ul>
                         </div>
 
@@ -381,10 +391,10 @@ export default function DataSiswa() {
                         <div>
                             <button
                                 type="button"
-                                onClick={handleDownloadTemplate}
+                                onClick={() => void downloadImportTemplate('siswa')}
                                 className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-semibold py-3 px-4 rounded-2xl text-sm transition border border-slate-200/80 shadow-xs"
                             >
-                                <Download size={16} className="text-blue-600" /> Download Contoh Template Excel
+                                <Download size={16} className="text-blue-600" /> Unduh Template Siswa
                             </button>
                         </div>
 
