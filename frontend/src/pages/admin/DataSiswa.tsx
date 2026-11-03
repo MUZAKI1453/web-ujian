@@ -134,7 +134,8 @@ export default function DataSiswa() {
         }
 
         const formData = new FormData();
-        formData.append('file_excel', fileExcel);
+        // DISINKRONKAN MENJADI 'file' AGAR COCOK DENGAN BACKEND MULTER (.single('file'))
+        formData.append('file', fileExcel);
 
         api.post('/admin/siswa/import', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }

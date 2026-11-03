@@ -12,6 +12,7 @@ import {
     updateSiswa,
     deleteSiswa,
     downloadTemplateSiswa,
+    importSiswa,
 
     getGuru,
     createGuru,
@@ -41,8 +42,9 @@ router.post('/kelas', createKelas);
 router.put('/kelas/:id', updateKelas);
 router.delete('/kelas/:id', deleteKelas);
 
-// Siswa (CRUD Manual & Template)
-router.get('/siswa/template', downloadTemplateSiswa); 
+// Siswa (CRUD Manual, Template & Import Excel)
+router.get('/siswa/template', downloadTemplateSiswa);
+router.post('/siswa/import', uploadExcel.single('file'), importSiswa);
 router.get('/siswa', getSiswa);
 router.post('/siswa', createSiswa);
 router.put('/siswa/:id', updateSiswa);

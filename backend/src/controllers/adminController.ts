@@ -363,6 +363,109 @@ export const downloadTemplateSiswa = async (req: Request, res: Response) => {
     }
 };
 
+// ==================== Import Data Siswa Via Excel (FIXED) ====================
+export const importSiswa = async (req: Request, res: Response) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ status: 'ERROR', message: 'File Excel tidak ditemukan!' });
+        }
+
+        // 1. Baca file Excel dari buffer Multer
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // 2. Parse data matriks mentah (tanpa header otomatis agar akurat)
+        // range: 10 artinya membaca mulai dari baris ke-11 (Header tabel kita)
+        const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, range: 10 });
+
+        if (!rawRows || rawRows.length <= 1) {
+            return res.status(400).json({ status: 'ERROR', message: 'File Excel kosong atau tidak berisi data siswa!' });
+        }
+
+        // Cari indeks kolom berdasarkan nama header di Baris 11
+        // Struktur: [Margin(A), No(B), NIS(C), Nama(D), Kelas(E)]
+        const headerRow = rawRows[0].map((h: any) => String(h || '').trim());
+
+        const nisIdx = headerRow.findIndex(h => h.includes('NIS'));
+        const namaIdx = headerRow.findIndex(h => h.includes('Nama Lengkap'));
+        const kelasIdx = headerRow.findIndex(h => h.includes('Nama Kelas'));
+
+        if (nisIdx === -1 || namaIdx === -1 || kelasIdx === -1) {
+            return res.status(400).json({
+                status: 'ERROR',
+                message: 'Format header tabel Excel tidak valid. Pastikan header memuat NIS, Nama Lengkap, dan Nama Kelas!'
+            });
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        const dataRows = rawRows.slice(1); // Baris data siswa setelah header
+
+        for (const row of dataRows) {
+            if (!row || row.length === 0) continue;
+
+            const nis = String(row[nisIdx] || '').trim();
+            const nama = String(row[namaIdx] || '').trim();
+            const namaKelas = String(row[kelasIdx] || '').trim();
+
+            // Lewati jika baris kosong
+            if (!nis || !nama || !namaKelas) {
+                continue;
+            }
+
+            // Validasi NIS harus berupa angka (numerik) saja
+            if (!/^\d+$/.test(nis)) {
+                failCount++;
+                continue;
+            }
+
+            // Cari Kelas di DB menggunakan findFirst (Aman jika namaKelas bukan @unique)
+            const kelasRecord = await prisma.kelas.findFirst({
+                where: { namaKelas: { equals: namaKelas, mode: 'insensitive' } }
+            });
+
+            if (!kelasRecord) {
+                console.warn(`[IMPORT FAILED] Kelas "${namaKelas}" tidak ditemukan di database.`);
+                failCount++;
+                continue;
+            }
+
+            // Cek apakah NIS / Username sudah terdaftar
+            const existingUser = await prisma.user.findUnique({ where: { username: nis } });
+            if (existingUser) {
+                failCount++;
+                continue;
+            }
+
+            // Hash password default = NIS
+            const hashedPassword = await bcrypt.hash(nis, 10);
+
+            // Simpan siswa baru ke database
+            await prisma.user.create({
+                data: {
+                    username: nis,
+                    password: hashedPassword,
+                    role: 'siswa',
+                    nama: nama,
+                    kelasId: kelasRecord.id
+                }
+            });
+
+            successCount++;
+        }
+
+        return res.json({
+            status: 'SUCCESS',
+            message: `Import selesai! Berhasil: ${successCount} siswa, Gagal/Dilewati: ${failCount} baris.`
+        });
+
+    } catch (error: any) {
+        console.error('[IMPORT ERROR]:', error);
+        return res.status(500).json({ status: 'ERROR', message: `Gagal mengimport file Excel: ${error.message}` });
+    }
+};
+
 // ==================== KELOLA DATA GURU (CRUD + PENUGASAN) ====================
 export const getGuru = async (req: Request, res: Response) => {
     try {
