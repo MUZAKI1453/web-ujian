@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Users, Plus, Edit3, Trash2, Search, UploadCloud, School, ChevronDown } from 'lucide-react';
+import { Users, Plus, Edit3, Trash2, Search, UploadCloud, School, ChevronDown, Download, FileText, CheckCircle2 } from 'lucide-react';
 
 interface Kelas {
     id: number;
@@ -19,13 +19,13 @@ export default function DataSiswa() {
     const [kelasList, setKelasList] = useState<Kelas[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedKelasFilter, setSelectedKelasFilter] = useState(''); // State untuk filter kelas
+    const [selectedKelasFilter, setSelectedKelasFilter] = useState('');
 
     // State Modal Form (Tambah / Edit)
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const [username, setUsername] = useState(''); // NIS (Angka saja)
+    const [username, setUsername] = useState('');
     const [nama, setNama] = useState('');
     const [kelasId, setKelasId] = useState('');
 
@@ -111,6 +111,21 @@ export default function DataSiswa() {
         }
     };
 
+    // Fungsi Download Template Excel dari Backend
+    const handleDownloadTemplate = () => {
+        api.get('/admin/siswa/template', { responseType: 'blob' })
+            .then((res) => {
+                const url = window.URL.createObjectURL(new Blob([res.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', 'Template_Import_Siswa.xlsx');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            })
+            .catch(() => alert('Gagal mendownload template Excel!'));
+    };
+
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!fileExcel) {
@@ -133,7 +148,6 @@ export default function DataSiswa() {
             .catch((err) => alert(err.response?.data?.message || 'Gagal mengimport file Excel'));
     };
 
-    // Logika Filter & Pencarian
     const filteredSiswa = siswaList.filter((s) => {
         const matchesSearch =
             s.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -157,10 +171,7 @@ export default function DataSiswa() {
                     </p>
                 </div>
 
-                {/* Kontrol Pencarian Terpadu (Search + Filter Kelas) & Tombol Aksi */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-
-                    {/* Kotak Gabungan Search & Filter Kelas */}
                     <div className="flex items-center w-full sm:w-80 bg-slate-50 hover:bg-slate-100/65 focus-within:bg-white focus-within:border-blue-600 border border-gray-200 rounded-2xl transition overflow-hidden">
                         <div className="flex items-center pl-3.5 text-gray-400 shrink-0">
                             <Search size={18} />
@@ -189,19 +200,18 @@ export default function DataSiswa() {
                         </div>
                     </div>
 
-                    {/* Tombol Aksi dengan ukuran tetap (Fixed Size & Shrink-0) */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowImportModal(true)}
-                            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5 text-sm"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-emerald-600/25 transition-all hover:-translate-y-0.5 text-sm shrink-0 h-[42px]"
                         >
-                            <UploadCloud size={18} /> Import
+                            <UploadCloud size={18} /> <span>Import</span>
                         </button>
                         <button
                             onClick={handleOpenAdd}
-                            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5 text-sm"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-blue-600/25 transition-all hover:-translate-y-0.5 text-sm shrink-0 h-[42px]"
                         >
-                            <Plus size={18} /> Tambah Siswa
+                            <Plus size={18} /> <span>Tambah Siswa</span>
                         </button>
                     </div>
                 </div>
@@ -338,23 +348,57 @@ export default function DataSiswa() {
                 </div>
             )}
 
-            {/* Modal Import Excel Siswa */}
+            {/* Modal Import Excel Siswa dengan Panduan & Tombol Download Template */}
             {showImportModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800">Import Data Siswa via Excel</h3>
-                        <form onSubmit={handleImportSubmit} className="space-y-4">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-5">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <FileText className="text-emerald-600" size={22} /> Import Data Siswa via Excel
+                            </h3>
+                            <button
+                                onClick={() => setShowImportModal(false)}
+                                className="text-gray-400 hover:text-gray-600 font-bold text-sm"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Kotak Panduan Ringkas */}
+                        <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl space-y-2 text-xs text-emerald-900">
+                            <p className="font-bold flex items-center gap-1.5 text-emerald-800 text-sm">
+                                <CheckCircle2 size={16} className="text-emerald-600" /> Panduan Singkat Import:
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                                <li className="font-medium text-emerald-950">Download file template Excel resmi terlebih dahulu melalui tombol di bawah.</li>
+                                <li>Pastikan kolom file Excel memiliki header kolom: <b>NIS</b> dan <b>Nama</b>.</li>
+                                <li>Pastikan nomor NIS berupa angka (numerik) dan belum terdaftar di sistem.</li>
+                            </ul>
+                        </div>
+
+                        {/* Tombol Download Template */}
+                        <div>
+                            <button
+                                type="button"
+                                onClick={handleDownloadTemplate}
+                                className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-semibold py-3 px-4 rounded-2xl text-sm transition border border-slate-200/80 shadow-xs"
+                            >
+                                <Download size={16} className="text-blue-600" /> Download Contoh Template Excel
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleImportSubmit} className="space-y-4 pt-2 border-t border-gray-100">
                             <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Pilih File Excel (.xlsx / .xls)</label>
+                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1.5">Pilih File Excel yang Diisi (.xlsx / .xls)</label>
                                 <input
                                     type="file"
                                     accept=".xlsx, .xls"
                                     required
                                     onChange={(e) => setFileExcel(e.target.files ? e.target.files[0] : null)}
-                                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                                    className="w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
                                 />
-                                <p className="text-xs text-gray-400 mt-1.5">Format kolom Excel harus memiliki header: <b>NIS</b> dan <b>Nama</b>.</p>
                             </div>
+
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
@@ -367,7 +411,7 @@ export default function DataSiswa() {
                                     type="submit"
                                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-md transition"
                                 >
-                                    Mulai Import
+                                    Mulai Import Data
                                 </button>
                             </div>
                         </form>

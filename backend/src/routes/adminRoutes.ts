@@ -11,6 +11,7 @@ import {
     createSiswa,
     updateSiswa,
     deleteSiswa,
+    downloadTemplateSiswa,
 
     getGuru,
     createGuru,
@@ -22,13 +23,12 @@ import {
     updateMapel,
     deleteMapel,
 
-    // Tambahkan impor fungsi penugasan di sini
     getGuruMapelKelas,
     assignGuruMapelKelas,
     deleteGuruMapelKelas
 
 } from '../controllers/adminController';
-import { uploadExcel } from '../middleware/upload'; // Jika diperlukan untuk fitur import
+import { uploadExcel } from '../middleware/upload';
 
 const router = Router();
 
@@ -41,7 +41,8 @@ router.post('/kelas', createKelas);
 router.put('/kelas/:id', updateKelas);
 router.delete('/kelas/:id', deleteKelas);
 
-// Siswa (CRUD Manual)
+// Siswa (CRUD Manual & Template)
+router.get('/siswa/template', downloadTemplateSiswa); 
 router.get('/siswa', getSiswa);
 router.post('/siswa', createSiswa);
 router.put('/siswa/:id', updateSiswa);
