@@ -1,3 +1,4 @@
+import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import React, { useEffect, useState } from 'react';
@@ -346,8 +347,8 @@ export default function DataGuru() {
 
             {/* Modal Tambah / Edit Guru & Penugasan Dinamis */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200 overflow-y-auto">
-                    <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+                <ModalOverlay>
+                    <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                         <h3 className="text-lg font-bold text-gray-800">
                             {isEdit ? 'Edit Data Guru & Penugasan' : 'Tambah Guru & Penugasan Baru'}
                         </h3>
@@ -453,12 +454,12 @@ export default function DataGuru() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </ModalOverlay>
             )}
 
             {/* Modal Import Excel Guru */}
             {showImportModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+                <ModalOverlay>
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                         <h3 className="text-lg font-bold text-gray-800">Import Data Guru via Excel</h3>
                         <p className="text-sm text-slate-600">Pertahankan judul kolom di baris 11. Ganti contoh dengan NIP dan nama lengkap guru mulai baris 12. Tulis NIP sebagai teks agar nol di depan tetap tersimpan.</p>
@@ -497,7 +498,7 @@ export default function DataGuru() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </ModalOverlay>
             )}
         </div>
     );

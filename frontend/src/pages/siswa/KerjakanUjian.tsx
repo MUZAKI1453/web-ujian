@@ -13,8 +13,8 @@ function answerState(q: Question, value: Value | undefined) {
     return 'Terjawab';
 }
 
-export default function KerjakanUjian({ initial, storageKey, examId, title, preview, onExit }: {
-    initial: LocalAttempt; storageKey: string; examId: number; title: string; preview: boolean; onExit: () => void;
+export default function KerjakanUjian({ initial, storageKey, examId, title, onExit }: {
+    initial: LocalAttempt; storageKey: string; examId: number; title: string; onExit: () => void;
 }) {
     const [attempt, setAttempt] = useState(initial);
     const [time, setTime] = useState(Date.now());
@@ -29,16 +29,15 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, prev
     const stopped = useRef(false);
     const main = useRef<HTMLElement>(null);
     const remain = Math.max(0, Math.ceil((attempt.deadline - time - attempt.offset) / 1000));
-    const locked = !preview && (!remain || attempt.send);
+    const locked = !remain || attempt.send;
 
     function update(value: LocalAttempt) {
         current.current = value;
         setAttempt(value);
-        if (!preview) void storeAttempt(storageKey, value).catch(() => setStorageFailed(true));
+        void storeAttempt(storageKey, value).catch(() => setStorageFailed(true));
     }
 
     useEffect(() => {
-        if (preview) return;
         let active = true;
         async function sync() {
             if (!active || stopped.current || sending.current) return;
@@ -98,7 +97,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, prev
             window.removeEventListener('offline', onOffline);
             document.removeEventListener('visibilitychange', visibility);
         };
-    }, [examId, preview, storageKey]);
+    }, [examId, storageKey]);
 
     const question = attempt.soal[attempt.index];
     function go(index: number) {
@@ -136,21 +135,20 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, prev
         <header className="shrink-0 bg-blue-700 px-4 py-3 text-white">
             <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
                 <div className="min-w-0"><h1 className="truncate font-bold">{title}</h1>
-                    <p className="text-xs text-blue-100">{preview ? 'Pratinjau Admin' : 'Soal ' + (attempt.index + 1) + ' / ' + attempt.soal.length}</p></div>
+                    <p className="text-xs text-blue-100">{'Soal ' + (attempt.index + 1) + ' / ' + attempt.soal.length}</p></div>
                 <div className="shrink-0 text-right text-sm">
-                    {!preview && <><strong className="font-mono">{Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</strong>
-                    <p className={offline || attempt.versi > attempt.saved ? 'text-amber-200' : 'text-blue-100'}>{offline ? 'Offline' : saveState || 'Tersimpan'}</p></>}
-                    {preview && <button className="rounded border px-2 py-1" onClick={onExit}>Tutup</button>}
+                    <strong className="font-mono">{Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</strong>
+                    <p className={offline || attempt.versi > attempt.saved ? 'text-amber-200' : 'text-blue-100'}>{offline ? 'Offline' : saveState || 'Tersimpan'}</p>
                 </div>
             </div>
         </header>
-        {(offline || storageFailed || locked) && !preview && <div role="status" className="shrink-0 bg-amber-100 px-4 py-2 text-sm text-amber-950">
+        {(offline || storageFailed || locked) && <div role="status" className="shrink-0 bg-amber-100 px-4 py-2 text-sm text-amber-950">
             {storageFailed ? 'Penyimpanan di perangkat gagal. Tetap buka tab dan periksa koneksi.' : !remain
                 ? 'Waktu habis. Jawaban yang masih antre akan disinkronkan saat online.'
                 : offline ? 'Jawaban aman di HP. Jangan tutup tab, sinkronisasi dilanjutkan saat koneksi kembali.'
                 : 'Jawaban sedang dikirim.'}
         </div>}
-        {tabWarning && !preview && !locked && <div role="status" className="flex shrink-0 justify-between gap-2 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+        {tabWarning && !locked && <div role="status" className="flex shrink-0 justify-between gap-2 bg-amber-50 px-4 py-2 text-sm text-amber-950">
             <span>Tetap di halaman ujian. Timer terus berjalan saat Anda berpindah tab.</span>
             <button type="button" className="font-semibold" onClick={() => setTabWarning(false)}>Tutup</button>
         </div>}
@@ -203,7 +201,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, prev
                     disabled={locked || !question} onClick={toggleDoubt}>Ragu</button>
                 <button className={button} onClick={() => setSheet(true)}>Daftar soal</button>
                 {attempt.index < attempt.soal.length - 1 ? <button className={button} onClick={() => go(attempt.index + 1)}>Lanjut</button>
-                    : !preview && <button className={button + ' border-blue-700 text-blue-800'} disabled={locked} onClick={finish}>Kirim</button>}
+                    : <button className={button + ' border-blue-700 text-blue-800'} disabled={locked} onClick={finish}>Kirim</button>}
             </div>
         </footer>
         {sheet && <div className="absolute inset-0 z-10 flex items-end bg-slate-900/40">
@@ -217,7 +215,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, prev
                                 onClick={() => go(i)}>{i + 1}<span className="block text-xs">{status}</span></button>;
                         })}
                     </div>
-                    {!preview && <button className={button + ' mt-4'} disabled={locked} onClick={finish}>Kirim jawaban</button>}
+                    <button className={button + ' mt-4'} disabled={locked} onClick={finish}>Kirim jawaban</button>
                 </div>
             </section>
         </div>}

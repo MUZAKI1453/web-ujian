@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import api from '../../services/api';
 import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
@@ -6,16 +6,9 @@ import type { Question } from './QuestionEditor';
 export default function ImportSoal({ examId, onClose, onImport }: {
     examId: number; onClose: () => void; onImport: (questions: Question[]) => void;
 }) {
-    const dialog = useRef<HTMLDialogElement>(null);
     const [saving, setSaving] = useState(false);
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState('');
-
-    useEffect(() => {
-        const element = dialog.current;
-        element?.showModal();
-        return () => element?.close();
-    }, []);
 
     async function download() {
         setError('');
@@ -55,9 +48,7 @@ export default function ImportSoal({ examId, onClose, onImport }: {
     }
 
     return (
-        <dialog ref={dialog} aria-labelledby="import-soal-title"
-            onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-            className="w-[min(92vw,34rem)] rounded-2xl p-5 backdrop:bg-slate-900/60 sm:p-7">
+        <section aria-labelledby="import-soal-title" className="max-w-2xl rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
             <h2 id="import-soal-title" className="text-xl font-bold">Impor Soal Excel</h2>
             <p className="mt-2 text-sm text-slate-600">
                 Template memuat contoh PG, PM, BS, ISIAN, dan ESSAY. Ganti isinya dengan soal Anda.
@@ -77,6 +68,6 @@ export default function ImportSoal({ examId, onClose, onImport }: {
                     <button type="submit" disabled={saving} className={primaryClass}>{saving ? 'Mengimpor…' : 'Impor Soal'}</button>
                 </div>
             </form>
-        </dialog>
+        </section>
     );
 }

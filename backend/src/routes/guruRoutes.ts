@@ -77,19 +77,30 @@ router.get('/ujian', handle(async (_req, res, actor) => {
     const [pairs, exams] = await Promise.all([
         actor.role === 'guru' ? actor.pairs : assignments(actor),
         prisma.ujian.findMany({
-            where: examScope(actor), select: { ...examFields, _count: { select: { soal: true } } }, orderBy: { id: 'desc' }
+            where: examScope(actor),
+            select: { ...examFields, _count: { select: { soal: true } } },
+            orderBy: actor.role === 'admin' ? [{ waktuMulai: 'desc' }, { id: 'desc' }] : { id: 'desc' }
         })
     ]);
     res.json({ ujian: exams, penugasan: pairs });
 }));
 
-router.post('/ujian', handle(async (req, res, actor) => {
-    const { judul, mapelId, kelasId, waktuMulai, waktuSelesai, durasiMenit } = req.body;
+function parseExamSchedule(body: Record<string, unknown>) {
+    const { judul, waktuMulai, waktuSelesai, durasiMenit } = body;
     const mulai = new Date(typeof waktuMulai === 'string' ? waktuMulai : '');
     const selesai = new Date(typeof waktuSelesai === 'string' ? waktuSelesai : '');
     if (typeof judul !== 'string' || !judul.trim() || judul.trim().length > 150 ||
-        !validId(mapelId) || !validId(kelasId) || !validId(durasiMenit) ||
+        !validId(durasiMenit) ||
         !Number.isFinite(+mulai) || !Number.isFinite(+selesai) || +selesai - +mulai < durasiMenit * 60000) {
+        return null;
+    }
+    return { judul: judul.trim(), waktuMulai: mulai, waktuSelesai: selesai, durasiMenit };
+}
+
+router.post('/ujian', handle(async (req, res, actor) => {
+    const { mapelId, kelasId } = req.body;
+    const schedule = parseExamSchedule(req.body);
+    if (!schedule || !validId(mapelId) || !validId(kelasId)) {
         return res.status(400).json({ message: 'Lengkapi judul, penugasan, dan jadwal. Rentang jadwal harus cukup untuk durasi ujian.' });
     }
     const allowed = actor.role === 'admin'
@@ -99,7 +110,7 @@ router.post('/ujian', handle(async (req, res, actor) => {
         return res.status(403).json({ message: 'Mapel dan kelas ini di luar penugasan Anda.' });
     }
     const exam = await prisma.ujian.create({
-        data: { guruId: actor.id, judul: judul.trim(), mapelId, kelasId, waktuMulai: mulai, waktuSelesai: selesai, durasiMenit, draf: true },
+        data: { guruId: actor.id, ...schedule, mapelId, kelasId, draf: true },
         select: { ...examFields, _count: { select: { soal: true } } }
     });
     res.status(201).json(exam);
@@ -160,6 +171,64 @@ function parseQuestion(input: unknown) {
 
 router.get('/soal/template', handle(async (_req, res) => {
     res.attachment('template-soal.xlsx').send(await questionTemplate());
+}));
+
+router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
+    const id = Number(req.params.id);
+    if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
+    const { perubahan, soalAwal, hapus } = req.body ?? {};
+    const schedule = parseExamSchedule(req.body ?? {});
+    if (!schedule || !Array.isArray(perubahan) || perubahan.length > 500 ||
+        !Array.isArray(soalAwal) || !soalAwal.every(validId) || !Array.isArray(hapus) || !hapus.every(validId)) {
+        return res.status(400).json({ message: 'Periksa jadwal dan durasi ujian. Maksimal 500 soal baru atau diubah per simpan.' });
+    }
+
+    const existing = new Set<number>(soalAwal);
+    const edited = new Set<number>(hapus);
+    if (hapus.some(questionId => !existing.has(questionId))) return res.status(400).json({ message: 'Daftar soal tidak valid.' });
+    const updates: { id: number; data: NonNullable<ReturnType<typeof parseQuestion>> }[] = [];
+    const additions: Prisma.SoalCreateManyInput[] = [];
+    for (const change of perubahan) {
+        const data = parseQuestion(change?.soal);
+        if (!data) {
+            const label = validId(change?.nomor) ? 'Soal nomor ' + change.nomor : 'Soal';
+            return res.status(400).json({ message: label + ' belum lengkap. Periksa teks, opsi, kunci, atau poin.' });
+        }
+        if (change.id === null) {
+            additions.push({ ujianId: id, ...data });
+        } else {
+            if (!validId(change.id) || !existing.has(change.id) || edited.has(change.id)) {
+                return res.status(400).json({ message: 'Daftar soal tidak valid.' });
+            }
+            edited.add(change.id);
+            updates.push({ id: change.id, data });
+        }
+    }
+
+    const result = await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
+        const exam = await tx.ujian.findFirst({
+            where: { id, ...examScope(actor) },
+            select: { draf: true, soal: { select: { id: true } } }
+        });
+        if (!exam) return { status: 404, message: 'Ujian tidak ditemukan.' };
+        if (!exam.draf || exam.soal.length !== existing.size || exam.soal.some(question => !existing.has(question.id))) {
+            return { status: 409, message: 'Draf berubah atau sudah terbit. Buka ulang ujian sebelum menyimpan lagi.' };
+        }
+        if (hapus.length) await tx.soal.deleteMany({ where: { ujianId: id, id: { in: hapus } } });
+        for (const update of updates) {
+            await tx.soal.update({ where: { id: update.id }, data: update.data });
+        }
+        if (additions.length) await tx.soal.createMany({ data: additions });
+        const data = await tx.ujian.update({
+            where: { id }, data: schedule,
+            select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
+        });
+        return { status: 200, data };
+    }, { timeout: 20000 });
+
+    if (result.status !== 200) return res.status(result.status).json({ message: result.message });
+    res.json(result.data);
 }));
 
 router.post('/ujian/:id/soal/import', (req, res, next) => {

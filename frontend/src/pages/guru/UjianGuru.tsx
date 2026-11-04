@@ -1,9 +1,10 @@
 import { ArrowLeft, BookOpen, CalendarDays, ClipboardList, Eye, Laptop, Plus } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../services/api';
-import QuestionEditor, { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 import ImportSoal from './ImportSoal';
+import EditUjian from './EditUjian';
 import QuestionContent from './QuestionContent';
 import PublishExam, { specialPointTypes, type PointSettings } from './PublishExam';
 import ExamSessions from './ExamSessions';
@@ -20,7 +21,7 @@ interface Exam {
     draf: boolean;
 }
 type ExamRow = Exam & { _count: { soal: number } };
-type ExamDetail = Exam & { soal: Question[] };
+export type ExamDetail = Exam & { soal: Question[] };
 type Assignment = { mapel: { id: number; nama: string }; kelas: { id: number; namaKelas: string } };
 
 const questionGroups = [
@@ -51,7 +52,7 @@ export default function UjianGuru({ name }: { name: string }) {
     const [exams, setExams] = useState<ExamRow[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [exam, setExam] = useState<ExamDetail | null>(null);
-    const [editor, setEditor] = useState<{ question: Question | null } | null>(null);
+    const [editor, setEditor] = useState<{ focusId?: number } | null>(null);
     const [creating, setCreating] = useState(false);
     const [draftSchedule, setDraftSchedule] = useState(defaultSchedule);
     const [pointSettings, setPointSettings] = useState<PointSettings>({});
@@ -103,7 +104,7 @@ export default function UjianGuru({ name }: { name: string }) {
         }
     }
 
-    async function openExam(id: number) {
+    async function openExam(id: number, edit = false) {
         setBusy(true);
         setError('');
         try {
@@ -111,6 +112,7 @@ export default function UjianGuru({ name }: { name: string }) {
             setTab('soal');
             setPointSettings({});
             setExam(data);
+            if (edit && data.draf) setEditor({});
         } catch (err) {
             setError(errorMessage(err));
         } finally {
@@ -125,20 +127,26 @@ export default function UjianGuru({ name }: { name: string }) {
         setExam(current => current?.id === examId ? data : current);
     }, [examId]);
 
-    function saveQuestion(question: Question) {
-        if (!exam) return;
-        const soal = editor?.question
-            ? exam.soal.map(item => item.id === question.id ? question : item)
-            : [...exam.soal, question];
-        updateQuestions(soal);
-        setEditor(null);
-    }
-
     function updateQuestions(soal: Question[]) {
         if (!exam) return;
         setExam({ ...exam, soal });
         setExams(current => current.map(item => item.id === exam.id ? { ...item, _count: { soal: soal.length } } : item));
     }
+
+    if (exam && editor) return <EditUjian exam={exam} focusId={editor.focusId}
+        onCancel={() => setEditor(null)} onSave={updated => {
+            setExam(updated);
+            setExams(current => current.map(item => item.id === updated.id
+                ? { ...updated, _count: { soal: updated.soal.length } } : item));
+            setEditor(null);
+            setNotice('Perubahan ujian berhasil disimpan.');
+        }} />;
+
+    if (exam && importing) return <ImportSoal examId={exam.id} onClose={() => setImporting(false)} onImport={questions => {
+        updateQuestions([...exam.soal, ...questions]);
+        setNotice(questions.length + ' soal berhasil diimpor.');
+        setImporting(false);
+    }} />;
 
     const subjects = [...new Map(assignments.map(pair => [pair.mapel.id, pair.mapel])).values()];
     const formPairs = assignments.filter(pair => !subject || String(pair.mapel.id) === subject);
@@ -159,7 +167,7 @@ export default function UjianGuru({ name }: { name: string }) {
                         {exam.draf && <div className="flex flex-wrap gap-2">
                             <button type="button" className="rounded-xl border px-4 py-2 text-sm font-semibold text-blue-700"
                                 onClick={() => { setNotice(''); setImporting(true); }}>Impor Excel</button>
-                            <button type="button" className={primaryClass} onClick={() => setEditor({ question: null })}>Tambah Soal</button>
+                            <button type="button" className={primaryClass} onClick={() => setEditor({})}>Edit Ujian</button>
                         </div>}
                     </div>
                     {exam.draf && <PublishExam key={JSON.stringify([pointSettings, exam.soal.map(q => [q.id, q.bobot, q.tipeSoal])])}
@@ -175,7 +183,7 @@ export default function UjianGuru({ name }: { name: string }) {
                                 className={'rounded-lg px-3 py-2 text-sm font-semibold ' + (tab === key ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100')}>{label}</button>
                         ))}
                     </nav>}
-                    {tab === 'soal' && !exam.soal.length && <p className="text-sm text-slate-600">Belum ada soal. Pilih Tambah Soal untuk mulai.</p>}
+                    {tab === 'soal' && !exam.soal.length && <p className="text-sm text-slate-600">Belum ada soal. Pilih Edit Ujian untuk menambahkan soal.</p>}
                     {tab === 'soal' && [...questionGroups, ['lainnya', 'Soal Lainnya']].map(([type, label]) => {
                         const questions = exam.soal.map((question, index) => ({ question, index })).filter(({ question }) =>
                             type === 'lainnya' ? !questionGroups.some(([known]) => known === question.tipeSoal.toUpperCase()) : question.tipeSoal.toUpperCase() === type);
@@ -203,7 +211,7 @@ export default function UjianGuru({ name }: { name: string }) {
                             <div className="flex items-start justify-between gap-2">
                                 <h2 className="flex flex-wrap items-center gap-2 font-semibold"><span className="grid min-h-8 min-w-8 place-items-center rounded-full bg-blue-700 px-1 text-sm text-white">{index + 1}</span> Soal{question.dibatalkan && <span className="ml-2 text-xs text-red-700">Dibatalkan</span>}</h2>
                                 {exam.draf && <button type="button" className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 hover:bg-amber-100"
-                                    aria-label={'Edit Soal ' + (index + 1)} onClick={() => setEditor({ question })}>Edit Soal</button>}
+                                    aria-label={'Edit Soal ' + (index + 1)} onClick={() => setEditor({ focusId: question.id })}>Edit Soal</button>}
                             </div>
                             <div className="mt-3 whitespace-pre-wrap break-words text-base leading-relaxed"><QuestionContent text={question.pertanyaan} image={question.isi?.gambar} /></div>
                             {!!question.isi?.items?.length && <ol className="mt-3 space-y-1">
@@ -234,12 +242,6 @@ export default function UjianGuru({ name }: { name: string }) {
                         </section>;
                     })}
                     {!exam.draf && <><div hidden={tab !== 'sesi'}><ExamSessions examId={exam.id} /></div><div hidden={tab !== 'rekap'}><ExamReport examId={exam.id} questions={exam.soal} onQuestionsChanged={refreshQuestions} /></div></>}
-                    {importing && <ImportSoal examId={exam.id} onClose={() => setImporting(false)} onImport={questions => {
-                        updateQuestions([...exam.soal, ...questions]);
-                        setNotice(questions.length + ' soal berhasil diimpor.');
-                        setImporting(false);
-                    }} />}
-                    {editor && <QuestionEditor examId={exam.id} question={editor.question} onClose={() => setEditor(null)} onSave={saveQuestion} />}
                 </>
             ) : (
                 <>
@@ -316,8 +318,12 @@ export default function UjianGuru({ name }: { name: string }) {
                                             <td className="px-4 py-3"><strong>{item.judul}</strong><p className="mt-1 text-xs text-slate-600">{item.mapel.nama} · {item.kelas.namaKelas} · {item._count.soal} soal</p></td>
                                             <td className="whitespace-nowrap px-4 py-3 text-xs"><CalendarDays size={14} className="mr-1 inline text-slate-500" />{schedule.format(new Date(item.waktuMulai))}</td>
                                             <td className="px-4 py-3"><span className={'whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ' + (status === 'Draf' ? 'bg-amber-100 text-amber-900' : status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700')}>{status}</span></td>
-                                            <td className="px-4 py-3"><button type="button" disabled={busy} onClick={() => void openExam(item.id)}
-                                                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-50"><Eye size={15} /> Preview</button></td>
+                                            <td className="px-4 py-3"><div className="flex flex-wrap gap-2">
+                                                <button type="button" disabled={busy} onClick={() => void openExam(item.id)}
+                                                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-50"><Eye size={15} /> Preview</button>
+                                                {item.draf && <button type="button" disabled={busy} onClick={() => void openExam(item.id, true)}
+                                                    className="whitespace-nowrap rounded-lg border border-blue-200 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-50">Edit Ujian</button>}
+                                            </div></td>
                                         </tr>;
                                     })}
                                 </tbody>

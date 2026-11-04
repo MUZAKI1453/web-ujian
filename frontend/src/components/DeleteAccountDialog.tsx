@@ -1,3 +1,4 @@
+import ModalOverlay from './ModalOverlay';
 import { useState } from 'react';
 import api from '../services/api';
 
@@ -42,7 +43,7 @@ export default function DeleteAccountDialog({ role, ids, onClose, onDeleted }: P
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <ModalOverlay>
             <section role="dialog" aria-modal="true" aria-labelledby="delete-account-title"
                      className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-xl">
                 <h3 id="delete-account-title" className="text-lg font-bold">
@@ -75,6 +76,6 @@ export default function DeleteAccountDialog({ role, ids, onClose, onDeleted }: P
                     </button>
                 </div>
             </section>
-        </div>
+        </ModalOverlay>
     );
 }

@@ -1,3 +1,4 @@
+import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import React, { useEffect, useState } from 'react';
@@ -319,7 +320,7 @@ export default function DataSiswa() {
 
             {/* Modal Tambah / Edit Siswa */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+                <ModalOverlay>
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
                         <h3 className="text-lg font-bold text-gray-800">
                             {isEdit ? 'Edit Data Siswa' : 'Tambah Data Siswa Baru'}
@@ -382,12 +383,12 @@ export default function DataSiswa() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </ModalOverlay>
             )}
 
             {/* Modal Import Excel Siswa dengan Panduan & Tombol Download Template */}
             {showImportModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+                <ModalOverlay>
                     <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-5">
                         <div className="flex justify-between items-center">
                             <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -453,7 +454,7 @@ export default function DataSiswa() {
                             </div>
                         </form>
                     </div>
-                </div>
+                </ModalOverlay>
             )}
         </div>
     );

@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import prisma from '../config/db';
+import { readNavbarSettings } from './navbarController';
 
 const formats = {
     siswa: ['No', 'NIS (Nomor Induk Siswa)', 'Nama Lengkap Siswa', 'Nama Kelas'],
@@ -16,6 +17,8 @@ type Role = keyof typeof formats;
 export function downloadTemplate(role: Role) {
     return async (_req: Request, res: Response) => {
         try {
+            const settings = await readNavbarSettings();
+            const isSmaip = settings?.logo === 'smaip';
             const headers = formats[role];
             const lastColumn = role === 'siswa' ? 'E' : 'D';
             const workbook = new ExcelJS.Workbook();
@@ -36,7 +39,7 @@ export function downloadTemplate(role: Role) {
             titleCell1.alignment = { horizontal: 'center', vertical: 'middle' };
             worksheet.mergeCells('B2:' + lastColumn + '2');
             const titleCell2 = worksheet.getCell('B2');
-            titleCell2.value = 'SMP ISLAM PLUS BAITUSSALAM';
+            titleCell2.value = isSmaip ? 'SMA ISLAM PLUS BAITUSSALAM' : 'SMP ISLAM PLUS BAITUSSALAM';
             titleCell2.font = { name: 'Arial', size: 14, bold: true, color: { argb: primaryColor } };
             titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
             worksheet.mergeCells('B3:' + lastColumn + '3');
@@ -54,7 +57,7 @@ export function downloadTemplate(role: Role) {
             ['B', 'C', 'D', 'E'].slice(0, headers.length).forEach(col => {
                 worksheet.getCell(`${col}4`).border = doubleBorder;
             });
-            const logoPath = path.resolve(__dirname, '../../src/assets/logo_smpip.png');
+            const logoPath = path.resolve(__dirname, '../../src/assets', isSmaip ? 'Logo_smaip.png' : 'logo_smpip.png');
             if (fs.existsSync(logoPath)) {
                 const logoImageId = workbook.addImage({
                     filename: logoPath,

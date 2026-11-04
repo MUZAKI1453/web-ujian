@@ -43,23 +43,27 @@ function deadline(attempt: Exam['pengerjaan'][number], session: { waktuSelesai: 
     return Math.min(+attempt.batasWaktu, +session.waktuSelesai);
 }
 
-function respond(fn: (req: Request, res: Response, user: { id: number; role: string; sesiLogin?: string }) => Promise<unknown>) {
+type ExamUser = { id: number; role: string; sesiLogin?: string };
+
+function respond(fn: (req: Request, res: Response, user: ExamUser) => Promise<unknown>) {
     return async (req: Request, res: Response) => {
         const user = res.locals.user;
-        if (!['admin', 'siswa'].includes(user.role)) return res.status(403).json({ message: 'Akses khusus siswa.' });
+        if (!['siswa', 'admin'].includes(user.role)) return res.status(403).json({ message: 'Akses khusus siswa.' });
         try { await fn(req, res, user); }
         catch (error) { console.error('API pengerjaan:', error); res.status(500).json({ message: 'Gagal memproses permintaan.' }); }
     };
 }
 
 router.get('/ujian', respond(async (_req, res, user) => {
-    const student = user.role === 'siswa' ? await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { kelasId: true } }) : null;
+    const admin = user.role === 'admin';
+    const student = admin ? null : await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { kelasId: true } });
+    const now = Date.now();
     const exams = await prisma.ujian.findMany({
         where: student ? { draf: false, OR: [
             ...(student.kelasId ? [{ kelasId: student.kelasId }] : []),
             { susulan: { some: { peserta: { some: { siswaId: user.id } } } } },
             { pengerjaan: { some: { siswaId: user.id } } }, { jawaban: { some: { siswaId: user.id } } }
-        ] } : {},
+        ] } : { draf: false, waktuMulai: { lte: new Date(now) }, waktuSelesai: { gte: new Date(now - 30 * 60000) } },
         include: {
             ...examData, soal: false,
             pengerjaan: { where: { siswaId: user.id } }, jawaban: { where: { siswaId: user.id }, orderBy: { waktuSubmit: 'desc' }, take: 1, select: { siswaId: true, koreksiEssay: true } },
@@ -67,7 +71,6 @@ router.get('/ujian', respond(async (_req, res, user) => {
         },
         orderBy: { waktuMulai: 'asc' }
     });
-    const now = Date.now();
     res.json({ now, data: exams.map(item => {
         const exam = { ...item, soal: [] };
         const { session, sessionId, attempt } = sessionFor(exam, user.id);
@@ -77,7 +80,7 @@ router.get('/ujian', respond(async (_req, res, user) => {
             id: exam.id, judul: exam.judul, mapel: exam.mapel.nama, durasi: exam.durasiMenit,
             mulai: session.waktuMulai, selesai: session.waktuSelesai, susulan: sessionId !== null,
             status: exam.draf ? 'Draf' : submitted || ends <= now ? 'Selesai' : +session.waktuMulai > now ? 'Terjadwal' : 'Berlangsung',
-            masukBuka: session.masukBuka && Boolean(session.token), attempt: attempt?.id ?? null, submitted,
+            masukBuka: admin || (session.masukBuka && Boolean(session.token)), attempt: attempt?.id ?? null, submitted,
             hasil: exam.hasilRilis && exam.jawaban.length > 0 && !attempt?.diterimaOffline && Object.keys(object(exam.jawaban[0]?.koreksiEssay)).length >= item._count.soal,
             pembahasan: exam.bahasanRilis && exam.jawaban.length > 0,
             offline: Boolean(attempt?.diterimaOffline)
@@ -85,16 +88,10 @@ router.get('/ujian', respond(async (_req, res, user) => {
     }) });
 }));
 
-router.get('/ujian/:id/preview', respond(async (req, res, user) => {
-    if (user.role !== 'admin') return res.sendStatus(403);
-    const exam = await prisma.ujian.findFirst({ where: { id: Number(req.params.id) }, include: examData });
-    if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
-    res.json({ soal: publicQuestions(exam) });
-}));
-
-async function locked<T>(id: number, userId: number, sesiLogin: string | undefined, callback: (
+async function locked<T>(id: number, user: ExamUser, callback: (
     tx: Prisma.TransactionClient, exam: Exam
 ) => Promise<T>, shared = false) {
+    const userId = user.id;
     return prisma.$transaction(async tx => {
         if (shared) {
             await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR SHARE`;
@@ -102,9 +99,9 @@ async function locked<T>(id: number, userId: number, sesiLogin: string | undefin
         } else {
             await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
         }
-        const student = await tx.user.findFirst({ where: { id: userId, sesiLogin: sesiLogin ?? null }, select: { kelasId: true } });
+        const student = await tx.user.findFirst({ where: { id: userId, role: user.role, sesiLogin: user.role === 'siswa' ? user.sesiLogin ?? null : undefined }, select: { kelasId: true } });
         if (!student) return null;
-        const exam = await tx.ujian.findFirst({ where: { id, draf: false, OR: [
+        const exam = await tx.ujian.findFirst({ where: { id, draf: false, OR: user.role === 'admin' ? undefined : [
             ...(student.kelasId ? [{ kelasId: student.kelasId }] : []),
             { susulan: { some: { peserta: { some: { siswaId: userId } } } } },
             { pengerjaan: { some: { siswaId: userId } } }
@@ -123,10 +120,9 @@ function packet(exam: Exam, attempt: Exam['pengerjaan'][number], session: { wakt
 }
 
 router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user) => {
-    if (user.role !== 'siswa') return res.sendStatus(403);
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.sendStatus(404);
-    const result = await locked(id, user.id, user.sesiLogin, async (tx, exam) => {
+    const result = await locked(id, user, async (tx, exam) => {
         const { session, sessionId, attempt } = sessionFor(exam, user.id);
         const now = Date.now();
         if (exam.jawaban.length || attempt?.waktuKirim) return { status: 409, message: 'Jawaban sudah terkirim.' };
@@ -134,40 +130,46 @@ router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user)
             if (deadline(attempt, session) <= now) return { status: 409, message: 'Waktu ujian habis.' };
             return { status: 200, data: packet(exam, attempt, session) };
         }
-        if (+session.waktuMulai > now || +session.waktuSelesai <= now || !session.masukBuka || !session.token) {
+        const admin = user.role === 'admin';
+        if (+session.waktuMulai > now || +session.waktuSelesai <= now || (!admin && (!session.masukBuka || !session.token))) {
             return { status: 409, message: 'Akses masuk sesi belum dibuka atau sudah ditutup.' };
         }
+        const gate = admin ? null : session.token;
         const prepare = req.params.langkah === 'siapkan';
         if (!prepare) {
-            try {
-                const claim = jwt.verify(String(req.body.izin ?? ''), jwtSecret, { algorithms: ['HS256'] });
-                if (typeof claim === 'string' || claim.scope !== 'mulai-ujian' || claim.ujianId !== id ||
-                    claim.siswaId !== user.id || claim.sesiLogin !== user.sesiLogin ||
-                    claim.sesiId !== sessionId || claim.gate !== session.token) throw new Error('Izin tidak valid');
-            } catch {
-                return { status: 409, message: 'Persiapan kedaluwarsa atau token berubah. Siapkan soal lagi.' };
+            if (!admin) {
+                try {
+                    const claim = jwt.verify(String(req.body.izin ?? ''), jwtSecret, { algorithms: ['HS256'] });
+                    if (typeof claim === 'string' || claim.scope !== 'mulai-ujian' || claim.ujianId !== id ||
+                        claim.siswaId !== user.id || claim.sesiLogin !== user.sesiLogin ||
+                        claim.sesiId !== sessionId || claim.gate !== gate) throw new Error('Izin tidak valid');
+                } catch {
+                    return { status: 409, message: 'Persiapan kedaluwarsa atau token berubah. Siapkan soal lagi.' };
+                }
             }
             const created = await tx.pengerjaanUjian.create({ data: {
                 ujianId: id, siswaId: user.id, sesiSusulanId: sessionId,
-                batasWaktu: new Date(Math.min(now + exam.durasiMenit * 60000, +session.waktuSelesai))
+                batasWaktu: admin ? session.waktuSelesai : new Date(Math.min(now + exam.durasiMenit * 60000, +session.waktuSelesai))
             } });
             return { status: 200, data: packet(exam, created, session) };
         }
-        const key = { siswaId: user.id, ujianId: id };
-        const rate = await tx.percobaanToken.findUnique({ where: { siswaId_ujianId: key } });
-        if (rate?.tungguSampai && +rate.tungguSampai > now) return { status: 429, message: 'Terlalu banyak percobaan. Tunggu satu menit.' };
-        const token = typeof req.body.token === 'string' ? req.body.token.trim().toUpperCase() : '';
-        if (!token) return { status: 400, message: 'Masukkan token ujian.' };
-        if (token !== session.token) {
-            const salah = (rate?.tungguSampai ? 0 : rate?.salah ?? 0) + 1;
-            const data = { salah, tungguSampai: salah >= 5 ? new Date(now + 60000) : null };
-            await tx.percobaanToken.upsert({ where: { siswaId_ujianId: key }, update: data, create: { ...key, ...data } });
-            return { status: salah >= 5 ? 429 : 400, message: salah >= 5 ? 'Token salah lima kali. Tunggu satu menit.' : 'Token salah.' };
+        if (!admin) {
+            const key = { siswaId: user.id, ujianId: id };
+            const rate = await tx.percobaanToken.findUnique({ where: { siswaId_ujianId: key } });
+            if (rate?.tungguSampai && +rate.tungguSampai > now) return { status: 429, message: 'Terlalu banyak percobaan. Tunggu satu menit.' };
+            const token = typeof req.body.token === 'string' ? req.body.token.trim().toUpperCase() : '';
+            if (!token) return { status: 400, message: 'Masukkan token ujian.' };
+            if (token !== session.token) {
+                const salah = (rate?.tungguSampai ? 0 : rate?.salah ?? 0) + 1;
+                const data = { salah, tungguSampai: salah >= 5 ? new Date(now + 60000) : null };
+                await tx.percobaanToken.upsert({ where: { siswaId_ujianId: key }, update: data, create: { ...key, ...data } });
+                return { status: salah >= 5 ? 429 : 400, message: salah >= 5 ? 'Token salah lima kali. Tunggu satu menit.' : 'Token salah.' };
+            }
+            await tx.percobaanToken.deleteMany({ where: key });
         }
-        await tx.percobaanToken.deleteMany({ where: key });
         const izin = jwt.sign({
             scope: 'mulai-ujian', ujianId: id, siswaId: user.id, sesiId: sessionId,
-            sesiLogin: user.sesiLogin, gate: session.token
+            sesiLogin: user.sesiLogin, gate
         }, jwtSecret, { expiresIn: '3m' });
         return { status: 200, data: { izin, soal: publicQuestions(exam) } };
     });
@@ -193,13 +195,12 @@ function validatedAnswers(exam: Exam, input: unknown): Prisma.InputJsonObject | 
 }
 
 router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
-    if (user.role !== 'siswa') return res.sendStatus(403);
     const id = Number(req.params.id);
     const { attemptId, versi, jawaban, kirim, antrean } = req.body;
     if (![id, attemptId].every(value => Number.isSafeInteger(value) && value > 0 && value <= 2147483647) || !Number.isSafeInteger(versi) || versi < 0 || versi > 2147483647) {
         return res.status(400).json({ message: 'Data pengerjaan tidak valid.' });
     }
-    const result = await locked(id, user.id, user.sesiLogin, async (tx, exam) => {
+    const result = await locked(id, user, async (tx, exam) => {
         const { session, attempt } = sessionFor(exam, user.id);
         const now = Date.now();
         if (!attempt || attempt.id !== attemptId) return { status: 409, code: 'RESET', message: 'Pengerjaan sudah direset.' };

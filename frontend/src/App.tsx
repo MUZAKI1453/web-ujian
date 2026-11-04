@@ -7,7 +7,7 @@ import DataSiswa from './pages/admin/DataSiswa';
 import DataGuru from './pages/admin/DataGuru';
 import DataMapel from './pages/admin/DataMapel';
 import MonitoringUjian from './pages/admin/MonitoringUjian';
-import PengaturanNavbar, { defaultNavbar, type NavbarSettings } from './pages/admin/PengaturanNavbar';
+import PengaturanNavbar, { defaultNavbar, navbarLogos, type NavbarSettings } from './pages/admin/PengaturanNavbar';
 import api from './services/api';
 import GantiPassword from './pages/GantiPassword';
 import UjianGuru from './pages/guru/UjianGuru';
@@ -34,7 +34,6 @@ export default function App() {
     const [navbarLoaded, setNavbarLoaded] = useState(false);
 
     useEffect(() => {
-        if (!user) return;
         const controller = new AbortController();
         api.get<NavbarSettings | null>('/navbar', { signal: controller.signal })
             .then(({ data }) => {
@@ -51,11 +50,10 @@ export default function App() {
         setUser(null);
         setPage('dashboard');
         setPreviewRole('admin');
-        setNavbar(defaultNavbar);
-        setNavbarLoaded(false);
     };
 
-    if (!user) return <Login onLoginSuccess={setUser} />;
+    const brandLogo = navbarLogos[navbar.logo] || navbarLogos.smpip;
+    if (!user) return <Login onLoginSuccess={setUser} brandLogo={brandLogo} />;
 
     const viewRole = user.role === 'admin' ? previewRole : user.role;
     const changeView = (role: ViewRole) => {
@@ -79,16 +77,19 @@ export default function App() {
         <NavbarLayout
             user={user}
             brandText={navbar.text}
-            brandLogo={navbar.logo || defaultNavbar.logo}
+            brandLogo={brandLogo}
             viewRole={viewRole}
             onViewRoleChange={user.role === 'admin' ? changeView : undefined}
             onLogout={logout}
             activePage={page}
-            onNavigate={setPage}
+            onNavigate={nextPage => {
+                setPreviewRole('admin');
+                setPage(nextPage);
+            }}
         >
             {user.role === 'admin' && viewRole !== 'admin' && (
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <span>Tampilan {viewRole === 'guru' ? 'Guru' : 'Siswa'}</span>
+                    <span>Mode {viewRole === 'guru' ? 'Guru' : 'Siswa'}</span>
                     <button type="button" className="font-semibold underline" onClick={() => changeView('admin')}>
                         Kembali ke Admin
                     </button>
@@ -97,7 +98,7 @@ export default function App() {
             {page === 'ganti-password' ? <GantiPassword /> : viewRole === 'admin' && pages[page] ? pages[page] : page === 'dashboard' && viewRole === 'guru' ? (
                 <UjianGuru name={user.nama || user.username} />
             ) : page === 'dashboard' && viewRole === 'siswa' ? (
-                <BerandaSiswa name={user.nama || user.username} username={user.username} preview={user.role === 'admin'} />
+                <BerandaSiswa name={user.nama || user.username} username={user.username} adminMode={user.role === 'admin'} />
             ) : (
                 <div className="rounded-2xl bg-white p-6 shadow-sm">
                     Halaman ini belum tersedia di repository.

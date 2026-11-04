@@ -75,7 +75,7 @@ export default function ExamSessions({ examId }: { examId: number }) {
     return <section className="space-y-4 rounded-xl border p-4">
         {projected && <dialog ref={element => { if (element && !element.open) element.showModal(); }}
             onCancel={event => { event.preventDefault(); setProjection(null); }}
-            className="w-[min(95vw,50rem)] rounded-2xl p-8 text-center backdrop:bg-slate-950/80" aria-label="Token ujian">
+            className="w-[min(95vw,50rem)] rounded-2xl p-8 text-center backdrop:bg-slate-900/25" aria-label="Token ujian">
             <p className="font-semibold">{projected.title}</p>
             <p className="my-6 font-mono text-[clamp(2rem,12vw,7rem)] font-bold tracking-wider">{projected.token}</p>
             <button type="button" className={primaryClass} onClick={() => setProjection(null)}>Tutup</button>

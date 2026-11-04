@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck } from 'lucide-react';
+import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck, Repeat2, Laptop, SquarePen } from 'lucide-react';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
 export type ViewRole = keyof typeof viewLabels;
@@ -22,15 +22,20 @@ interface NavbarLayoutProps {
 
 export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onViewRoleChange, onLogout, activePage, onNavigate, children }: NavbarLayoutProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [switchOpen, setSwitchOpen] = useState(false);
     const [dropdownMasterOpen, setDropdownMasterOpen] = useState(false);
     const [dropdownProfileOpen, setDropdownProfileOpen] = useState(false);
     const [mobileMasterOpen, setMobileMasterOpen] = useState(false);
 
+    const switchRef = useRef<HTMLDivElement>(null);
     const masterRef = useRef<HTMLDivElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            if (switchRef.current && !switchRef.current.contains(event.target as Node)) {
+                setSwitchOpen(false);
+            }
             if (masterRef.current && !masterRef.current.contains(event.target as Node)) {
                 setDropdownMasterOpen(false);
             }
@@ -44,42 +49,35 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
         };
     }, []);
 
-    const handleMenuClick = (page: string) => {
-        onNavigate(page);
+    const closeMenus = () => {
+        setSwitchOpen(false);
         setDropdownMasterOpen(false);
         setDropdownProfileOpen(false);
         setMobileMenuOpen(false);
         setMobileMasterOpen(false);
     };
 
+    const handleMenuClick = (page: string) => {
+        onNavigate(page);
+        closeMenus();
+    };
+
     // Cek apakah halaman aktif berada di dalam ruang lingkup Data Master
     const isMasterActive = ['kelas', 'siswa', 'guru', 'mapel'].includes(activePage);
-    const viewSelector = onViewRoleChange && (
-        <label className="block px-4 py-2 text-xs font-semibold">
-            Tampilan peran
-            <select
-                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
-                value={viewRole}
-                onChange={(event) => {
-                    onViewRoleChange(event.currentTarget.value as ViewRole);
-                    setDropdownProfileOpen(false);
-                    setMobileMenuOpen(false);
-                    setMobileMasterOpen(false);
-                }}
-            >
-                {Object.entries(viewLabels).map(([role, label]) => (
-                    <option key={role} value={role}>{label}</option>
-                ))}
-            </select>
-        </label>
-    );
+    const switchOptions = ([['guru', Laptop], ['siswa', SquarePen]] as const).map(([role, Icon]) => (
+        <button key={role} type="button" aria-current={viewRole === role ? 'page' : undefined}
+                onClick={() => { onViewRoleChange?.(role); closeMenus(); }}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left text-sm font-medium hover:bg-white/10 lg:hover:bg-blue-50 lg:hover:text-blue-700">
+            <Icon size={16} /> Mode {viewLabels[role]}
+        </button>
+    ));
 
     return (
         <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
             {/* NAVBAR ATAS */}
             <nav className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-20">
+                    <div className="flex h-16 items-center justify-between">
 
                         {/* KIRI: Logo & Nama Brand */}
                         <div className="flex min-w-0 items-center gap-3">
@@ -88,7 +86,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                                     key={brandLogo}
                                     src={brandLogo}
                                     alt="Logo"
-                                    className="w-11 h-11 shrink-0 object-contain drop-shadow"
+                                    className="h-9 w-9 shrink-0 object-contain drop-shadow"
                                     onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                 />
                                 <span className="truncate font-bold text-base sm:text-xl tracking-wide text-white">
@@ -98,20 +96,33 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         </div>
 
                         {/* TENGAH: Menu Navigasi Desktop */}
-                        <div className="hidden md:flex items-center space-x-1">
-                            {viewRole === 'admin' && (
+                        <div className="hidden lg:flex items-center space-x-1">
+                            {user.role === 'admin' && (
                                 <>
                                     <button
                                         onClick={() => handleMenuClick('dashboard')}
-                                        className={`px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${activePage === 'dashboard' ? 'bg-white/20 shadow-inner' : 'hover:bg-white/10'}`}
+                                        className={`px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${activePage === 'dashboard' && viewRole === 'admin' ? 'bg-white/20 shadow-inner' : 'hover:bg-white/10'}`}
                                     >
                                         <Layers size={18} /> Dashboard
                                     </button>
 
+                                    <div className="relative" ref={switchRef}>
+                                        <button type="button" aria-expanded={switchOpen}
+                                                onClick={() => { setSwitchOpen(!switchOpen); setDropdownMasterOpen(false); setDropdownProfileOpen(false); }}
+                                                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium ${viewRole !== 'admin' ? 'bg-white/20' : 'hover:bg-white/10'}`}>
+                                            <Repeat2 size={18} /> Switch Akses <ChevronDown size={14} />
+                                        </button>
+                                        {switchOpen && (
+                                            <div className="absolute left-0 z-50 mt-2 w-44 rounded-2xl border border-slate-100 bg-white p-1 text-slate-800 shadow-2xl">
+                                                {switchOptions}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Dropdown Data Master */}
                                     <div className="relative" ref={masterRef}>
                                         <button
-                                            onClick={() => { setDropdownMasterOpen(!dropdownMasterOpen); setDropdownProfileOpen(false); }}
+                                            onClick={() => { setDropdownMasterOpen(!dropdownMasterOpen); setDropdownProfileOpen(false); setSwitchOpen(false); }}
                                             className={`px-3.5 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 focus:outline-none ${isMasterActive ? 'bg-white/20' : 'hover:bg-white/10'}`}
                                         >
                                             <Users size={18} /> Data Master <ChevronDown size={14} className={`transition-transform duration-200 ${dropdownMasterOpen ? 'rotate-180' : ''}`} />
@@ -138,24 +149,23 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         </div>
 
                         {/* KANAN: Profil Sederhana Desktop */}
-                        <div className="hidden md:flex items-center relative" ref={profileRef}>
+                        <div className="hidden lg:flex items-center relative" ref={profileRef}>
                             <button
-                                onClick={() => { setDropdownProfileOpen(!dropdownProfileOpen); setDropdownMasterOpen(false); }}
+                                onClick={() => { setDropdownProfileOpen(!dropdownProfileOpen); setDropdownMasterOpen(false); setSwitchOpen(false); }}
                                 className="flex items-center gap-3 py-1.5 px-3 rounded-xl hover:bg-white/10 transition focus:outline-none"
                             >
                                 <div className="w-9 h-9 rounded-full bg-white text-blue-600 font-bold flex items-center justify-center shadow-md text-sm">
                                     {user.nama ? user.nama.charAt(0).toUpperCase() : 'A'}
                                 </div>
                                 <span className="text-sm font-semibold text-white">
-                                    {user.role === 'admin' ? viewLabels[viewRole as ViewRole] : user.nama}
+                                    {user.role === 'admin' ? 'Admin' : user.nama}
                                 </span>
                                 <ChevronDown size={14} className={`text-white/80 transition-transform duration-200 ${dropdownProfileOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {dropdownProfileOpen && (
-                                <div className="absolute right-0 top-14 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
-                                    {viewSelector}
-                                    {viewRole === 'admin' && user.role === 'admin' && (
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                    {user.role === 'admin' && (
                                         <button onClick={() => handleMenuClick('navbar')} className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
                                             Pengaturan Navbar
                                         </button>
@@ -175,7 +185,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         </div>
 
                         {/* Tombol Hamburger Mobile */}
-                        <div className="flex md:hidden">
+                        <div className="flex lg:hidden">
                             <button
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                                 className="p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition focus:outline-none"
@@ -188,7 +198,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
 
                 {/* MENU MOBILE DENGAN AKORDEON */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden bg-blue-900/98 backdrop-blur-md px-4 pt-4 pb-6 border-t border-blue-600 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
+                    <div className="lg:hidden bg-blue-900/98 backdrop-blur-md px-4 pt-4 pb-6 border-t border-blue-600 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
                         <div className="flex items-center justify-between px-3.5 py-3 bg-white/10 rounded-2xl mb-2">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-white text-blue-600 font-bold flex items-center justify-center text-sm shadow">
@@ -201,11 +211,18 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             </div>
                         </div>
 
-                        {viewRole === 'admin' && (
+                        {user.role === 'admin' && (
                             <div className="space-y-1">
                                 <button onClick={() => handleMenuClick('dashboard')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-white/10 transition">
                                     <Layers size={18} /> Dashboard
                                 </button>
+
+                                <details>
+                                    <summary className="flex cursor-pointer items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium hover:bg-white/10">
+                                        <Repeat2 size={18} /> Switch Akses <ChevronDown size={14} />
+                                    </summary>
+                                    <div className="ml-4 border-l border-blue-400/30 pl-4">{switchOptions}</div>
+                                </details>
 
                                 <div>
                                     <button
@@ -235,8 +252,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         )}
 
                         <div className="border-t border-blue-700/60 pt-3 mt-3 space-y-1">
-                            {viewSelector}
-                            {viewRole === 'admin' && user.role === 'admin' && (
+                            {user.role === 'admin' && (
                                 <button onClick={() => handleMenuClick('navbar')} className="w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-medium text-blue-100 hover:bg-white/10">
                                     Pengaturan Navbar
                                 </button>
@@ -256,7 +272,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
             </nav>
 
             {/* KONTEN UTAMA */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mt-28 mb-12">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mt-[5.5rem] mb-12">
                 {children}
             </main>
         </div>

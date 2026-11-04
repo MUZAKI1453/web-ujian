@@ -1,12 +1,17 @@
 import { useState, type FormEvent } from 'react';
 import api from '../../services/api';
 
+export const navbarLogos = {
+    smpip: '/assets/logo_smpip.png',
+    smaip: '/assets/Logo_smaip.png',
+};
+
 export interface NavbarSettings {
     text: string;
-    logo: string | null;
+    logo: keyof typeof navbarLogos;
 }
 
-export const defaultNavbar = { text: 'SMPIP Baitussalam', logo: '/assets/logo_smpip.png' };
+export const defaultNavbar: NavbarSettings = { text: 'SMPIP Baitussalam', logo: 'smpip' };
 
 interface Props {
     settings: NavbarSettings;
@@ -15,30 +20,19 @@ interface Props {
 
 export default function PengaturanNavbar({ settings, onSaved }: Props) {
     const [text, setText] = useState(settings.text);
+    const [logo, setLogo] = useState(settings.logo);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState('');
     const [saved, setSaved] = useState(false);
 
     async function save(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const form = event.currentTarget;
-        const data = new FormData(form);
-        const logo = data.get('logo');
         setSaved(false);
         setError('');
 
-        if (logo instanceof File && logo.size > 1024 * 1024) {
-            setError('Ukuran gambar maksimal 1 MB.');
-            return;
-        }
-        if (logo instanceof File && !logo.name) data.delete('logo');
-
         setPending(true);
         try {
-            const { data: updated } = await api.put<NavbarSettings>('/admin/navbar', data, {
-                headers: { 'Content-Type': undefined }
-            });
-            form.reset();
+            const { data: updated } = await api.put<NavbarSettings>('/admin/navbar', { text, logo });
             setText(updated.text);
             onSaved(updated);
             setSaved(true);
@@ -60,12 +54,14 @@ export default function PengaturanNavbar({ settings, onSaved }: Props) {
                                required maxLength={60} className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 font-normal" />
                     </label>
                     <label className="block text-sm font-semibold text-slate-700">
-                        Gambar logo
-                        <img src={settings.logo || defaultNavbar.logo} alt="Logo saat ini" className="my-2 h-14 w-14 object-contain" />
-                        <input name="logo" type="file" accept="image/png,image/jpeg,image/webp"
-                               className="block w-full text-sm font-normal" />
+                        Logo navbar
+                        <select name="logo" value={logo} onChange={event => setLogo(event.target.value === 'smaip' ? 'smaip' : 'smpip')}
+                                className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 font-normal">
+                            <option value="smpip">SMPIP</option>
+                            <option value="smaip">SMAIP</option>
+                        </select>
                     </label>
-                    <p className="text-xs text-slate-500">PNG, JPG, atau WebP, maksimal 1 MB. Kosongkan untuk memakai logo saat ini.</p>
+                    <img src={navbarLogos[logo]} alt={'Pratinjau logo ' + logo.toUpperCase()} className="h-14 w-14 object-contain" />
                     <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                         {pending ? 'Menyimpan…' : 'Simpan pengaturan'}
                     </button>

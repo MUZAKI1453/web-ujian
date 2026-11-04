@@ -1,6 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { isAxiosError } from 'axios';
-import api from '../../services/api';
 import QuestionContent from './QuestionContent';
 
 const types = ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY'] as const;
@@ -25,22 +24,31 @@ function emptyItems(type: QuestionType): Item[] {
     return Array.from({ length: type === 'BS' ? 1 : 2 }, () => ({ teks: '', benar: false }));
 }
 
-export default function QuestionEditor({ examId, question, onClose, onSave }: {
-    examId: number; question: Question | null; onClose: () => void; onSave: (question: Question) => void;
+function initialQuestion(question: Question | null) {
+    const tipeSoal = question?.tipeSoal ?? 'PG';
+    return {
+        tipeSoal, pertanyaan: question?.pertanyaan ?? '', gambar: question?.isi?.gambar ?? '',
+        items: question?.isi?.items ?? emptyItems(tipeSoal), jawaban: question?.isi?.jawaban ?? [''],
+        angka: question?.isi?.angka ?? false, pedoman: question?.isi?.pedoman ?? '',
+        poin: question?.tipeSoal === 'ESSAY' ? Number(question.bobot) : 1
+    };
+}
+
+export default function QuestionEditor({ question, number, onRemove, focus }: {
+    question: Question | null; number: number; onRemove: () => void; focus?: boolean;
 }) {
-    const dialog = useRef<HTMLDialogElement>(null);
-    const [type, setType] = useState<QuestionType>(question?.tipeSoal ?? 'PG');
-    const [text, setText] = useState(question?.pertanyaan ?? '');
-    const [image, setImage] = useState(question?.isi?.gambar ?? '');
-    const [items, setItems] = useState(question?.isi?.items ?? emptyItems(type));
-    const [answers, setAnswers] = useState(question?.isi?.jawaban?.join('\n') ?? '');
-    const [numeric, setNumeric] = useState(question?.isi?.angka ?? false);
-    const [rubric, setRubric] = useState(question?.isi?.pedoman ?? '');
-    const [points, setPoints] = useState(question?.tipeSoal === 'ESSAY' ? Number(question.bobot) : 1);
-    const [saving, setSaving] = useState(false);
+    const [initial] = useState(() => initialQuestion(question));
+    const [type, setType] = useState(initial.tipeSoal);
+    const [text, setText] = useState(initial.pertanyaan);
+    const [image, setImage] = useState(initial.gambar);
+    const [items, setItems] = useState(initial.items);
+    const [answers, setAnswers] = useState(initial.jawaban.join('\n'));
+    const [numeric, setNumeric] = useState(initial.angka);
+    const [rubric, setRubric] = useState(initial.pedoman);
+    const [points, setPoints] = useState(initial.poin);
+    const [reading, setReading] = useState(0);
     const [error, setError] = useState('');
 
-    useEffect(() => { dialog.current?.showModal(); }, []);
     const updateItem = (index: number, values: Partial<Item>) => {
         setItems(current => current.map((item, i) => i === index ? { ...item, ...values } : item));
     };
@@ -55,30 +63,24 @@ export default function QuestionEditor({ examId, question, onClose, onSave }: {
         const reader = new FileReader();
         reader.onload = () => apply(String(reader.result));
         reader.onerror = () => setError('Gambar gagal dibaca.');
+        reader.onloadend = () => setReading(current => current - 1);
+        setReading(current => current + 1);
         reader.readAsDataURL(file);
     }
 
-    async function submit(event: FormEvent) {
-        event.preventDefault();
-        setSaving(true);
-        setError('');
-        const url = '/guru/ujian/' + examId + '/soal';
-        const payload = { tipeSoal: type, pertanyaan: text, gambar: image, items, jawaban: answers.split('\n'), angka: numeric, pedoman: rubric, poin: points };
-        try {
-            const { data } = question ? await api.put<Question>(url + '/' + question.id, payload) : await api.post<Question>(url, payload);
-            onSave(data);
-        } catch (err) {
-            setError(errorMessage(err));
-        } finally {
-            setSaving(false);
-        }
-    }
+    const soal = { tipeSoal: type, pertanyaan: text, gambar: image, items, jawaban: answers.split('\n'), angka: numeric, pedoman: rubric, poin: points };
+    const changed = !question || JSON.stringify(soal) !== JSON.stringify(initial);
 
     return (
-        <dialog ref={dialog} aria-labelledby="editor-title" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-            className="max-h-[90vh] w-[min(92vw,48rem)] rounded-2xl p-5 backdrop:bg-slate-900/60 sm:p-7">
-            <h2 id="editor-title" className="text-xl font-bold">{question ? 'Edit Soal' : 'Tambah Soal'}</h2>
-            <form onSubmit={submit} className="mt-4 space-y-4">
+        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold">Soal {number}</h2>
+                <button type="button" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700" onClick={onRemove}>Hapus Soal</button>
+            </div>
+            {question && <input type="hidden" name="soalAktif" value={question.id} />}
+            {changed && <input type="hidden" name="perubahan" value={JSON.stringify({ id: question?.id ?? null, nomor: number, soal })} />}
+            {reading > 0 && <input type="hidden" name="gambarDiproses" value="1" />}
+            <div className="space-y-4">
                 <label className="block text-sm font-semibold">Tipe soal
                     <select className={fieldClass} value={type} onChange={event => {
                         const next = event.target.value as QuestionType;
@@ -89,7 +91,7 @@ export default function QuestionEditor({ examId, question, onClose, onSave }: {
                     </select>
                 </label>
                 <label className="block text-sm font-semibold">Soal
-                    <textarea className={fieldClass} required maxLength={12000} rows={3} value={text} onChange={e => setText(e.target.value)} />
+                    <textarea className={fieldClass} autoFocus={focus} required maxLength={12000} rows={3} value={text} onChange={e => setText(e.target.value)} />
                 </label>
                 <label className="block text-sm font-semibold">URL gambar soal (opsional)
                     <input type="url" className={fieldClass} maxLength={2000} value={image.startsWith('data:') ? '' : image} onChange={e => setImage(e.target.value)} />
@@ -167,11 +169,7 @@ export default function QuestionEditor({ examId, question, onClose, onSave }: {
                     </>
                 )}
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-                <div className="flex justify-end gap-3 border-t pt-3">
-                    <button type="button" disabled={saving} className="rounded-xl border px-4 py-2 text-sm" onClick={onClose}>Batal</button>
-                    <button type="submit" disabled={saving} className={primaryClass}>{saving ? 'Menyimpan…' : 'Simpan Soal'}</button>
-                </div>
-            </form>
-        </dialog>
+            </div>
+        </section>
     );
 }

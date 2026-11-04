@@ -1,3 +1,4 @@
+import ModalOverlay from './ModalOverlay';
 interface Props {
     title: string;
     message: string;
@@ -6,7 +7,7 @@ interface Props {
 
 export default function SuccessDialog({ title, message, onClose }: Props) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+        <ModalOverlay>
             <section role="dialog" aria-modal="true" aria-labelledby="success-dialog-title"
                      className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-2xl border border-gray-100 text-center">
 
@@ -37,6 +38,6 @@ export default function SuccessDialog({ title, message, onClose }: Props) {
                     </button>
                 </div>
             </section>
-        </div>
+        </ModalOverlay>
     );
 }

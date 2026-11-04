@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from '../services/api';
 import { Lock, User } from 'lucide-react';
 
-export default function Login({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) {
+export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (user: any) => void; brandLogo: string }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(() => sessionStorage.getItem('loginNotice') || '');
@@ -37,7 +37,8 @@ export default function Login({ onLoginSuccess }: { onLoginSuccess: (user: any) 
                 <div className="text-center mb-6 sm:mb-8 flex flex-col items-center">
                     {/* Logo responsif (lebih kecil di HP, proporsional di PC) */}
                     <img
-                        src="/assets/logo_smpip.png"
+                        key={brandLogo}
+                        src={brandLogo}
                         alt="Logo Sekolah"
                         className="w-20 h-20 sm:w-24 sm:h-24 object-contain mb-3 drop-shadow-sm"
                         onError={(e) => {

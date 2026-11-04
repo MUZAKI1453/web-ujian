@@ -5,7 +5,7 @@ import { grade } from './examGrading';
 
 const router = Router();
 router.use(requireUser, (_req, res, next) => {
-    if (res.locals.user.role !== 'siswa') return res.status(403).json({ message: 'Akses khusus siswa.' });
+    if (!['siswa', 'admin'].includes(res.locals.user.role)) return res.status(403).json({ message: 'Akses khusus siswa.' });
     next();
 });
 

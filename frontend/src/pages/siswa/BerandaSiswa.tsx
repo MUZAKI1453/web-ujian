@@ -1,5 +1,5 @@
 import { isAxiosError } from 'axios';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Bell, BookOpen, CalendarDays } from 'lucide-react';
 import api from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
@@ -27,7 +27,7 @@ const noticeLabels: Record<string, string> = {
     'hasil-dirilis': 'Hasil dirilis', 'nilai-diperbarui': 'Nilai diperbarui', 'pembahasan-dirilis': 'Pembahasan dirilis'
 };
 
-export default function BerandaSiswa({ name, username, preview }: { name: string; username: string; preview: boolean }) {
+export default function BerandaSiswa({ name, username, adminMode }: { name: string; username: string; adminMode: boolean }) {
     const [exams, setExams] = useState<Exam[]>([]);
     const [notices, setNotices] = useState<Notice[]>([]);
     const [showNotices, setShowNotices] = useState(false);
@@ -43,11 +43,9 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
         const { data } = await api.get<{ data: Exam[] }>('/siswa/ujian', { signal });
         if (signal?.aborted) return;
         setExams(data.data);
-        if (!preview) {
-            const notifications = await api.get<{ data: Notice[] }>('/siswa/notifikasi', { signal });
-            if (!signal?.aborted) setNotices(notifications.data.data);
-        }
-    }, [preview]);
+        const notifications = await api.get<{ data: Notice[] }>('/siswa/notifikasi', { signal });
+        if (!signal?.aborted) setNotices(notifications.data.data);
+    }, []);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -63,63 +61,52 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
 
     const key = (id: number) => username + ':' + id;
 
-    async function enter(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!selected) return;
-        const token = new FormData(event.currentTarget).get('token');
+    async function enter(exam: Exam, token: FormDataEntryValue | null = null) {
         setBusy(true);
         setError('');
         try {
-            if (preview) {
-                const { data } = await api.get<{ soal: Question[] }>('/siswa/ujian/' + selected.id + '/preview');
-                setWorking({ exam: selected, attempt: {
-                    attemptId: 0, deadline: Infinity, offset: 0, versi: 0, saved: 0, jawaban: {},
-                    soal: data.soal, ragu: [], index: 0, send: false
-                } });
-            } else {
-                const local = await loadAttempt(key(selected.id)).catch(() => undefined);
-                let packet: Packet;
-                try {
-                    const url = '/siswa/ujian/' + selected.id;
-                    if (!selected.attempt && !prepared) {
-                        const { data } = await api.post<{ izin: string; soal: Question[] }>(url + '/siapkan', { token }, { timeout: 12000 });
-                        const images = [...new Set(data.soal.flatMap(q => [q.gambar, ...q.items.map(item => item.gambar)]).filter(Boolean))];
-                        await Promise.race([
-                            Promise.allSettled(images.map(source => {
-                                const image = new Image();
-                                image.src = source!;
-                                return image.decode();
-                            })),
-                            new Promise(resolve => setTimeout(resolve, 5000))
-                        ]);
-                        setPrepared(data.izin);
-                        return;
-                    }
-                    const { data } = await api.post<Packet>(url + '/mulai', { izin: prepared }, { timeout: 12000 });
-                    packet = data;
-                } catch (err) {
-                    if (local && local.attemptId === selected.attempt && !selected.submitted &&
-                        (!navigator.onLine || (isAxiosError(err) && !err.response) || (local.versi > local.saved && Date.now() + local.offset >= local.deadline))) {
-                        setWorking({ exam: selected, attempt: local });
-                        setSelected(null);
-                        return;
-                    }
-                    throw err;
+            const local = await loadAttempt(key(exam.id)).catch(() => undefined);
+            let packet: Packet;
+            try {
+                const url = '/siswa/ujian/' + exam.id;
+                if (!adminMode && !exam.attempt && !prepared) {
+                    const { data } = await api.post<{ izin: string; soal: Question[] }>(url + '/siapkan', { token }, { timeout: 12000 });
+                    const images = [...new Set(data.soal.flatMap(q => [q.gambar, ...q.items.map(item => item.gambar)]).filter(Boolean))];
+                    await Promise.race([
+                        Promise.allSettled(images.map(source => {
+                            const image = new Image();
+                            image.src = source!;
+                            return image.decode();
+                        })),
+                        new Promise(resolve => setTimeout(resolve, 5000))
+                    ]);
+                    setPrepared(data.izin);
+                    return;
                 }
-                const same = local?.attemptId === packet.attemptId ? local : undefined;
-                const queued = same && same.versi > packet.versi;
-                const attempt: LocalAttempt = {
-                    attemptId: packet.attemptId, deadline: packet.deadline, offset: packet.now - Date.now(),
-                    versi: queued ? same.versi : packet.versi, saved: packet.versi,
-                    jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
-                    index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false
-                };
-                await storeAttempt(key(selected.id), attempt).catch(() => {});
-                for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {
-                    if (source && !source.startsWith('data:')) { const image = new Image(); image.src = source; }
+                const { data } = await api.post<Packet>(url + '/mulai', { izin: prepared }, { timeout: 12000 });
+                packet = data;
+            } catch (err) {
+                if (local && local.attemptId === exam.attempt && !exam.submitted &&
+                    (!navigator.onLine || (isAxiosError(err) && !err.response) || (local.versi > local.saved && Date.now() + local.offset >= local.deadline))) {
+                    setWorking({ exam, attempt: local });
+                    setSelected(null);
+                    return;
                 }
-                setWorking({ exam: selected, attempt });
+                throw err;
             }
+            const same = local?.attemptId === packet.attemptId ? local : undefined;
+            const queued = same && same.versi > packet.versi;
+            const attempt: LocalAttempt = {
+                attemptId: packet.attemptId, deadline: packet.deadline, offset: packet.now - Date.now(),
+                versi: queued ? same.versi : packet.versi, saved: packet.versi,
+                jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
+                index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false
+            };
+            await storeAttempt(key(exam.id), attempt).catch(() => {});
+            for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {
+                if (source && !source.startsWith('data:')) { const image = new Image(); image.src = source; }
+            }
+            setWorking({ exam, attempt });
             setSelected(null);
         } catch (err) { setError(errorMessage(err)); }
         finally { setBusy(false); }
@@ -141,7 +128,7 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
     }
 
     if (working) return <KerjakanUjian initial={working.attempt} storageKey={key(working.exam.id)} examId={working.exam.id}
-        title={working.exam.judul} preview={preview} onExit={() => { setWorking(null); void refresh().catch(err => setError(errorMessage(err))); }} />;
+        title={working.exam.judul} onExit={() => { setWorking(null); void refresh().catch(err => setError(errorMessage(err))); }} />;
 
     if (output) return <section className="space-y-4 rounded-xl bg-white p-5 shadow-sm">
         <button type="button" className="text-sm font-semibold text-blue-700" onClick={() => setOutput(null)}>← Kembali ke Beranda</button>
@@ -170,8 +157,8 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
     return <section className="space-y-5">
         <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white shadow-sm">
             <div><p className="text-sm text-blue-100">Panel Siswa</p><h1 className="text-2xl font-bold">Halo, {name}</h1><p className="mt-1 text-sm text-blue-100">Lihat jadwal dan kerjakan ujian Anda.</p></div>
-            {!preview && <button type="button" aria-expanded={showNotices} className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm"
-                onClick={() => setShowNotices(value => !value)}><Bell size={16} /> Notifikasi {notices.filter(n => !n.dibaca).length || ''}</button>}
+            <button type="button" aria-expanded={showNotices} className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm"
+                onClick={() => setShowNotices(value => !value)}><Bell size={16} /> Notifikasi {notices.filter(n => !n.dibaca).length || ''}</button>
         </header>
         {showNotices && <section className="space-y-2 rounded-xl bg-white p-4 shadow-sm">
             <h2 className="font-semibold">Notifikasi</h2>
@@ -184,17 +171,17 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
             </button>)}
         </section>}
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-        {selected && <form onSubmit={enter} className="space-y-3 rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
+        {selected && <form onSubmit={event => { event.preventDefault(); void enter(selected, new FormData(event.currentTarget).get('token')); }} className="space-y-3 rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold">Instruksi · {selected.judul}</h2>
             <p className="text-sm text-slate-600">Durasi {selected.durasi} menit. Kerjakan satu soal per layar, tandai jika ragu, dan periksa jawaban sebelum mengirim.</p>
-            {!preview && !selected.attempt && !prepared && <label className="block max-w-xs text-sm font-semibold">Token ujian
+            {!selected.attempt && !prepared && <label className="block max-w-xs text-sm font-semibold">Token ujian
                 <input name="token" autoComplete="off" maxLength={6} minLength={6} required className={fieldClass + ' uppercase'} />
             </label>}
             {prepared && <p role="status" className="text-sm text-green-800">Soal siap. Timer dimulai setelah Anda memilih Mulai Ujian.</p>}
             <div className="flex gap-2">
                 <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => { setSelected(null); setPrepared(null); }}>Batal</button>
                 <button type="submit" disabled={busy} className={primaryClass}>
-                    {busy ? 'Menyiapkan soal…' : preview ? 'Buka Pratinjau' : selected.attempt ? 'Lanjutkan Ujian' : prepared ? 'Mulai Ujian' : 'Verifikasi Token'}
+                    {busy ? 'Menyiapkan soal…' : selected.attempt ? 'Lanjutkan Ujian' : prepared ? 'Mulai Ujian' : 'Verifikasi Token'}
                 </button>
             </div>
         </form>}
@@ -213,15 +200,20 @@ export default function BerandaSiswa({ name, username, preview }: { name: string
                         <p className="mt-1 text-xs text-slate-600"><CalendarDays className="mr-1 inline" size={13} />{schedule.format(new Date(exam.mulai))} s.d. {schedule.format(new Date(exam.selesai))}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        {(preview || (!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka)))) &&
-                            <button type="button" disabled={busy} className={primaryClass} onClick={() => { setSelected(exam); setPrepared(null); setOutput(null); setError(''); }}>
-                                {preview ? 'Preview Ujian' : exam.attempt ? 'Lanjutkan' : 'Instruksi & Token'}
+                        {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
+                            <button type="button" disabled={busy} className={primaryClass} onClick={() => {
+                                setOutput(null);
+                                setError('');
+                                if (adminMode) void enter(exam);
+                                else { setSelected(exam); setPrepared(null); }
+                            }}>
+                                {exam.attempt ? 'Lanjutkan' : adminMode ? 'Kerjakan Ujian' : 'Instruksi & Token'}
                             </button>}
                         {exam.hasil && <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void show(exam, 'hasil')}>Lihat Hasil</button>}
                         {exam.pembahasan && <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void show(exam, 'pembahasan')}>Pembahasan</button>}
-                        {!preview && exam.offline && <span className="text-sm text-amber-800">Menunggu tinjauan guru</span>}
-                        {!preview && exam.submitted && !exam.hasil && !exam.offline && <span className="text-sm text-slate-600">Hasil belum tersedia</span>}
-                        {!preview && status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
+                        {exam.offline && <span className="text-sm text-amber-800">Menunggu tinjauan guru</span>}
+                        {exam.submitted && !exam.hasil && !exam.offline && <span className="text-sm text-slate-600">Hasil belum tersedia</span>}
+                        {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
                     </div>
                 </article>)}
             </section>;
