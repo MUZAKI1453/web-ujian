@@ -1,3 +1,4 @@
+import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
@@ -17,12 +18,16 @@ export default function DataKelas() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // State untuk Modal (Tambah / Edit)
+    // State untuk Modal (Tambah / Edit & Hapus)
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [namaKelas, setNamaKelas] = useState('');
     const [tingkat, setTingkat] = useState('');
+
+    // State untuk fitur hapus & checkbox massal
+    const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const fetchKelas = () => {
         setLoading(true);
@@ -66,7 +71,6 @@ export default function DataKelas() {
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
-
                     fetchKelas();
                 })
                 .catch((err) => {
@@ -77,7 +81,6 @@ export default function DataKelas() {
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
-
                     fetchKelas();
                 })
                 .catch((err) => {
@@ -86,23 +89,17 @@ export default function DataKelas() {
         }
     };
 
-    const handleDelete = (id: number) => {
-        if (confirm('Yakin ingin menghapus kelas ini?')) {
-            api.delete(`/admin/kelas/${id}`)
-                .then(() => fetchKelas())
-                .catch((err) => {
-                    alert(err.response?.data?.message || 'Gagal menghapus kelas');
-                });
-        }
-    };
-
     const filteredKelas = kelasList.filter((k) =>
         k.namaKelas.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const visibleIds = filteredKelas.map(item => item.id);
+    const visibleSelected = visibleIds.filter(id => selectedIds.includes(id));
+    const allSelected = visibleIds.length > 0 && visibleSelected.length === visibleIds.length;
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Header Utama & Kontrol (Responsif selaras dengan halaman Guru) */}
+            {/* Header Utama & Kontrol */}
             <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2.5">
@@ -113,7 +110,6 @@ export default function DataKelas() {
                     </p>
                 </div>
 
-                {/* Bagian Aksi Kanan: Search Bar & Tombol Tambah (Tertata rapi secara vertikal di HP, horizontal di PC) */}
                 <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
                     <div className="relative flex items-center w-full md:w-72">
                         <Search size={18} className="absolute left-3.5 text-gray-400" />
@@ -139,7 +135,21 @@ export default function DataKelas() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
+                        <tr>
+                            <td colSpan={5} className="px-6 py-3">
+                                <button type="button" disabled={!visibleSelected.length}
+                                        onClick={() => setDeleteIds(visibleSelected)}
+                                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                    Hapus terpilih ({visibleSelected.length})
+                                </button>
+                            </td>
+                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                            <th className="pl-6 w-12">
+                                <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
+                                       checked={allSelected} disabled={!visibleIds.length}
+                                       onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
+                            </th>
                             <th className="py-4 px-6">No</th>
                             <th className="py-4 px-6">Nama Kelas</th>
                             <th className="py-4 px-6">Jumlah Siswa</th>
@@ -149,15 +159,23 @@ export default function DataKelas() {
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-12 text-gray-400 animate-pulse">Memuat data kelas...</td>
+                                <td colSpan={5} className="text-center py-12 text-gray-400 animate-pulse">Memuat data kelas...</td>
                             </tr>
                         ) : filteredKelas.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-12 text-gray-400">Belum ada data kelas ditemukan.</td>
+                                <td colSpan={5} className="text-center py-12 text-gray-400">Belum ada data kelas ditemukan.</td>
                             </tr>
                         ) : (
                             filteredKelas.map((item, index) => (
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="pl-6">
+                                        <input type="checkbox" aria-label={'Pilih ' + item.namaKelas}
+                                               checked={selectedIds.includes(item.id)}
+                                               onChange={event => {
+                                                   const checked = event.target.checked;
+                                                   setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
+                                               }} />
+                                    </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.namaKelas}
                                         <span className="block text-xs font-normal text-slate-500">{item.tingkat && schoolGrades.includes(item.tingkat) ? 'Tingkat ' + item.tingkat : 'Pilih tingkat 1–3'}</span>
@@ -177,7 +195,7 @@ export default function DataKelas() {
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(item.id)}
+                                                onClick={() => setDeleteIds([item.id])}
                                                 className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                                                 title="Hapus Kelas"
                                             >
@@ -193,7 +211,17 @@ export default function DataKelas() {
                 </div>
             </div>
 
-            {/* Modal Form Tambah / Edit Kelas */}
+            {/* Dialog Konfirmasi Hapus Menggunakan DeleteAccountDialog */}
+            {deleteIds.length > 0 && (
+                <DeleteAccountDialog
+                    role="kelas"
+                    ids={deleteIds}
+                    onClose={() => setDeleteIds([])}
+                    onDeleted={() => { setSelectedIds([]); fetchKelas(); }}
+                />
+            )}
+
+            {/* Modal Tambah / Edit Kelas */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
@@ -206,21 +234,28 @@ export default function DataKelas() {
                                 <input
                                     type="text"
                                     required
-                                    placeholder="Contoh: 10A"
+                                    placeholder="Contoh: 7A"
                                     value={namaKelas}
                                     onChange={(e) => setNamaKelas(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
                                 />
                             </div>
-                            <label className="block text-xs font-bold uppercase text-gray-500">
-                                Tingkat
-                                <select required value={tingkat} onChange={e => setTingkat(e.target.value)}
-                                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm normal-case">
-                                    <option value="">Pilih tingkat</option>
-                                    {schoolGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Tingkat Kelas</label>
+                                <select
+                                    required
+                                    value={tingkat}
+                                    onChange={(e) => setTingkat(e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm bg-white"
+                                >
+                                    <option value="">-- Pilih Tingkat --</option>
+                                    {schoolGrades.map((g) => (
+                                        <option key={g} value={g}>
+                                            Tingkat {g}
+                                        </option>
+                                    ))}
                                 </select>
-                            </label>
-                            <p className="text-xs text-slate-600">Buat satu entri untuk setiap kelas. Kelas pada tingkat yang sama otomatis tercakup dalam penugasan guru per tingkat.</p>
+                            </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"

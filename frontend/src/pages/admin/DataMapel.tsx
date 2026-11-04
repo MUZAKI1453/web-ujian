@@ -1,3 +1,4 @@
+import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { BookOpen, Plus, Edit3, Trash2, Search, GraduationCap } from 'lucide-react';
@@ -23,6 +24,10 @@ export default function DataMapel() {
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [nama, setNama] = useState('');
+
+    // State untuk fitur hapus & checkbox massal
+    const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const fetchMapel = () => {
         setLoading(true);
@@ -78,18 +83,14 @@ export default function DataMapel() {
         }
     };
 
-    const handleDelete = (id: number) => {
-        if (confirm('Yakin ingin menghapus mata pelajaran ini?')) {
-            api.delete(`/admin/mapel/${id}`)
-                .then(() => fetchMapel())
-                .catch((err) => alert(err.response?.data?.message || 'Gagal menghapus mata pelajaran'));
-        }
-    };
-
     const filteredMapel = mapelList.filter((m) =>
         m.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
         m.pengampu.some(p => p.guru.nama?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    const visibleIds = filteredMapel.map(item => item.id);
+    const visibleSelected = visibleIds.filter(id => selectedIds.includes(id));
+    const allSelected = visibleIds.length > 0 && visibleSelected.length === visibleIds.length;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -129,7 +130,21 @@ export default function DataMapel() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
+                        <tr>
+                            <td colSpan={5} className="px-6 py-3">
+                                <button type="button" disabled={!visibleSelected.length}
+                                        onClick={() => setDeleteIds(visibleSelected)}
+                                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                    Hapus terpilih ({visibleSelected.length})
+                                </button>
+                            </td>
+                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                            <th className="pl-6 w-12">
+                                <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
+                                       checked={allSelected} disabled={!visibleIds.length}
+                                       onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
+                            </th>
                             <th className="py-4 px-6">No</th>
                             <th className="py-4 px-6">Nama Mata Pelajaran</th>
                             <th className="py-4 px-6">Guru Pengampu</th>
@@ -139,15 +154,23 @@ export default function DataMapel() {
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-12 text-gray-400 animate-pulse">Memuat mata pelajaran...</td>
+                                <td colSpan={5} className="text-center py-12 text-gray-400 animate-pulse">Memuat mata pelajaran...</td>
                             </tr>
                         ) : filteredMapel.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="text-center py-12 text-gray-400">Belum ada mata pelajaran ditemukan.</td>
+                                <td colSpan={5} className="text-center py-12 text-gray-400">Belum ada mata pelajaran ditemukan.</td>
                             </tr>
                         ) : (
                             filteredMapel.map((item, index) => (
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="pl-6">
+                                        <input type="checkbox" aria-label={'Pilih ' + item.nama}
+                                               checked={selectedIds.includes(item.id)}
+                                               onChange={event => {
+                                                   const checked = event.target.checked;
+                                                   setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
+                                               }} />
+                                    </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
                                     <td className="py-4 px-6">
@@ -168,7 +191,7 @@ export default function DataMapel() {
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(item.id)}
+                                                onClick={() => setDeleteIds([item.id])}
                                                 className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
                                                 title="Hapus Mapel"
                                             >
@@ -183,6 +206,16 @@ export default function DataMapel() {
                     </table>
                 </div>
             </div>
+
+            {/* Dialog Konfirmasi Hapus Menggunakan DeleteAccountDialog */}
+            {deleteIds.length > 0 && (
+                <DeleteAccountDialog
+                    role="mapel"
+                    ids={deleteIds}
+                    onClose={() => setDeleteIds([])}
+                    onDeleted={() => { setSelectedIds([]); fetchMapel(); }}
+                />
+            )}
 
             {/* Modal Tambah / Edit Mapel */}
             {showModal && (
