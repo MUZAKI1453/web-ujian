@@ -1,4 +1,5 @@
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import SuccessDialog from '../../components/SuccessDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { downloadImportTemplate } from '../../services/downloadImportTemplate';
@@ -36,6 +37,9 @@ export default function DataSiswa() {
     // State Modal Import Excel
     const [showImportModal, setShowImportModal] = useState(false);
     const [fileExcel, setFileExcel] = useState<File | null>(null);
+
+    // State untuk memicu Dialog Sukses (Tambah / Edit / Hapus / Import)
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const fetchData = () => {
         setLoading(true);
@@ -95,6 +99,7 @@ export default function DataSiswa() {
                 .then(() => {
                     setShowModal(false);
                     fetchData();
+                    setSuccessMessage('Data siswa berhasil diperbarui.');
                 })
                 .catch((err) => alert(err.response?.data?.message || 'Gagal memperbarui siswa'));
         } else {
@@ -102,6 +107,7 @@ export default function DataSiswa() {
                 .then(() => {
                     setShowModal(false);
                     fetchData();
+                    setSuccessMessage('Data siswa baru berhasil ditambahkan.');
                 })
                 .catch((err) => alert(err.response?.data?.message || 'Gagal menambah siswa'));
         }
@@ -122,10 +128,10 @@ export default function DataSiswa() {
             headers: { 'Content-Type': 'multipart/form-data' }
         })
             .then((res) => {
-                alert(res.data.message || 'Import siswa berhasil!');
                 setShowImportModal(false);
                 setFileExcel(null);
                 fetchData();
+                setSuccessMessage(res.data.message || 'Import data siswa berhasil!');
             })
             .catch((err) => alert(err.response?.data?.message || 'Gagal mengimport file Excel'));
     };
@@ -211,8 +217,8 @@ export default function DataSiswa() {
                         <tr>
                             <td colSpan={6} className="px-6 py-3">
                                 <button type="button" disabled={!visibleSelected.length}
-                                    onClick={() => setDeleteIds(visibleSelected)}
-                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                        onClick={() => setDeleteIds(visibleSelected)}
+                                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
                                     Hapus terpilih ({visibleSelected.length})
                                 </button>
                             </td>
@@ -220,8 +226,8 @@ export default function DataSiswa() {
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
                             <th className="pl-6">
                                 <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
-                                    checked={allSelected} disabled={!visibleIds.length}
-                                    onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
+                                       checked={allSelected} disabled={!visibleIds.length}
+                                       onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
                             </th>
                             <th className="py-4 px-6">No</th>
                             <th className="py-4 px-6">NIS / Username</th>
@@ -244,11 +250,11 @@ export default function DataSiswa() {
                                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="pl-6">
                                         <input type="checkbox" aria-label={'Pilih ' + item.nama}
-                                            checked={selectedIds.includes(item.id)}
-                                            onChange={event => {
-                                                const checked = event.target.checked;
-                                                setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
-                                            }} />
+                                               checked={selectedIds.includes(item.id)}
+                                               onChange={event => {
+                                                   const checked = event.target.checked;
+                                                   setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
+                                               }} />
                                     </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-mono font-semibold text-gray-600">{item.username}</td>
@@ -288,10 +294,30 @@ export default function DataSiswa() {
                 </div>
             </div>
 
-            {/* Modal Tambah / Edit Siswa */}
+            {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (
-                <DeleteAccountDialog role="siswa" ids={deleteIds} onClose={() => setDeleteIds([])} onDeleted={() => { setSelectedIds([]); fetchData(); }} />
+                <DeleteAccountDialog
+                    role="siswa"
+                    ids={deleteIds}
+                    onClose={() => setDeleteIds([])}
+                    onDeleted={() => {
+                        setSelectedIds([]);
+                        fetchData();
+                        setSuccessMessage('Data siswa berhasil dihapus.');
+                    }}
+                />
             )}
+
+            {/* Dialog Notifikasi Sukses */}
+            {successMessage && (
+                <SuccessDialog
+                    title="Berhasil!"
+                    message={successMessage}
+                    onClose={() => setSuccessMessage(null)}
+                />
+            )}
+
+            {/* Modal Tambah / Edit Siswa */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">

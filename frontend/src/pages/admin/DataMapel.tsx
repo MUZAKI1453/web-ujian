@@ -1,4 +1,5 @@
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import SuccessDialog from '../../components/SuccessDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { BookOpen, Plus, Edit3, Trash2, Search, GraduationCap } from 'lucide-react';
@@ -28,6 +29,9 @@ export default function DataMapel() {
     // State untuk fitur hapus & checkbox massal
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+    // State untuk memicu Dialog Sukses
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const fetchMapel = () => {
         setLoading(true);
@@ -71,6 +75,7 @@ export default function DataMapel() {
                 .then(() => {
                     setShowModal(false);
                     fetchMapel();
+                    setSuccessMessage('Mata pelajaran berhasil diperbarui.');
                 })
                 .catch((err) => alert(err.response?.data?.message || 'Gagal memperbarui mata pelajaran'));
         } else {
@@ -78,6 +83,7 @@ export default function DataMapel() {
                 .then(() => {
                     setShowModal(false);
                     fetchMapel();
+                    setSuccessMessage('Mata pelajaran baru berhasil ditambahkan.');
                 })
                 .catch((err) => alert(err.response?.data?.message || 'Gagal menambah mata pelajaran'));
         }
@@ -213,7 +219,20 @@ export default function DataMapel() {
                     role="mapel"
                     ids={deleteIds}
                     onClose={() => setDeleteIds([])}
-                    onDeleted={() => { setSelectedIds([]); fetchMapel(); }}
+                    onDeleted={() => {
+                        setSelectedIds([]);
+                        fetchMapel();
+                        setSuccessMessage('Mata pelajaran berhasil dihapus.');
+                    }}
+                />
+            )}
+
+            {/* Dialog Notifikasi Sukses */}
+            {successMessage && (
+                <SuccessDialog
+                    title="Berhasil!"
+                    message={successMessage}
+                    onClose={() => setSuccessMessage(null)}
                 />
             )}
 

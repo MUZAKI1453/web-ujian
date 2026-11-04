@@ -1,4 +1,5 @@
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import SuccessDialog from '../../components/SuccessDialog';
 import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
@@ -28,6 +29,9 @@ export default function DataKelas() {
     // State untuk fitur hapus & checkbox massal
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+    // State untuk memicu Dialog Sukses (Bisa dipakai untuk Tambah, Edit, maupun Hapus)
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const fetchKelas = () => {
         setLoading(true);
@@ -72,6 +76,8 @@ export default function DataKelas() {
                     setShowModal(false);
                     setNamaKelas('');
                     fetchKelas();
+                    // Munculkan pop-up sukses edit
+                    setSuccessMessage('Data kelas berhasil diperbarui.');
                 })
                 .catch((err) => {
                     alert(err.response?.data?.message || 'Gagal memperbarui kelas');
@@ -82,6 +88,8 @@ export default function DataKelas() {
                     setShowModal(false);
                     setNamaKelas('');
                     fetchKelas();
+                    // Munculkan pop-up sukses tambah
+                    setSuccessMessage('Data kelas baru berhasil ditambahkan.');
                 })
                 .catch((err) => {
                     alert(err.response?.data?.message || 'Gagal menambah kelas');
@@ -211,13 +219,26 @@ export default function DataKelas() {
                 </div>
             </div>
 
-            {/* Dialog Konfirmasi Hapus Menggunakan DeleteAccountDialog */}
+            {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (
                 <DeleteAccountDialog
                     role="kelas"
                     ids={deleteIds}
                     onClose={() => setDeleteIds([])}
-                    onDeleted={() => { setSelectedIds([]); fetchKelas(); }}
+                    onDeleted={() => {
+                        setSelectedIds([]);
+                        fetchKelas();
+                        setSuccessMessage('Data kelas berhasil dihapus.');
+                    }}
+                />
+            )}
+
+            {/* Dialog Notifikasi Sukses (Untuk Tambah, Edit, & Hapus) */}
+            {successMessage && (
+                <SuccessDialog
+                    title="Berhasil!"
+                    message={successMessage}
+                    onClose={() => setSuccessMessage(null)}
                 />
             )}
 
