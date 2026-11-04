@@ -10,7 +10,6 @@ generator client {
 model Kelas {
   id        Int              @id @default(autoincrement())
   namaKelas String           @unique @map("nama_kelas")
-  tingkat   Int?
   users     User[]
   ujian     Ujian[]
   pengampu  GuruMapelKelas[]
@@ -51,12 +50,11 @@ model GuruMapelKelas {
   id      Int @id @default(autoincrement())
   guruId  Int @map("guru_id")
   mapelId Int @map("mapel_id")
-  kelasId Int? @map("kelas_id")
-  tingkat Int?
+  kelasId Int @map("kelas_id")
 
   guru  User  @relation(fields: [guruId], references: [id], onDelete: Cascade)
   mapel Mapel @relation(fields: [mapelId], references: [id], onDelete: Cascade)
-  kelas Kelas? @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelasId], references: [id], onDelete: Cascade)
 
   @@map("guru_mapel_kelas")
 }
@@ -217,4 +215,12 @@ model PercobaanToken {
 
   @@id([siswaId, ujianId])
   @@map("percobaan_token")
+}
+
+model NavbarSettings {
+  id    Int     @id
+  text  String  @db.VarChar(60)
+  logo  String? @db.Text
+
+  @@map("navbar_settings")
 }

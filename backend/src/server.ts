@@ -8,6 +8,8 @@ import adminRoutes from './routes/adminRoutes';
 import guruRoutes, { collectExpiredAttempts, processCorrectionQueue } from './routes/guruRoutes';
 import studentResultsRoutes from './routes/studentResultsRoutes';
 import studentExamRoutes from './routes/studentExamRoutes';
+import { getNavbar } from './controllers/navbarController';
+import { requireUser } from './middleware/auth';
 
 dotenv.config();
 
@@ -18,6 +20,7 @@ app.use(cors());
 app.use('/api/guru', express.json({ limit: '8mb' }), guruRoutes);
 app.use('/api/siswa', express.json({ limit: '2mb' }), studentExamRoutes, studentResultsRoutes);
 app.use(express.json());
+app.get('/api/navbar', requireUser, getNavbar);
 
 // Daftarkan rute auth
 app.use('/api/auth', authRoutes);

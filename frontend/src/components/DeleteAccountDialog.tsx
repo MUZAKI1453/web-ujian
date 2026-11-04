@@ -24,7 +24,10 @@ export default function DeleteAccountDialog({ role, ids, onClose, onDeleted }: P
             onDeleted();
             onClose();
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Gagal menghapus data ' + role + '.');
+            const message = err.response?.data?.message;
+            setError(typeof message === 'string' && message
+                ? message
+                : err.response ? 'Gagal menghapus ' + getRoleLabel() + '.' : 'Server tidak dapat dijangkau. Cek koneksi, lalu coba lagi.');
         } finally {
             setPending(false);
         }
@@ -52,12 +55,12 @@ export default function DeleteAccountDialog({ role, ids, onClose, onDeleted }: P
                 )}
                 {role === 'kelas' && (
                     <p className="text-sm text-gray-500">
-                        Pastikan tidak ada siswa aktif yang terikat di kelas ini sebelum menghapusnya.
+                        Jika ada kelas terpilih yang masih memiliki siswa, seluruh penghapusan dibatalkan. Penugasan dan ujian terkait ikut terhapus saat kelas dihapus.
                     </p>
                 )}
                 {role === 'mapel' && (
                     <p className="text-sm text-gray-500">
-                        Penghapusan mata pelajaran akan melepas seluruh relasi guru pengampu yang terkait.
+                        Penugasan guru, ujian, soal, jawaban, dan nilai yang terkait dengan mata pelajaran ini juga akan terhapus.
                     </p>
                 )}
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

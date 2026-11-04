@@ -12,7 +12,7 @@ interface Guru {
 interface Mapel {
     id: number;
     nama: string;
-    pengampu: { id: number; guru: Guru; kelas: { namaKelas: string } | null; tingkat: number | null }[];
+    pengampu: { id: number; guru: Guru; kelas: { namaKelas: string } }[];
 }
 
 export default function DataMapel() {
@@ -182,7 +182,7 @@ export default function DataMapel() {
                                     <td className="py-4 px-6">
                                         {item.pengampu.length ? item.pengampu.map(p => (
                                             <span key={p.id} className="m-0.5 inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
-                                                <GraduationCap size={14} /> {p.guru.nama} · {p.kelas?.namaKelas ?? 'Semua kelas tingkat ' + p.tingkat}
+                                                <GraduationCap size={14} /> {p.guru.nama} · {p.kelas.namaKelas}
                                             </span>
                                         )) : (<span className="text-xs text-gray-400 italic">Belum ditentukan</span>
                                         )}

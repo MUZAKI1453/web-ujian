@@ -64,15 +64,7 @@ async function assignments(actor: Account) {
         where: { guruId: actor.id },
         include: { mapel: true, kelas: true }
     });
-    const grades = records.flatMap(record => record.tingkat === null ? [] : [record.tingkat]);
-    const classes = grades.length ? await prisma.kelas.findMany({
-        where: { tingkat: { in: grades } }, orderBy: { namaKelas: 'asc' }
-    }) : [];
-    const pairs = new Map<string, { mapel: { id: number; nama: string }; kelas: { id: number; namaKelas: string } }>();
-    for (const record of records) {
-        const assigned = record.kelas ? [record.kelas] : classes.filter(item => item.tingkat === record.tingkat);
-        for (const kelas of assigned) pairs.set(record.mapelId + ':' + kelas.id, { mapel: record.mapel, kelas });
-    }
+    const pairs = new Map(records.map(({ mapelId, kelasId, mapel, kelas }) => [mapelId + ':' + kelasId, { mapel, kelas }]));
     return [...pairs.values()];
 }
 

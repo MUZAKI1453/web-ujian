@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NavbarLayout from './components/NavbarLayout';
 import Login from './pages/Login';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
@@ -7,6 +7,8 @@ import DataSiswa from './pages/admin/DataSiswa';
 import DataGuru from './pages/admin/DataGuru';
 import DataMapel from './pages/admin/DataMapel';
 import MonitoringUjian from './pages/admin/MonitoringUjian';
+import PengaturanNavbar, { defaultNavbar, type NavbarSettings } from './pages/admin/PengaturanNavbar';
+import api from './services/api';
 import GantiPassword from './pages/GantiPassword';
 import UjianGuru from './pages/guru/UjianGuru';
 import BerandaSiswa from './pages/siswa/BerandaSiswa';
@@ -28,6 +30,20 @@ export default function App() {
     });
     const [page, setPage] = useState('dashboard');
     const [previewRole, setPreviewRole] = useState<ViewRole>('admin');
+    const [navbar, setNavbar] = useState<NavbarSettings>(defaultNavbar);
+    const [navbarLoaded, setNavbarLoaded] = useState(false);
+
+    useEffect(() => {
+        if (!user) return;
+        const controller = new AbortController();
+        api.get<NavbarSettings | null>('/navbar', { signal: controller.signal })
+            .then(({ data }) => {
+                setNavbar(data ?? defaultNavbar);
+                setNavbarLoaded(true);
+            })
+            .catch(() => {});
+        return () => controller.abort();
+    }, [user]);
 
     const logout = () => {
         localStorage.removeItem('token');
@@ -35,6 +51,8 @@ export default function App() {
         setUser(null);
         setPage('dashboard');
         setPreviewRole('admin');
+        setNavbar(defaultNavbar);
+        setNavbarLoaded(false);
     };
 
     if (!user) return <Login onLoginSuccess={setUser} />;
@@ -52,11 +70,16 @@ export default function App() {
         guru: <DataGuru />,
         mapel: <DataMapel />,
         monitoring: <MonitoringUjian />,
+        navbar: navbarLoaded
+            ? <PengaturanNavbar settings={navbar} onSaved={setNavbar} />
+            : <p role="status">Pengaturan navbar belum tersedia. Muat ulang halaman untuk mencoba lagi.</p>,
     };
 
     return (
         <NavbarLayout
             user={user}
+            brandText={navbar.text}
+            brandLogo={navbar.logo || defaultNavbar.logo}
             viewRole={viewRole}
             onViewRoleChange={user.role === 'admin' ? changeView : undefined}
             onLogout={logout}

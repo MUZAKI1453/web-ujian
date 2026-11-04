@@ -6,6 +6,7 @@ import {
     createKelas,
     updateKelas,
     deleteKelas,
+    deleteSelectedKelas,
 
     getSiswa,
     createSiswa,
@@ -22,6 +23,7 @@ import {
     createMapel,
     updateMapel,
     deleteMapel,
+    deleteSelectedMapel,
 
     getGuruMapelKelas,
     assignGuruMapelKelas,
@@ -33,6 +35,7 @@ import { uploadExcel } from '../middleware/upload';
 import { requireAdmin, requireUser } from '../middleware/auth';
 import { downloadTemplate, importUsers } from '../controllers/adminImportController';
 import { monitorUjian } from '../controllers/monitoringController';
+import { updateNavbar } from '../controllers/navbarController';
 
 const router = Router();
 router.use(requireUser, requireAdmin);
@@ -40,11 +43,13 @@ router.get('/ujian', monitorUjian);
 
 // Dashboard
 router.get('/dashboard', getDashboardStats);
+router.put('/navbar', updateNavbar);
 
 // Kelas (CRUD Manual)
 router.get('/kelas', manageKelas);
 router.post('/kelas', createKelas);
 router.put('/kelas/:id', updateKelas);
+router.post('/kelas/hapus-terpilih', deleteSelectedKelas);
 router.delete('/kelas/:id', deleteKelas);
 
 // Siswa (CRUD Manual, Template & Import Excel)
@@ -69,6 +74,7 @@ router.delete('/guru/:id', deleteGuru);
 router.get('/mapel', getMapel);
 router.post('/mapel', createMapel);
 router.put('/mapel/:id', updateMapel);
+router.post('/mapel/hapus-terpilih', deleteSelectedMapel);
 router.delete('/mapel/:id', deleteMapel);
 
 // Penugasan Mengajar (Guru - Mapel - Kelas)

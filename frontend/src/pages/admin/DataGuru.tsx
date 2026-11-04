@@ -1,6 +1,5 @@
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
-import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { downloadImportTemplate } from '../../services/downloadImportTemplate';
@@ -14,12 +13,11 @@ interface Mapel {
 interface Kelas {
     id: number;
     namaKelas: string;
-    tingkat: number | null;
 }
 
 interface PengampuItem {
     mapelId: number | string;
-    cakupan: string;
+    kelasId: string;
 }
 
 interface Guru {
@@ -29,8 +27,7 @@ interface Guru {
     pengampu?: {
         id: number;
         mapel: Mapel;
-        kelas: Kelas | null;
-        tingkat: number | null;
+        kelas: Kelas;
     }[];
 }
 
@@ -59,17 +56,8 @@ export default function DataGuru() {
     const otherAssignments = guruList
         .filter(guru => !isEdit || guru.id !== selectedId)
         .flatMap(guru => guru.pengampu ?? []);
-    const scopes = [...schoolGrades.map(grade => 'tingkat:' + grade), ...kelasList.map(kelas => 'kelas:' + kelas.id)];
-
-    function isOccupied(mapelId: number | string, scope: string) {
-        const [kind, value] = scope.split(':');
-        const id = Number(value);
-        const grade = kind === 'tingkat' ? id : kelasList.find(kelas => kelas.id === id)?.tingkat;
-        return otherAssignments.some(item => {
-            if (item.mapel.id !== Number(mapelId)) return false;
-            if (kind === 'kelas' && item.kelas) return item.kelas.id === id;
-            return (item.kelas ? item.kelas.tingkat : item.tingkat) === grade;
-        });
+    function isOccupied(mapelId: number | string, kelasId: string) {
+        return otherAssignments.some(item => item.mapel.id === Number(mapelId) && item.kelas.id === Number(kelasId));
     }
 
     // State Modal Import Excel
@@ -116,7 +104,7 @@ export default function DataGuru() {
         setNama(guru.nama);
         const mappedPenugasan = guru.pengampu?.map((p) => ({
             mapelId: p.mapel.id,
-            cakupan: p.kelas ? 'kelas:' + p.kelas.id : 'tingkat:' + p.tingkat
+            kelasId: String(p.kelas.id)
         })) || [];
         setPenugasanList(mappedPenugasan);
         setAssignmentError('');
@@ -124,7 +112,7 @@ export default function DataGuru() {
     };
 
     const handleAddPenugasanRow = () => {
-        setPenugasanList([...penugasanList, { mapelId: '', cakupan: '' }]);
+        setPenugasanList([...penugasanList, { mapelId: '', kelasId: '' }]);
     };
 
     const handleRemovePenugasanRow = (index: number) => {
@@ -132,7 +120,7 @@ export default function DataGuru() {
         setPenugasanList(updated);
     };
 
-    const handlePenugasanChange = (index: number, field: 'mapelId' | 'cakupan', value: string) => {
+    const handlePenugasanChange = (index: number, field: 'mapelId' | 'kelasId', value: string) => {
         const updated = [...penugasanList];
         updated[index][field] = value;
         setPenugasanList(updated);
@@ -140,22 +128,19 @@ export default function DataGuru() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (penugasanList.some(item => !item.mapelId || !item.cakupan)) {
-            alert('Lengkapi mata pelajaran dan cakupan pada setiap penugasan.');
+        if (penugasanList.some(item => !item.mapelId || !item.kelasId)) {
+            alert('Lengkapi mata pelajaran dan kelas pada setiap penugasan.');
             return;
         }
         setAssignmentError('');
-        if (penugasanList.some(item => isOccupied(item.mapelId, item.cakupan))) {
-            setAssignmentError('Mata pelajaran pada cakupan yang dipilih sudah diampu guru lain.');
+        if (penugasanList.some(item => isOccupied(item.mapelId, item.kelasId))) {
+            setAssignmentError('Mata pelajaran di kelas yang dipilih sudah diampu guru lain.');
             return;
         }
         const payload = {
             username,
             nama,
-            pengampu: penugasanList.map(({ mapelId, cakupan }) => {
-                const [jenis, id] = cakupan.split(':');
-                return jenis === 'tingkat' ? { mapelId, tingkat: Number(id) } : { mapelId, kelasId: Number(id) };
-            })
+            pengampu: penugasanList.map(({ mapelId, kelasId }) => ({ mapelId, kelasId: Number(kelasId) }))
         };
 
         if (isEdit && selectedId !== null) {
@@ -302,7 +287,7 @@ export default function DataGuru() {
                                             <div className="flex flex-wrap gap-1.5">
                                                 {item.pengampu.map((p) => (
                                                     <span key={p.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
-                                                        <BookOpen size={12} /> {p.mapel?.nama} ({p.kelas?.namaKelas ?? 'Tingkat ' + p.tingkat + ' · ' + kelasList.filter(k => k.tingkat === p.tingkat).length + ' kelas'})
+                                                        <BookOpen size={12} /> {p.mapel?.nama} ({p.kelas.namaKelas})
                                                     </span>
                                                 ))}
                                             </div>
@@ -407,7 +392,7 @@ export default function DataGuru() {
 
                                 {penugasanList.length === 0 ? (
                                     <p className="text-xs text-gray-400 italic bg-slate-50 p-3 rounded-xl text-center">
-                                        Tambahkan mapel dan pilih cakupan. Pilihan yang sudah diampu guru lain akan dinonaktifkan.
+                                        Tambahkan mapel dan pilih kelas. Pilihan yang sudah diampu guru lain akan dinonaktifkan.
                                     </p>
                                 ) : (
                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -421,27 +406,20 @@ export default function DataGuru() {
                                                 >
                                                     <option value="">-- Pilih Mapel --</option>
                                                     {mapelList.map((m) => (
-                                                        <option key={m.id} value={m.id} disabled={p.cakupan ? isOccupied(m.id, p.cakupan) : scopes.length > 0 && scopes.every(scope => isOccupied(m.id, scope))}>{m.nama}</option>
+                                                        <option key={m.id} value={m.id} disabled={p.kelasId ? isOccupied(m.id, p.kelasId) : kelasList.length > 0 && kelasList.every(k => isOccupied(m.id, String(k.id)))}>{m.nama}</option>
                                                     ))}
                                                 </select>
                                                 <select
-                                                    value={p.cakupan}
-                                                    aria-label="Cakupan penugasan"
-                                                    onChange={(e) => handlePenugasanChange(index, 'cakupan', e.target.value)}
+                                                    value={p.kelasId}
+                                                    aria-label="Kelas penugasan"
+                                                    onChange={(e) => handlePenugasanChange(index, 'kelasId', e.target.value)}
                                                     className="w-1/2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:border-blue-600"
                                                     required
                                                 >
-                                                    <option value="">Pilih cakupan</option>
-                                                    <optgroup label="Per tingkat">
-                                                        {schoolGrades.map(grade => (
-                                                            <option key={grade} value={'tingkat:' + grade} disabled={isOccupied(p.mapelId, 'tingkat:' + grade)}>Semua kelas tingkat {grade}</option>
-                                                        ))}
-                                                    </optgroup>
-                                                    <optgroup label="Per kelas">
-                                                        {kelasList.map(k => (
-                                                            <option key={k.id} value={'kelas:' + k.id} disabled={isOccupied(p.mapelId, 'kelas:' + k.id)}>{k.namaKelas}</option>
-                                                        ))}
-                                                    </optgroup>
+                                                    <option value="">Pilih kelas</option>
+                                                    {kelasList.map(k => (
+                                                        <option key={k.id} value={String(k.id)} disabled={isOccupied(p.mapelId, String(k.id))}>{k.namaKelas}</option>
+                                                    ))}
                                                 </select>
                                                 <button
                                                     type="button"

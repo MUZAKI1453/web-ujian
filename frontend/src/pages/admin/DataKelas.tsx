@@ -1,6 +1,5 @@
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
-import { schoolGrades } from '../../schoolGrades';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
@@ -8,7 +7,6 @@ import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
 interface Kelas {
     id: number;
     namaKelas: string;
-    tingkat: number | null;
     _count?: {
         users: number;
     };
@@ -24,7 +22,6 @@ export default function DataKelas() {
     const [isEdit, setIsEdit] = useState(false);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [namaKelas, setNamaKelas] = useState('');
-    const [tingkat, setTingkat] = useState('');
 
     // State untuk fitur hapus & checkbox massal
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
@@ -56,7 +53,6 @@ export default function DataKelas() {
         setIsEdit(false);
         setSelectedId(null);
         setNamaKelas('');
-        setTingkat('');
         setShowModal(true);
     };
 
@@ -64,14 +60,13 @@ export default function DataKelas() {
         setIsEdit(true);
         setSelectedId(item.id);
         setNamaKelas(item.namaKelas);
-        setTingkat(item.tingkat && schoolGrades.includes(item.tingkat) ? String(item.tingkat) : '');
         setShowModal(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (isEdit && selectedId !== null) {
-            api.put(`/admin/kelas/${selectedId}`, { namaKelas, tingkat: Number(tingkat) })
+            api.put(`/admin/kelas/${selectedId}`, { namaKelas })
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
@@ -83,7 +78,7 @@ export default function DataKelas() {
                     alert(err.response?.data?.message || 'Gagal memperbarui kelas');
                 });
         } else {
-            api.post('/admin/kelas', { namaKelas, tingkat: Number(tingkat) })
+            api.post('/admin/kelas', { namaKelas })
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
@@ -186,7 +181,6 @@ export default function DataKelas() {
                                     </td>
                                     <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
                                     <td className="py-4 px-6 font-bold text-gray-800">{item.namaKelas}
-                                        <span className="block text-xs font-normal text-slate-500">{item.tingkat && schoolGrades.includes(item.tingkat) ? 'Tingkat ' + item.tingkat : 'Pilih tingkat 1–3'}</span>
                                     </td>
                                     <td className="py-4 px-6">
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
@@ -260,22 +254,6 @@ export default function DataKelas() {
                                     onChange={(e) => setNamaKelas(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Tingkat Kelas</label>
-                                <select
-                                    required
-                                    value={tingkat}
-                                    onChange={(e) => setTingkat(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm bg-white"
-                                >
-                                    <option value="">-- Pilih Tingkat --</option>
-                                    {schoolGrades.map((g) => (
-                                        <option key={g} value={g}>
-                                            Tingkat {g}
-                                        </option>
-                                    ))}
-                                </select>
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button

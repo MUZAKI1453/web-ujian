@@ -10,6 +10,8 @@ interface NavbarLayoutProps {
         role: string;
         username?: string;
     };
+    brandText: string;
+    brandLogo: string;
     onLogout: () => void;
     viewRole: string;
     onViewRoleChange?: (role: ViewRole) => void;
@@ -18,7 +20,7 @@ interface NavbarLayoutProps {
     children: React.ReactNode;
 }
 
-export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogout, activePage, onNavigate, children }: NavbarLayoutProps) {
+export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onViewRoleChange, onLogout, activePage, onNavigate, children }: NavbarLayoutProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [dropdownMasterOpen, setDropdownMasterOpen] = useState(false);
     const [dropdownProfileOpen, setDropdownProfileOpen] = useState(false);
@@ -45,6 +47,7 @@ export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogou
     const handleMenuClick = (page: string) => {
         onNavigate(page);
         setDropdownMasterOpen(false);
+        setDropdownProfileOpen(false);
         setMobileMenuOpen(false);
         setMobileMasterOpen(false);
     };
@@ -79,16 +82,17 @@ export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogou
                     <div className="flex items-center justify-between h-20">
 
                         {/* KIRI: Logo & Nama Brand */}
-                        <div className="flex items-center gap-3">
-                            <button onClick={() => handleMenuClick('dashboard')} className="flex items-center gap-3 text-left focus:outline-none">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <button onClick={() => handleMenuClick('dashboard')} className="flex min-w-0 items-center gap-3 text-left focus:outline-none" title={brandText}>
                                 <img
-                                    src="/assets/logo_smpip.png"
+                                    key={brandLogo}
+                                    src={brandLogo}
                                     alt="Logo"
-                                    className="w-11 h-11 object-contain drop-shadow"
+                                    className="w-11 h-11 shrink-0 object-contain drop-shadow"
                                     onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                 />
-                                <span className="font-bold text-base sm:text-xl tracking-wide text-white">
-                                    SMPIP Baitussalam
+                                <span className="truncate font-bold text-base sm:text-xl tracking-wide text-white">
+                                    {brandText}
                                 </span>
                             </button>
                         </div>
@@ -151,6 +155,11 @@ export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogou
                             {dropdownProfileOpen && (
                                 <div className="absolute right-0 top-14 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
                                     {viewSelector}
+                                    {viewRole === 'admin' && user.role === 'admin' && (
+                                        <button onClick={() => handleMenuClick('navbar')} className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                            Pengaturan Navbar
+                                        </button>
+                                    )}
                                     <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
                                         <Key size={16} className="text-slate-400" /> Ganti Password
                                     </button>
@@ -227,6 +236,11 @@ export default function NavbarLayout({ user, viewRole, onViewRoleChange, onLogou
 
                         <div className="border-t border-blue-700/60 pt-3 mt-3 space-y-1">
                             {viewSelector}
+                            {viewRole === 'admin' && user.role === 'admin' && (
+                                <button onClick={() => handleMenuClick('navbar')} className="w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-medium text-blue-100 hover:bg-white/10">
+                                    Pengaturan Navbar
+                                </button>
+                            )}
                             <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium text-blue-100 hover:bg-white/10 transition">
                                 <Key size={18} className="text-blue-300" /> Ganti Password
                             </button>
