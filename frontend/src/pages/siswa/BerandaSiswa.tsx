@@ -1,8 +1,8 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { isAxiosError } from 'axios';
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Bell, BookOpen, CalendarDays, ClipboardList, Clock, GraduationCap, LockKeyhole, CheckCircle2 } from 'lucide-react';
-import { PortalHeader, PortalStat } from '../../components/PortalHeader';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, ClipboardList, Clock, GraduationCap, History, LockKeyhole, Search } from 'lucide-react';
+import { PortalHeader } from '../../components/PortalHeader';
 import PortalDialog from '../../components/PortalDialog';
 import api from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
@@ -11,6 +11,7 @@ import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import { loadAttempt, storeAttempt } from './attemptStore';
 import type { LocalAttempt, Question, Value } from './attemptStore';
 import { errorMessage } from '../guru/QuestionEditor';
+import { isStudentHistory, prioritizeStudentExams } from './studentSections';
 
 type Exam = {
     id: number; judul: string; mapel: string; durasi: number; mulai: string; selesai: string;
@@ -41,7 +42,10 @@ const noticeLabels: Record<string, string> = {
     'hasil-dirilis': 'Hasil dirilis', 'nilai-diperbarui': 'Nilai diperbarui', 'pembahasan-dirilis': 'Pembahasan dirilis'
 };
 
-export default function BerandaSiswa({ name, username, adminMode }: { name: string; username: string; adminMode: boolean }) {
+export default function BerandaSiswa({ name, username, adminMode, view = 'dashboard', navigationKey = 0, onNavigate }: {
+    name: string; username: string; adminMode: boolean; view?: 'dashboard' | 'ujian' | 'riwayat';
+    navigationKey?: number; onNavigate: (page: string) => void;
+}) {
     const [exams, setExams] = useState<Exam[]>([]);
     const [notices, setNotices] = useState<Notice[]>([]);
     const [showNotices, setShowNotices] = useState(false);
@@ -52,6 +56,18 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [prepared, setPrepared] = useState<string | null>(null);
+    const [search, setSearch] = useState('');
+    const latestNavigation = useRef(navigationKey);
+    latestNavigation.current = navigationKey;
+
+    useEffect(() => {
+        setSelected(null);
+        setPrepared(null);
+        setOutput(null);
+        setShowNotices(false);
+        setSearch('');
+        setError('');
+    }, [view, navigationKey]);
 
     const refresh = useCallback(async (signal?: AbortSignal) => {
         const { data } = await api.get<{ data: Exam[] }>('/siswa/ujian', { signal });
@@ -134,28 +150,74 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
     }
 
     async function show(exam: Exam, kind: 'hasil' | 'pembahasan' | 'bukti') {
+        const requestedNavigation = latestNavigation.current;
         setError('');
         setBusy(true);
         try {
             if (kind === 'bukti') {
                 const { data } = await api.get<Receipt>('/siswa/ujian/' + exam.id + '/bukti');
-                setOutput({ exam, receipt: data });
+                if (requestedNavigation === latestNavigation.current) setOutput({ exam, receipt: data });
             } else if (kind === 'hasil') {
                 const { data } = await api.get<Result>('/siswa/ujian/' + exam.id + '/hasil');
-                setOutput({ exam, result: data });
+                if (requestedNavigation === latestNavigation.current) setOutput({ exam, result: data });
             } else {
                 const { data } = await api.get<Discussion>('/siswa/ujian/' + exam.id + '/pembahasan');
-                setOutput({ exam, discussion: data });
+                if (requestedNavigation === latestNavigation.current) setOutput({ exam, discussion: data });
             }
         } catch (err) { setError(errorMessage(err)); }
         finally { setBusy(false); }
+    }
+
+    const pending = prioritizeStudentExams(exams.filter(exam => !isStudentHistory(exam)));
+    const history = exams.filter(isStudentHistory).sort((a, b) => +new Date(b.mulai) - +new Date(a.mulai));
+    const keyword = search.trim().toLocaleLowerCase('id-ID');
+    const filtered = (view === 'riwayat' ? history : pending).filter(exam =>
+        (exam.judul + ' ' + exam.mapel).toLocaleLowerCase('id-ID').includes(keyword));
+    const displayed = view === 'dashboard' ? pending.slice(0, 2) : filtered;
+    const unread = notices.filter(notice => !notice.dibaca).length;
+    const notificationsButton = <button type="button" aria-expanded={showNotices} aria-controls="student-notices"
+        className={'ui-button ' + (view === 'dashboard' ? 'border border-white/20 bg-white/15 text-white hover:bg-white/25' : 'ui-button-secondary')}
+        onClick={() => setShowNotices(value => !value)}><Bell size={17} aria-hidden="true" />Notifikasi
+        {unread > 0 && <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-blue-700">{unread}</span>}
+    </button>;
+
+    function renderExam(exam: Exam) {
+        const status = exam.status;
+        return <article key={exam.id} className="ui-card flex h-full min-w-0 flex-col p-5" data-status={status}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700"><BookOpen size={14} />{exam.mapel}</span>
+                        <span className={'cbt-badge ' + (status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-800' : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600')}>{status === 'Terjadwal' ? 'Terjadwal' : progress(exam)}</span>
+                    </div>
+                    <h3 className="mb-3 mt-3 break-words text-lg font-semibold">{exam.judul}</h3>
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600"><CalendarDays size={16} />{schedule.format(new Date(exam.mulai))}</p>
+                    <p className="mb-2 flex items-center gap-2 text-sm text-slate-500"><Clock size={16} />{exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
+                    <p className="mb-6 text-xs text-slate-500">Batas akhir: {schedule.format(new Date(exam.selesai))}</p>
+                    <div className="mt-auto flex flex-wrap gap-2">
+                        {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
+                            <button type="button" disabled={busy} className={primaryClass + ' flex w-full items-center justify-center gap-2 py-3'} onClick={() => {
+                                setOutput(null);
+                                setError('');
+                                if (adminMode) void enter(exam);
+                                else { setSelected(exam); setPrepared(null); }
+                            }}>
+                                {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'} <ArrowRight size={17} />
+                            </button>}
+                        {(exam.submitted || exam.offline) && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'bukti')}>Bukti Pengumpulan</button>}
+                        {exam.hasil && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'hasil')}>Lihat Hasil</button>}
+                        {exam.pembahasan && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'pembahasan')}>Pembahasan</button>}
+                        {exam.offline && <span className="text-sm text-amber-800">Menunggu tinjauan guru</span>}
+                        {exam.submitted && !exam.hasil && !exam.offline && <span className="text-sm text-slate-600">{exam.menungguKoreksi ? 'Menunggu koreksi guru' : 'Hasil belum dirilis.'}</span>}
+                        {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
+                        {!exam.attempt && !exam.submitted && (status === 'Terjadwal' || status === 'Selesai' || status === 'Draf') && <button type="button" disabled className="ui-button ui-button-secondary flex items-center justify-center gap-2"><LockKeyhole size={17} />{status === 'Selesai' ? 'Waktu Habis' : 'Belum Dibuka'}</button>}
+                    </div>
+                </article>;
     }
 
     if (working) return <KerjakanUjian initial={working.attempt} storageKey={key(working.exam.id)} examId={working.exam.id}
         title={working.exam.judul} securityPrepared={working.securityPrepared} onExit={() => { setWorking(null); void refresh().catch(err => setError(errorMessage(err))); }} />;
 
     if (output) return <section className="ui-card space-y-4 bg-white p-5">
-        <button type="button" className="text-sm font-semibold text-blue-700" onClick={() => setOutput(null)}>← Kembali ke Beranda</button>
+        <button type="button" className="ui-button ui-button-secondary" onClick={() => setOutput(null)}><ArrowLeft size={16} />Kembali ke {view === 'riwayat' ? 'Riwayat' : view === 'ujian' ? 'Ujian Saya' : 'Dasbor'}</button>
         <h1 className="ui-page-title">{output.exam.judul}</h1>
         {output.receipt && <SubmissionReceipt receipt={output.receipt} />}
         {output.result && <>
@@ -186,22 +248,31 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
     </section>;
 
     return <section className="cbt-portal cbt-student">
-        <PortalHeader name={name} subtitle="Selamat datang di Panel Ujian. Persiapkan dirimu, kerjakan dengan jujur, dan raih hasil terbaik!" icon={GraduationCap}>
-            <button type="button" aria-expanded={showNotices} className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm"
-                onClick={() => setShowNotices(value => !value)}><Bell size={16} /> Notifikasi {notices.filter(n => !n.dibaca).length || ''}</button>
-        </PortalHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
-            <PortalStat value={loading ? '—' : exams.filter(exam => !exam.submitted && exam.status !== 'Selesai' && exam.status !== 'Draf').length} label="Ujian Tersedia" icon={ClipboardList} />
-            <PortalStat value={loading ? '—' : exams.filter(exam => exam.submitted && !exam.offline).length} label="Ujian Dikumpulkan" icon={CheckCircle2} green />
-        </div>
-        {showNotices && <section className="ui-card space-y-2 bg-white p-4">
-            <h2 className="font-semibold">Notifikasi</h2>
-            {!notices.length && <p className="text-sm text-slate-600">Belum ada notifikasi.</p>}
-            {notices.map(notice => <button type="button" key={notice.id} className="ui-button ui-button-secondary ui-icon-button block w-full rounded border text-left"
+        {view === 'dashboard' ? <>
+            <PortalHeader name={name} subtitle="Jadwal dan progres ujian Anda." icon={GraduationCap}>{notificationsButton}</PortalHeader>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                {[
+                    { label: 'Berlangsung', value: pending.filter(exam => exam.status === 'Berlangsung').length },
+                    { label: 'Terjadwal', value: pending.filter(exam => exam.status === 'Terjadwal').length },
+                    { label: 'Terkumpul', value: history.filter(exam => exam.submitted && !exam.offline).length }
+                ].map(stat => <div key={stat.label} className="ui-card p-3 sm:p-5">
+                    <p className="text-2xl font-bold tabular-nums">{loading ? '—' : stat.value}</p>
+                    <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">{stat.label}</p>
+                </div>)}
+            </div>
+        </> : <header className="ui-card flex flex-wrap items-center justify-between gap-3 p-5 sm:p-8">
+            <h1 className="ui-page-title flex items-center gap-2.5">{view === 'riwayat' ? <History size={28} className="text-blue-600" aria-hidden="true" /> : <ClipboardList size={28} className="text-blue-600" aria-hidden="true" />}{view === 'riwayat' ? 'Riwayat Ujian' : 'Ujian Saya'}</h1>
+            {notificationsButton}
+        </header>}
+        {showNotices && <section id="student-notices" className="ui-card space-y-3 p-5" aria-labelledby="student-notices-title">
+            <h2 id="student-notices-title" className="font-semibold">Notifikasi</h2>
+            {!notices.length && <p className="text-sm text-slate-500">Belum ada notifikasi.</p>}
+            {notices.map(notice => <button type="button" key={notice.id} className="flex w-full items-start gap-3 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50"
                 onClick={() => { if (!notice.dibaca) void api.patch('/siswa/notifikasi/' + notice.id)
                     .then(() => setNotices(items => items.map(item => item.id === notice.id ? { ...item, dibaca: true } : item)))
                     .catch(err => setError(errorMessage(err))); }}>
-                <strong>{noticeLabels[notice.jenis] || notice.jenis}</strong> · {notice.ujian.judul}{notice.dibaca ? '' : ' · Baru'}
+                <span className="min-w-0 flex-1"><strong className="text-sm">{noticeLabels[notice.jenis] || notice.jenis}</strong><span className="mt-1 block break-words text-sm text-slate-500">{notice.ujian.judul}</span></span>
+                {!notice.dibaca && <span aria-label="Belum dibaca" className="mt-1.5 size-2 shrink-0 rounded-full bg-blue-600" />}
             </button>)}
         </section>}
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
@@ -224,43 +295,27 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
             </div>
         </form></PortalDialog>}
         {loading && <p role="status">Memuat daftar ujian…</p>}
-        {!loading && !exams.length && <div className="ui-card border bg-white px-5 py-12 text-center"><ClipboardList size={52} className="mx-auto mb-4 text-slate-300" /><h2 className="text-lg font-bold">Tidak ada ujian aktif</h2><p className="mt-2 text-sm text-slate-500">Silakan cek kembali nanti atau hubungi gurumu.</p></div>}
-        {['Sedang dikerjakan', 'Menunggu pengumpulan', 'Belum dikerjakan', 'Menunggu tinjauan', 'Menunggu koreksi', 'Sudah dikumpulkan', 'Hasil tersedia', 'Tidak dikumpulkan'].map(groupLabel => {
-            const group = exams.filter(exam => progress(exam) === groupLabel).sort((a, b) => +new Date(a.mulai) - +new Date(b.mulai));
-            if (!group.length) return null;
-            return <section key={groupLabel} className="space-y-3">
-                <h2 className="cbt-section-title">{groupLabel}</h2>
-                <div className="grid gap-5 md:grid-cols-2">
-                {group.map(exam => { const status = exam.status; return <article key={exam.id} className="cbt-exam-card" data-status={status}>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="cbt-badge bg-blue-50 text-blue-600"><BookOpen size={14} />{exam.mapel}</span>
-                        <span className={'cbt-badge ' + (status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-800' : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600')}>{status === 'Terjadwal' ? 'Terjadwal' : progress(exam)}</span>
+        <section className="space-y-3" aria-label={view === 'riwayat' ? 'Riwayat ujian' : 'Daftar ujian'}>
+            <header className="flex flex-wrap items-center justify-between gap-3">
+                {view === 'dashboard' ? <>
+                    <h2 className="text-lg font-bold">Ujian untukmu</h2>
+                    <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-ujian')}>Lihat semua<ArrowRight size={16} aria-hidden="true" /></button>
+                </> : <>
+                    <span className="text-sm text-slate-500">{loading ? '—' : filtered.length + ' ujian'}</span>
+                    <div className="relative w-full sm:w-80">
+                        <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                        <input type="search" aria-label="Cari ujian atau mata pelajaran" className="ui-input w-full pl-10" placeholder="Cari ujian atau mapel…"
+                            value={search} onChange={event => setSearch(event.target.value)} />
                     </div>
-                    <h3>{exam.judul}</h3>
-                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600"><CalendarDays size={16} />{schedule.format(new Date(exam.mulai))}</p>
-                    <p className="mb-2 flex items-center gap-2 text-sm text-slate-500"><Clock size={16} />Durasi: {exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
-                    <p className="mb-6 text-xs text-slate-500">Batas akhir: {schedule.format(new Date(exam.selesai))}</p>
-                    <div className="mt-auto flex flex-col gap-2">
-                        {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
-                            <button type="button" disabled={busy} className={primaryClass + ' flex w-full items-center justify-center gap-2 py-3'} onClick={() => {
-                                setOutput(null);
-                                setError('');
-                                if (adminMode) void enter(exam);
-                                else { setSelected(exam); setPrepared(null); }
-                            }}>
-                                {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'} <ArrowRight size={17} />
-                            </button>}
-                        {(exam.submitted || exam.offline) && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'bukti')}>Bukti Pengumpulan</button>}
-                        {exam.hasil && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'hasil')}>Lihat Hasil</button>}
-                        {exam.pembahasan && <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => void show(exam, 'pembahasan')}>Pembahasan</button>}
-                        {exam.offline && <span className="text-sm text-amber-800">Menunggu tinjauan guru</span>}
-                        {exam.submitted && !exam.hasil && !exam.offline && <span className="text-sm text-slate-600">{exam.menungguKoreksi ? 'Menunggu koreksi guru' : 'Jawaban sudah diterima. Hasil belum dirilis guru.'}</span>}
-                        {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
-                        {!exam.attempt && !exam.submitted && (status === 'Terjadwal' || status === 'Selesai' || status === 'Draf') && <button type="button" disabled className="ui-button ui-button-secondary flex items-center justify-center gap-2"><LockKeyhole size={17} />{status === 'Selesai' ? 'Waktu Habis' : 'Belum Dibuka'}</button>}
-                    </div>
-                </article>; })}
-                </div>
-            </section>;
-        })}
+                </>}
+            </header>
+            <div className="grid gap-4 md:grid-cols-2">{displayed.map(exam => renderExam(exam))}</div>
+            {!loading && !displayed.length && <div className="ui-card space-y-3 px-5 py-10 text-center">
+                <ClipboardList size={36} className="mx-auto text-slate-300" aria-hidden="true" />
+                <p className="text-sm text-slate-500">{search.trim() ? 'Ujian tidak ditemukan.' : view === 'riwayat' ? 'Belum ada riwayat ujian.' : 'Belum ada ujian yang perlu dikerjakan.'}</p>
+                {search.trim() ? <button type="button" className="ui-button ui-button-secondary" onClick={() => setSearch('')}>Hapus pencarian</button>
+                    : view === 'dashboard' && history.length > 0 && <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-riwayat')}>Lihat riwayat<ArrowRight size={16} aria-hidden="true" /></button>}
+            </div>}
+        </section>
     </section>;
 }

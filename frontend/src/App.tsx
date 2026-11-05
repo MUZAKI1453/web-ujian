@@ -29,6 +29,7 @@ export default function App() {
         }
     });
     const [page, setPage] = useState('dashboard');
+    const [teacherNavigationKey, setTeacherNavigationKey] = useState(0);
     const [previewRole, setPreviewRole] = useState<ViewRole>('admin');
     const [navbar, setNavbar] = useState<NavbarSettings>(defaultNavbar);
     const [navbarLoaded, setNavbarLoaded] = useState(false);
@@ -60,6 +61,11 @@ export default function App() {
         setPreviewRole(role);
         setPage('dashboard');
     };
+    const navigate = (nextPage: string) => {
+        if (['kelas', 'siswa', 'guru', 'mapel', 'monitoring'].includes(nextPage)) setPreviewRole('admin');
+        setPage(nextPage);
+        setTeacherNavigationKey(current => current + 1);
+    };
 
     const pages: Record<string, React.ReactNode> = {
         dashboard: <DashboardAdmin onNavigate={setPage} />,
@@ -79,15 +85,14 @@ export default function App() {
             onViewRoleChange={user.role === 'admin' ? changeView : undefined}
             onLogout={logout}
             activePage={page}
-            onNavigate={nextPage => {
-                setPreviewRole('admin');
-                setPage(nextPage);
-            }}
+            onNavigate={navigate}
         >
-            {page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : page === 'dashboard' && viewRole === 'guru' ? (
-                <UjianGuru name={user.nama || user.username} />
-            ) : page === 'dashboard' && viewRole === 'siswa' ? (
-                <BerandaSiswa name={user.nama || user.username} username={user.username} adminMode={user.role === 'admin'} />
+            {page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
+                <UjianGuru key={teacherNavigationKey} name={user.nama || user.username} view={page === 'guru-ujian' ? 'ujian' : page === 'guru-mapel' ? 'mapel' : 'dashboard'} onNavigate={navigate} />
+            ) : viewRole === 'siswa' && ['dashboard', 'siswa-ujian', 'siswa-riwayat'].includes(page) ? (
+                <BerandaSiswa name={user.nama || user.username} username={user.username} adminMode={user.role === 'admin'}
+                    view={page === 'siswa-ujian' ? 'ujian' : page === 'siswa-riwayat' ? 'riwayat' : 'dashboard'}
+                    navigationKey={teacherNavigationKey} onNavigate={navigate} />
             ) : (
                 <div className="ui-card bg-white p-6">
                     Halaman ini belum tersedia di repository.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers, Users, LogOut, ChevronDown, Menu, X, Settings, MonitorCheck, Repeat2, Laptop, SquarePen, Undo2 } from 'lucide-react';
+import { Layers, Users, LogOut, ChevronDown, Menu, X, Settings, MonitorCheck, Repeat2, Laptop, SquarePen, Undo2, BookOpen, ClipboardList, History } from 'lucide-react';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
 export type ViewRole = keyof typeof viewLabels;
@@ -64,6 +64,17 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
 
     // Cek apakah halaman aktif berada di dalam ruang lingkup Data Master
     const isMasterActive = ['kelas', 'siswa', 'guru', 'mapel'].includes(activePage);
+    const teacherMenus = [
+        { page: 'dashboard', label: 'Dasbor', icon: Layers },
+        { page: 'guru-ujian', label: 'Ujian Saya', icon: ClipboardList },
+        { page: 'guru-mapel', label: 'Mata Pelajaran', icon: BookOpen }
+    ];
+    const studentMenus = [
+        { page: 'dashboard', label: 'Dasbor', icon: Layers },
+        { page: 'siswa-ujian', label: 'Ujian Saya', icon: ClipboardList },
+        { page: 'siswa-riwayat', label: 'Riwayat', icon: History }
+    ];
+    const roleMenus = viewRole === 'guru' ? teacherMenus : viewRole === 'siswa' ? studentMenus : [];
     const switchOptions = ([['guru', Laptop], ['siswa', SquarePen]] as const).map(([role, Icon]) => (
         <button key={role} type="button" aria-current={viewRole === role ? 'page' : undefined}
                 onClick={() => { onViewRoleChange?.(role); closeMenus(); }}
@@ -97,7 +108,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
 
                         {/* TENGAH: Menu Navigasi Desktop */}
                         <div className="hidden lg:flex items-center space-x-1">
-                            {user.role === 'admin' && (
+                            {user.role === 'admin' && viewRole === 'admin' && (
                                 <>
                                     <button
                                         onClick={() => handleMenuClick('dashboard')}
@@ -146,6 +157,13 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                                     </button>
                                 </>
                             )}
+                            {roleMenus.map(({ page, label, icon: Icon }) => (
+                                <button key={page} type="button" onClick={() => handleMenuClick(page)}
+                                    aria-current={activePage === page ? 'page' : undefined}
+                                    className={'flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ' + (activePage === page ? 'bg-white/20' : 'hover:bg-white/10')}>
+                                    <Icon size={18} aria-hidden="true" />{label}
+                                </button>
+                            ))}
                         </div>
 
                         <div className="flex shrink-0 items-center gap-2">
@@ -220,7 +238,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             </div>
                         </div>
 
-                        {user.role === 'admin' && (
+                        {user.role === 'admin' && viewRole === 'admin' && (
                             <div className="space-y-1">
                                 <button onClick={() => handleMenuClick('dashboard')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-white/10 transition">
                                     <Layers size={18} /> Dashboard
@@ -260,6 +278,13 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             </div>
                         )}
 
+                        {roleMenus.length > 0 && <div className="space-y-1">
+                            {roleMenus.map(({ page, label, icon: Icon }) => <button key={page} type="button"
+                                onClick={() => handleMenuClick(page)} aria-current={activePage === page ? 'page' : undefined}
+                                className={'flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors ' + (activePage === page ? 'bg-white/20' : 'hover:bg-white/10')}>
+                                <Icon size={18} aria-hidden="true" />{label}
+                            </button>)}
+                        </div>}
                         <div className="border-t border-blue-700/60 pt-3 mt-3 space-y-1">
                             <button type="button" onClick={() => handleMenuClick('pengaturan')}
                                 aria-current={activePage === 'pengaturan' ? 'page' : undefined}

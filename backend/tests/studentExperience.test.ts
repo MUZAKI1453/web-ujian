@@ -7,6 +7,21 @@ import jwt from 'jsonwebtoken';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { answerSummary } from '../src/routes/answerSummary';
 import { answerState } from '../../frontend/src/pages/siswa/answerStatus';
+import { isStudentHistory, prioritizeStudentExams } from '../../frontend/src/pages/siswa/studentSections';
+
+test('student views retain expired attempts for synchronization and separate completed exams', () => {
+    const scheduled = { id: 1, status: 'Terjadwal', mulai: '2026-11-06T07:00:00Z', submitted: false, offline: false, attempt: null };
+    const active = { ...scheduled, id: 2, status: 'Berlangsung' };
+    const waiting = { ...scheduled, id: 3, status: 'Selesai', attempt: 17 };
+    const submitted = { ...active, id: 4, submitted: true, attempt: 18 };
+    const review = { ...active, id: 5, offline: true, attempt: 19 };
+    const missed = { ...scheduled, id: 6, status: 'Selesai' };
+    const exams = [scheduled, submitted, active, waiting, review, missed];
+    const pending = exams.filter(exam => !isStudentHistory(exam));
+    assert.deepEqual(prioritizeStudentExams(pending).map(exam => exam.id), [3, 2, 1]);
+    assert.deepEqual(exams.filter(isStudentHistory).map(exam => exam.id), [4, 5, 6]);
+    assert.deepEqual(exams.map(exam => exam.id), [1, 4, 2, 3, 5, 6]);
+});
 
 test('student progress and receipt count whitespace, false, option zero, and incomplete true/false correctly', () => {
     const questions = [

@@ -1,5 +1,5 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
-import { ArrowLeft, BarChart3, BookOpen, CalendarDays, ClipboardList, Eye, Info, Laptop, Plus, SquarePen } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, ClipboardList, Eye, FilePenLine, Laptop, Plus, Search, SquarePen } from 'lucide-react';
 import { PortalHeader, PortalStat } from '../../components/PortalHeader';
 import ClassPicker from '../../components/ClassPicker';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
@@ -38,6 +38,14 @@ const questionGroups = [
 const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 type ExamTab = 'soal' | 'sesi' | 'rekap';
 const defaultDuration = 120;
+const examStatusStyles = {
+    Draf: 'bg-amber-50 text-amber-800', Terjadwal: 'bg-slate-100 text-slate-600',
+    Berlangsung: 'bg-blue-50 text-blue-700', Selesai: 'bg-emerald-50 text-emerald-700'
+};
+function examStatus(exam: Exam) {
+    const now = Date.now();
+    return exam.draf ? 'Draf' : now < +new Date(exam.waktuMulai) ? 'Terjadwal' : now >= +new Date(exam.waktuSelesai) ? 'Selesai' : 'Berlangsung';
+}
 
 function optionLabel(index: number): string {
     const letter = String.fromCharCode(65 + index % 26);
@@ -52,7 +60,9 @@ function defaultSchedule() {
     return { start: localInput(start), end: localInput(end) };
 }
 
-export default function UjianGuru({ name }: { name: string }) {
+export default function UjianGuru({ name, view = 'dashboard', onNavigate }: {
+    name: string; view?: 'dashboard' | 'ujian' | 'mapel'; onNavigate: (page: string) => void;
+}) {
     const [tab, setTab] = useState<ExamTab>('soal');
     const [subject, setSubject] = useState('');
     const [targetClasses, setTargetClasses] = useState<number[]>([]);
@@ -166,7 +176,7 @@ export default function UjianGuru({ name }: { name: string }) {
             {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             {exam ? (
                 <>
-                    <button type="button" className="ui-button ui-button-secondary inline-flex items-center gap-2 border bg-white" onClick={() => { setExam(null); setNotice(''); }}><ArrowLeft size={16} /> Kembali ke Ujian Saya</button>
+                    <button type="button" className="ui-button ui-button-secondary" onClick={() => { setExam(null); setNotice(''); }}><ArrowLeft size={16} /> Kembali</button>
                     <div className="ui-card flex flex-wrap items-start justify-between gap-3 border bg-white p-5">
                         <div>
                             <p className="text-sm font-semibold text-blue-700">Preview Ujian</p>
@@ -175,7 +185,7 @@ export default function UjianGuru({ name }: { name: string }) {
                         </div>
                         {exam.draf && <div className="flex flex-wrap gap-2">
                             <button type="button" className="ui-button ui-button-secondary border"
-                                onClick={() => { setNotice(''); setImporting(true); }}>Impor Excel</button>
+                                onClick={() => { setNotice(''); setImporting(true); }}>Import</button>
                             <button type="button" className={primaryClass} onClick={() => setEditor({})}>Edit Ujian</button>
                         </div>}
                     </div>
@@ -254,27 +264,58 @@ export default function UjianGuru({ name }: { name: string }) {
                 </>
             ) : (
                 <>
-                    <PortalHeader name={name || 'Guru'} subtitle="Selamat datang di Panel Guru. Kelola ujian dan nilai siswa dengan mudah." icon={Laptop} />
-                    <div className="grid gap-4 sm:grid-cols-3">
-                        <PortalStat value={loading ? '—' : subjects.length} label="Mata Pelajaran" icon={BookOpen} />
-                        <PortalStat value={loading ? '—' : exams.length} label="Total Ujian Dibuat" icon={ClipboardList} green />
-                        <div className="flex items-center justify-center gap-2 rounded-2xl bg-slate-50 p-5 text-center text-sm italic text-slate-500"><Info size={20} className="shrink-0" /> Pilih mata pelajaran di bawah untuk membuat soal baru.</div>
-                    </div>
-                    <section aria-labelledby="mapel-guru" className="space-y-3">
-                        <h2 id="mapel-guru" className="cbt-section-title">Mata Pelajaran Anda</h2>
-                        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                            {subjects.map(item => <div key={item.id} className="cbt-subject">
-                                <span className="mb-4 rounded-full bg-blue-50 p-4 text-blue-600"><BookOpen size={30} /></span>
-                                <div className="mb-5 min-w-0">
-                                    <p className="break-words text-lg font-bold">{item.nama}</p>
-                                    <p className="mt-1 text-sm text-slate-500">Pengajar: {name}</p>
-                                    <p className="mt-1 text-xs text-slate-500">{assignments.filter(pair => pair.mapel.id === item.id).length} kelas</p>
-                                </div>
-                                <button type="button" disabled={busy}
-                                    onClick={() => { setSubject(String(item.id)); setTargetClasses([]); setDraftSchedule(defaultSchedule()); setCreating(true); }}><Plus size={16} className="mr-1 inline" /> Buat Ujian Baru</button>
-                            </div>)}
+                    {view === 'dashboard' ? <>
+                        <PortalHeader name={name || 'Guru'} subtitle="Ringkasan ujian dan mata pelajaran Anda." icon={Laptop} />
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <PortalStat value={loading ? '—' : subjects.length} label="Mata Pelajaran" icon={BookOpen} />
+                            <PortalStat value={loading ? '—' : exams.length} label="Ujian" icon={ClipboardList} />
+                            <PortalStat value={loading ? '—' : exams.filter(item => item.draf).length} label="Draf" icon={FilePenLine} />
                         </div>
-                    </section>
+                        <section className="space-y-3" aria-labelledby="recent-exams-title">
+                            <header className="flex flex-wrap items-center justify-between gap-3">
+                                <h2 id="recent-exams-title" className="text-lg font-bold">Ujian terbaru</h2>
+                                <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('guru-ujian')}>Lihat semua<ArrowRight size={16} aria-hidden="true" /></button>
+                            </header>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {[...exams].sort((a, b) => b.id - a.id).slice(0, 4).map(item => {
+                                    const status = examStatus(item);
+                                    return <article key={item.id} className="ui-card flex min-w-0 flex-col gap-4 p-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="text-sm font-medium text-blue-700">{item.mapel.nama}</span>
+                                            <span className={'ui-badge ' + examStatusStyles[status]}>{status}</span>
+                                        </div>
+                                        <div className="min-w-0 flex-1"><h3 className="break-words font-semibold">{item.judul}</h3>
+                                            <p className="mt-1 break-words text-sm text-slate-500">{examClassNames(item)} · {item._count.soal} soal</p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                                            <p className="text-xs text-slate-500">{schedule.format(new Date(item.waktuMulai))}</p>
+                                            <button type="button" disabled={busy} className="ui-button ui-button-secondary" onClick={() => void openExam(item.id)}>Buka<ArrowRight size={16} aria-hidden="true" /></button>
+                                        </div>
+                                    </article>;
+                                })}
+                            </div>
+                            {!loading && !exams.length && !error && <div className="ui-card space-y-3 p-8 text-center">
+                                <ClipboardList size={32} className="mx-auto text-slate-300" aria-hidden="true" />
+                                <p className="text-sm text-slate-500">Belum ada ujian.</p>
+                                <button type="button" className={primaryClass} onClick={() => onNavigate('guru-mapel')}><Plus size={16} />Buat Ujian</button>
+                            </div>}
+                        </section>
+                    </> : <header className="ui-card flex flex-wrap items-center justify-between gap-4 p-5 sm:p-8">
+                        <h1 className="ui-page-title flex items-center gap-2.5">{view === 'ujian' ? <ClipboardList size={28} className="text-blue-600" aria-hidden="true" /> : <BookOpen size={28} className="text-blue-600" aria-hidden="true" />}{view === 'ujian' ? 'Ujian Saya' : 'Mata Pelajaran'}</h1>
+                        {view === 'ujian' && <button type="button" className={primaryClass} onClick={() => onNavigate('guru-mapel')}><Plus size={18} />Buat Ujian</button>}
+                    </header>}
+                    {view === 'mapel' && <section aria-label="Mata pelajaran yang diampu" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {subjects.map(item => <article key={item.id} className="ui-card flex min-w-0 flex-col gap-4 p-5">
+                            <div className="flex items-start gap-3">
+                                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600"><BookOpen size={22} aria-hidden="true" /></span>
+                                <div className="min-w-0"><h2 className="break-words font-semibold">{item.nama}</h2>
+                                    <p className="mt-1 break-words text-sm text-slate-500">{assignments.filter(pair => pair.mapel.id === item.id).map(pair => pair.kelas.namaKelas).join(', ')}</p>
+                                </div>
+                            </div>
+                            <button type="button" disabled={busy} className="ui-button ui-button-secondary mt-auto w-full"
+                                onClick={() => { setSubject(String(item.id)); setTargetClasses([]); setDraftSchedule(defaultSchedule()); setCreating(true); }}><Plus size={16} aria-hidden="true" />Buat Ujian</button>
+                        </article>)}
+                    </section>}
                     {loading && <p role="status">Memuat ujian…</p>}
                     {!loading && !error && !assignments.length && <p className="text-sm text-slate-600">Belum ada penugasan mapel dan kelas. Hubungi admin untuk menambah penugasan.</p>}
                     {creating && (
@@ -294,11 +335,11 @@ export default function UjianGuru({ name }: { name: string }) {
                             <button type="submit" disabled={busy} className={primaryClass + ' self-end justify-self-start'}>{busy ? 'Menyimpan…' : 'Simpan dan Preview'}</button>
                         </form>
                     )}
-                    <section className="ui-card overflow-hidden border bg-white">
+                    {view === 'ujian' && <section className="ui-card overflow-hidden border bg-white">
                         <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-                            <h2 className="cbt-section-title">Riwayat Ujian</h2>
-                            <input aria-label="Cari ujian" type="search" placeholder="Cari ujian, mapel, atau kelas…" value={search}
-                                onChange={event => setSearch(event.target.value)} className="ui-input w-full border sm:w-64" />
+                            <h2 className="text-lg font-bold">Daftar ujian</h2>
+                            <div className="relative w-full sm:w-80"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" /><input aria-label="Cari ujian" type="search" placeholder="Cari ujian, mapel, atau kelas…" value={search}
+                                onChange={event => setSearch(event.target.value)} className="ui-input w-full pl-10" /></div>
                         </header>
                         {!loading && !error && !matches.length && <p className="p-6 text-sm text-slate-600">{exams.length ? 'Ujian tidak ditemukan.' : 'Belum ada ujian. Pilih mata pelajaran untuk membuat draf.'}</p>}
                         {!!matches.length && <div className="overflow-x-auto">
@@ -308,12 +349,11 @@ export default function UjianGuru({ name }: { name: string }) {
                                 </tr></thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {matches.map(item => {
-                                        const now = Date.now();
-                                        const status = item.draf ? 'Draf' : now < +new Date(item.waktuMulai) ? 'Terjadwal' : now >= +new Date(item.waktuSelesai) ? 'Selesai' : 'Berlangsung';
+                                        const status = examStatus(item);
                                         return <tr key={item.id}>
                                             <td className="px-4 py-3"><strong>{item.judul}</strong><p className="mt-1 text-xs text-slate-600">{item.mapel.nama} · {examClassNames(item)} · {item._count.soal} soal</p></td>
                                             <td className="whitespace-nowrap px-4 py-3 text-xs"><CalendarDays size={14} className="mr-1 inline text-slate-500" />{schedule.format(new Date(item.waktuMulai))}</td>
-                                            <td className="px-4 py-3"><span className={'whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ' + (status === 'Draf' ? 'bg-amber-100 text-amber-900' : status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700')}>{status}</span></td>
+                                            <td className="px-4 py-3"><span className={'ui-badge whitespace-nowrap ' + examStatusStyles[status]}>{status}</span></td>
                                             <td className="px-4 py-3"><div className="flex flex-wrap gap-2">
                                                 <button type="button" disabled={busy} onClick={() => void openExam(item.id)}
                                                     className="ui-button ui-button-secondary inline-flex items-center gap-1.5 whitespace-nowrap border"><Eye size={15} /> Preview</button>
@@ -327,7 +367,7 @@ export default function UjianGuru({ name }: { name: string }) {
                                 </tbody>
                             </table>
                         </div>}
-                    </section>
+                    </section>}
                 </>
             )}
         </section>
