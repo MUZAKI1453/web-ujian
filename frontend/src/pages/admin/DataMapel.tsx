@@ -111,30 +111,30 @@ export default function DataMapel() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Header Utama & Kontrol */}
-            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2.5">
+                    <h1 className="ui-page-title flex items-center gap-2.5">
                         <BookOpen className="text-blue-600" size={28} /> Kelola Mata Pelajaran
                     </h1>
-                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         Daftar mata pelajaran beserta guru pengampu di portal CBT SMPIP Baitussalam.
                     </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                     <div className="relative flex items-center w-full sm:w-72">
-                        <Search size={18} className="absolute left-3.5 text-gray-400" />
+                        <Search size={18} className="absolute left-3.5 text-slate-400" />
                         <input
                             type="text"
                             placeholder="Cari mapel atau guru..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-gray-200 focus:border-blue-600 rounded-2xl focus:outline-none text-sm text-gray-700 transition"
+                            className="ui-input w-full pl-10 pr-4 hover:bg-slate-100/60 border focus:border-blue-600 transition"
                         />
                     </div>
                     <button
                         onClick={handleOpenAdd}
-                        className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-2xl font-semibold shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5 text-sm shrink-0"
+                        className="ui-button ui-button-primary flex items-center justify-center gap-2 shadow-blue-600/20 shrink-0"
                     >
                         <Plus size={18} /> Tambah Mapel
                     </button>
@@ -142,20 +142,20 @@ export default function DataMapel() {
             </div>
 
             {/* Tabel Data Mapel */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="ui-card bg-white border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="ui-table w-full text-left border-collapse">
                         <thead>
                         <tr>
                             <td colSpan={5} className="px-6 py-3">
                                 <button type="button" disabled={!visibleSelected.length}
                                         onClick={() => setDeleteIds(visibleSelected)}
-                                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                        className="ui-button ui-button-danger">
                                     Hapus terpilih ({visibleSelected.length})
                                 </button>
                             </td>
                         </tr>
-                        <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                        <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-slate-100">
                             <th className="pl-6 w-12">
                                 <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
                                        checked={allSelected} disabled={!visibleIds.length}
@@ -167,14 +167,14 @@ export default function DataMapel() {
                             <th className="py-4 px-6 text-center">Aksi</th>
                         </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400 animate-pulse">Memuat mata pelajaran...</td>
+                                <td colSpan={5} className="text-center py-12 text-slate-400 animate-pulse">Memuat mata pelajaran...</td>
                             </tr>
                         ) : filteredMapel.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-12 text-gray-400">Belum ada mata pelajaran ditemukan.</td>
+                                <td colSpan={5} className="text-center py-12 text-slate-400">Belum ada mata pelajaran ditemukan.</td>
                             </tr>
                         ) : (
                             filteredMapel.map((item, index) => (
@@ -187,28 +187,28 @@ export default function DataMapel() {
                                                    setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
                                                }} />
                                     </td>
-                                    <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
-                                    <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
+                                    <td className="py-4 px-6 font-medium text-slate-500">{index + 1}</td>
+                                    <td className="py-4 px-6 font-bold text-slate-800">{item.nama}</td>
                                     <td className="py-4 px-6">
                                         {item.pengampu.length ? item.pengampu.map(p => (
-                                            <span key={p.id} className="m-0.5 inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
+                                            <span key={p.id} className="ui-badge m-0.5 inline-flex items-center gap-1.5 bg-blue-50 text-blue-700">
                                                 <GraduationCap size={14} /> {p.guru.nama} · {p.kelas.namaKelas}
                                             </span>
-                                        )) : (<span className="text-xs text-gray-400 italic">Belum ditentukan</span>
+                                        )) : (<span className="text-xs text-slate-400 italic">Belum ditentukan</span>
                                         )}
                                     </td>
                                     <td className="py-4 px-6 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => handleOpenEdit(item)}
-                                                className="p-2 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-xl transition-colors"
+                                                className="ui-button ui-button-soft ui-icon-button"
                                                 title="Edit Mapel"
                                             >
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteIds([item.id])}
-                                                className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
+                                                className="ui-button ui-button-danger-soft ui-icon-button"
                                                 title="Hapus Mapel"
                                             >
                                                 <Trash2 size={16} />
@@ -258,20 +258,20 @@ export default function DataMapel() {
             {/* Modal Tambah / Edit Mapel */}
             {showModal && (
                 <ModalOverlay>
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800">
+                    <div className="ui-dialog-panel max-w-md space-y-4">
+                        <h3 className="text-lg font-bold text-slate-800">
                             {isEdit ? 'Edit Mata Pelajaran' : 'Tambah Mata Pelajaran Baru'}
                         </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Nama Mata Pelajaran</label>
+                                <label className="ui-label block mb-1">Nama Mata Pelajaran</label>
                                 <input
                                     type="text"
                                     required
                                     placeholder="Contoh: Matematika, Bahasa Indonesia"
                                     value={nama}
                                     onChange={(e) => setNama(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
+                                    className="ui-input w-full border focus:border-blue-600"
                                 />
                             </div>
                             <p className="text-xs text-slate-600">Atur guru pengampu beserta kelasnya melalui Data Guru.</p>
@@ -279,13 +279,13 @@ export default function DataMapel() {
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="px-4 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-semibold text-sm transition"
+                                    className="ui-button ui-button-secondary"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-md transition"
+                                    className="ui-button ui-button-primary"
                                 >
                                     {isEdit ? 'Simpan Perubahan' : 'Simpan Mapel'}
                                 </button>

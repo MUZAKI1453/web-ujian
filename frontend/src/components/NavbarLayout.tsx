@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck, Repeat2, Laptop, SquarePen, Undo2 } from 'lucide-react';
+import { Layers, Users, LogOut, ChevronDown, Menu, X, Settings, MonitorCheck, Repeat2, Laptop, SquarePen, Undo2 } from 'lucide-react';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
 export type ViewRole = keyof typeof viewLabels;
@@ -73,10 +73,10 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
     ));
 
     return (
-        <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
+        <div className="ui-app min-h-screen font-sans flex flex-col">
             {/* NAVBAR ATAS */}
-            <nav className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="ui-navbar text-white fixed top-0 left-0 right-0 z-50">
+                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 items-center justify-between">
 
                         {/* KIRI: Logo & Nama Brand */}
@@ -110,10 +110,10 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                                         <button type="button" aria-expanded={switchOpen}
                                                 onClick={() => { setSwitchOpen(!switchOpen); setDropdownMasterOpen(false); setDropdownProfileOpen(false); }}
                                                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium ${viewRole !== 'admin' ? 'bg-white/20' : 'hover:bg-white/10'}`}>
-                                            <Repeat2 size={18} /> Switch Akses <ChevronDown size={14} />
+                                            <Repeat2 size={18} /> Ganti Tampilan <ChevronDown size={14} />
                                         </button>
                                         {switchOpen && (
-                                            <div className="absolute left-0 z-50 mt-2 w-44 rounded-2xl border border-slate-100 bg-white p-1 text-slate-800 shadow-2xl">
+                                            <div className="ui-card absolute left-0 z-50 mt-2 w-44 border bg-white p-1 text-slate-800">
                                                 {switchOptions}
                                             </div>
                                         )}
@@ -129,7 +129,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                                         </button>
 
                                         {dropdownMasterOpen && (
-                                            <div className="absolute left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                            <div className="ui-card absolute left-0 mt-2 w-48 bg-white py-2 text-slate-800 border z-50 animate-in fade-in zoom-in-95 duration-150">
                                                 <button onClick={() => handleMenuClick('kelas')} className={`w-full text-left px-4 py-2 text-sm font-medium transition ${activePage === 'kelas' ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-blue-50 hover:text-blue-600'}`}>Data Kelas</button>
                                                 <button onClick={() => handleMenuClick('siswa')} className={`w-full text-left px-4 py-2 text-sm font-medium transition ${activePage === 'siswa' ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-blue-50 hover:text-blue-600'}`}>Data Siswa</button>
                                                 <button onClick={() => handleMenuClick('guru')} className={`w-full text-left px-4 py-2 text-sm font-medium transition ${activePage === 'guru' ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-blue-50 hover:text-blue-600'}`}>Data Guru</button>
@@ -174,21 +174,18 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             </button>
 
                             {dropdownProfileOpen && (
-                                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl py-2 text-slate-800 border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150">
-                                    {user.role === 'admin' && (
-                                        <button onClick={() => handleMenuClick('navbar')} className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
-                                            Pengaturan Navbar
-                                        </button>
-                                    )}
-                                    <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
-                                        <Key size={16} className="text-slate-400" /> Ganti Password
+                                <div className="ui-card absolute right-0 top-full mt-2 w-48 bg-white py-2 text-slate-800 border z-50 animate-in fade-in zoom-in-95 duration-150">
+                                    <button type="button" onClick={() => handleMenuClick('pengaturan')}
+                                        aria-current={activePage === 'pengaturan' ? 'page' : undefined}
+                                        className={'flex min-h-11 w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium transition-colors ' + (activePage === 'pengaturan' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50')}>
+                                        <Settings size={18} className="shrink-0" aria-hidden="true" /> Pengaturan
                                     </button>
                                     <div className="border-t border-slate-100 my-1"></div>
                                     <button
                                         onClick={onLogout}
                                         className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition"
                                     >
-                                        <LogOut size={16} /> Logout
+                                        <LogOut size={16} /> Keluar
                                     </button>
                                 </div>
                             )}
@@ -198,7 +195,8 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         <div className="flex lg:hidden">
                             <button
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                className="p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition focus:outline-none"
+                                aria-label={mobileMenuOpen ? 'Tutup menu' : 'Buka menu'} aria-expanded={mobileMenuOpen}
+                                className="size-11 grid place-items-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition focus:outline-none"
                             >
                                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                             </button>
@@ -209,7 +207,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
 
                 {/* MENU MOBILE DENGAN AKORDEON */}
                 {mobileMenuOpen && (
-                    <div className="lg:hidden bg-blue-900/98 backdrop-blur-md px-4 pt-4 pb-6 border-t border-blue-600 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
+                    <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto lg:hidden bg-blue-900 backdrop-blur-md px-4 pt-4 pb-6 border-t border-blue-600 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
                         <div className="flex items-center justify-between px-3.5 py-3 bg-white/10 rounded-2xl mb-2">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-white text-blue-600 font-bold flex items-center justify-center text-sm shadow">
@@ -230,7 +228,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
 
                                 <details>
                                     <summary className="flex cursor-pointer items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium hover:bg-white/10">
-                                        <Repeat2 size={18} /> Switch Akses <ChevronDown size={14} />
+                                        <Repeat2 size={18} /> Ganti Tampilan <ChevronDown size={14} />
                                     </summary>
                                     <div className="ml-4 border-l border-blue-400/30 pl-4">{switchOptions}</div>
                                 </details>
@@ -263,19 +261,16 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                         )}
 
                         <div className="border-t border-blue-700/60 pt-3 mt-3 space-y-1">
-                            {user.role === 'admin' && (
-                                <button onClick={() => handleMenuClick('navbar')} className="w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-medium text-blue-100 hover:bg-white/10">
-                                    Pengaturan Navbar
-                                </button>
-                            )}
-                            <button onClick={() => handleMenuClick('ganti-password')} className="flex items-center gap-3 w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium text-blue-100 hover:bg-white/10 transition">
-                                <Key size={18} className="text-blue-300" /> Ganti Password
+                            <button type="button" onClick={() => handleMenuClick('pengaturan')}
+                                aria-current={activePage === 'pengaturan' ? 'page' : undefined}
+                                className={'flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors ' + (activePage === 'pengaturan' ? 'bg-white/20 text-white' : 'text-blue-100 hover:bg-white/10')}>
+                                <Settings size={18} className="shrink-0 text-blue-300" aria-hidden="true" /> Pengaturan
                             </button>
                             <button
                                 onClick={onLogout}
                                 className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl text-sm font-semibold text-red-200 hover:bg-red-600/30 transition"
                             >
-                                <LogOut size={18} /> Logout Sistem
+                                <LogOut size={18} /> Keluar
                             </button>
                         </div>
                     </div>
@@ -283,7 +278,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
             </nav>
 
             {/* KONTEN UTAMA */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mt-[5.5rem] mb-12">
+            <main className="ui-content flex-1 px-4 sm:px-6 lg:px-8 mt-24 mb-10">
                 {children}
             </main>
         </div>

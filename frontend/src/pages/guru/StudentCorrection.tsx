@@ -1,7 +1,8 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import QuestionContent from './QuestionContent';
-import { fieldClass, primaryClass } from './QuestionEditor';
+
 import type { Question } from './QuestionEditor';
 
 export type ReportRow = {
@@ -11,9 +12,9 @@ export type ReportRow = {
     pending: number;
     rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }>;
     jawaban: Record<string, unknown>;
-    essay: { id: number; pedoman?: string; maksimum: number; jawaban: string; nilai: number | null }[];
+    essay: { id: number; pedoman?: string; maksimum: number; jawaban: string; nilai: number | null; catatan?: string }[];
 };
-export type EssayMark = { soalId: number; nilai: number };
+export type EssayMark = { soalId: number; nilai: number; catatan: string };
 
 export default function StudentCorrection({ row, questions, busy, onBack, onSave }: {
     row: ReportRow; questions: Question[]; busy: boolean; onBack: () => void; onSave: (marks: EssayMark[]) => void;
@@ -23,8 +24,9 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
         const form = new FormData(event.currentTarget);
         const marks = row.essay.flatMap(essay => {
             const value = String(form.get('nilai-' + essay.id) ?? '').trim();
-            if (!value || Number(value) === essay.nilai) return [];
-            return [{ soalId: essay.id, nilai: Number(value) }];
+            const catatan = String(form.get('catatan-' + essay.id) ?? '').trim();
+            if (!value || (Number(value) === essay.nilai && catatan === (essay.catatan ?? ''))) return [];
+            return [{ soalId: essay.id, nilai: Number(value), catatan }];
         });
         if (marks.length) onSave(marks);
     }
@@ -32,10 +34,10 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
     const automatic = questions.filter(q => !q.dibatalkan && q.tipeSoal !== 'ESSAY');
     const essays = new Map(row.essay.map(item => [item.id, item]));
     return <div className="space-y-4">
-        <button type="button" disabled={busy} onClick={onBack} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold">
+        <button type="button" disabled={busy} onClick={onBack} className="ui-button ui-button-secondary inline-flex items-center gap-2 border bg-white">
             <ArrowLeft size={16} /> Kembali ke Rekap
         </button>
-        <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border bg-white p-5 shadow-sm">
+        <header className="ui-card flex flex-wrap items-start justify-between gap-4 border bg-white p-5">
             <div>
                 <p className="text-sm font-semibold text-blue-700">Koreksi Jawaban</p>
                 <h2 className="text-xl font-bold">{row.siswa.nama || row.siswa.username}</h2>
@@ -80,7 +82,7 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
             <div className="divide-y">{questions.map((q, index) => {
                 const essay = essays.get(q.id);
                 if (!essay) return null;
-                return <article key={q.id + ':' + essay.nilai} className="space-y-3 p-4">
+                return <article key={q.id + ':' + essay.nilai + ':' + essay.catatan} className="space-y-3 p-4">
                     <h4 className="font-semibold">Soal {index + 1}</h4>
                     <div className="whitespace-pre-wrap break-words"><QuestionContent text={q.pertanyaan} image={q.isi?.gambar} /></div>
                     <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
@@ -89,11 +91,15 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
                     </div>
                     {essay.pedoman && <p className="text-sm text-slate-700">Pedoman · {essay.pedoman}</p>}
                     <div className="max-w-40">
-                        <label className="text-sm font-semibold">Nilai (0–{essay.maksimum})
+                        <label className="ui-label">Nilai (0–{essay.maksimum})
                             <input name={'nilai-' + essay.id} type="number" min={0} max={essay.maksimum} step={1}
                                 defaultValue={essay.nilai ?? ''} className={fieldClass} disabled={busy} />
                         </label>
                     </div>
+                    <label className="ui-label block">Catatan untuk siswa (opsional)
+                        <textarea name={'catatan-' + essay.id} maxLength={2000} rows={3} defaultValue={essay.catatan ?? ''}
+                            className={fieldClass} disabled={busy} placeholder="Catatan ditampilkan setelah hasil dan pembahasan dirilis." />
+                    </label>
                 </article>;
             })}</div>
             <div className="flex justify-end border-t p-4"><button type="submit" disabled={busy} className={primaryClass}>Simpan Nilai Essay</button></div>

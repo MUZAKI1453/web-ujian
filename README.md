@@ -20,7 +20,7 @@ Akun admin hasil seed: username `admin`, password `admin123` (untuk development 
 
 `npm run build` memeriksa TypeScript dan membuat build frontend/backend.
 
-Halaman yang tersedia: login, dashboard admin, kelas, siswa, guru, mata pelajaran, monitoring ujian, pengaturan navbar, dan ganti password.
+Halaman yang tersedia: login, dashboard admin, kelas, siswa, guru, mata pelajaran, monitoring ujian, dan pengaturan. Menu Pengaturan berisi identitas aplikasi (khusus admin) serta Keamanan untuk mengganti password akun masing-masing.
 
 Portal guru dan siswa mengikuti tampilan referensi CBT Sekolah: banner biru, kartu ringkasan, kartu mata pelajaran, riwayat ujian, dan kartu jadwal siswa. Guru dapat membuat draf, mengedit atau mengimpor soal, menerbitkan ujian, mengelola sesi, serta membuka koreksi dan rekap nilai. Editor mendukung PG, pilihan majemuk, benar/salah, isian, dan essay.
 
@@ -33,3 +33,9 @@ Siswa dapat memverifikasi token, mengerjakan soal dengan timer, menandai ragu, d
 Pengamanan ujian diaktifkan lewat tombol **Masuk & Lanjutkan Ujian**. Browser yang mendukungnya meminta fullscreen; keluar fullscreen, tab tersembunyi, kehilangan fokus jendela lebih dari 750 ms, dan perubahan lebar yang menunjukkan split screen memunculkan peringatan. Kejadian yang bersamaan dihitung sekali sampai siswa melanjutkan. Pada kejadian ketiga, pengerjaan dikumpulkan dan dikunci di server. Laporan yang terkirim ulang tidak menambah hitungan; catatan disimpan per ID pengerjaan dan dapat dilihat guru melalui **Sesi & Peserta → peserta → Keamanan**. Saat offline, laporan diantrekan di perangkat dan dikirim setelah koneksi kembali. Browser yang tidak mendukung fullscreen menampilkan pemberitahuan dan tetap memantau visibilitas/fokus. Dukungan fullscreen, bunyi, dan Wake Lock mengikuti kemampuan browser; ini tidak mengunci sistem operasi atau perangkat kedua.
 
 Verifikasi token tidak mengirim isi soal. Isi soal pertama kali diberikan saat server memulai pengerjaan dan menetapkan deadline. Pengujian keamanan API memakai data uji tersendiri yang dibersihkan setelah selesai (`RUN_DATABASE_TESTS=1 npm test` dari folder backend).
+
+Portal siswa mengelompokkan ujian berdasarkan status pengerjaan, dengan ujian yang sedang dikerjakan di bagian atas. Tombol Mulai Ujian meminta fullscreen sebelum menghubungi server untuk memulai timer; jika fullscreen tidak didukung, pemantauan fokus dan tab tetap dipakai. Izin fullscreen yang ditolak tidak memulai pengerjaan baru.
+
+Saat mengerjakan, siswa melihat waktu konfirmasi penyimpanan server dan jumlah jawaban yang masih menunggu sinkronisasi, termasuk pengosongan jawaban. Timer tetap berjalan saat offline. Jawaban isian atau essay yang hanya berisi spasi dihitung kosong. Setelah pengumpulan, bukti menampilkan nomor bukti, waktu diterima server, ringkasan jawaban, dan status pengumpulan; bukti juga dapat dibuka lagi dari beranda tanpa menunggu rilis nilai. Kiriman offline setelah deadline ditandai menunggu tinjauan guru.
+
+Pembahasan yang dirilis menampilkan jawaban siswa beserta kunci atau pedoman. Poin dan catatan essay ditampilkan setelah hasil dirilis dan kiriman offline selesai ditinjau. Guru dapat menambahkan catatan opsional saat menyimpan nilai essay. Catatan disimpan bersama koreksi yang sudah ada sehingga tidak memerlukan perubahan skema database.

@@ -1,6 +1,7 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useState } from 'react';
 import api from '../../services/api';
-import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 
 export default function ImportSoal({ examId, onClose, onImport }: {
@@ -48,23 +49,23 @@ export default function ImportSoal({ examId, onClose, onImport }: {
     }
 
     return (
-        <section aria-labelledby="import-soal-title" className="max-w-2xl rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
+        <section aria-labelledby="import-soal-title" className="ui-card max-w-2xl border bg-white p-5 sm:p-7">
             <h2 id="import-soal-title" className="text-xl font-bold">Impor Soal Excel</h2>
             <p className="mt-2 text-sm text-slate-600">
                 Template memuat contoh PG, PM, BS, ISIAN, dan ESSAY. Ganti isinya dengan soal Anda.
                 Mulai setiap blok dengan baris <strong>tipe</strong>, lalu tulis <strong>soal</strong> dan bagian lainnya di bawahnya.
             </p>
             <button type="button" disabled={downloading || saving} onClick={() => void download()}
-                className="my-4 rounded-xl border px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">
+                className="ui-button ui-button-secondary my-4 border">
                 {downloading ? 'Mengunduh…' : 'Unduh Template Excel'}
             </button>
             <form onSubmit={submit} className="space-y-3">
-                <label className="block text-sm font-semibold">File Excel (maksimal 5 MB)
+                <label className="ui-label block">File Excel (maksimal 5 MB)
                     <input type="file" name="file" accept=".xlsx,.xls" required disabled={saving} className={fieldClass} />
                 </label>
-                {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <div className="flex justify-end gap-3 border-t pt-3">
-                    <button type="button" disabled={saving} className="rounded-xl border px-4 py-2 text-sm" onClick={onClose}>Batal</button>
+                    <button type="button" disabled={saving} className="ui-button ui-button-secondary border" onClick={onClose}>Batal</button>
                     <button type="submit" disabled={saving} className={primaryClass}>{saving ? 'Mengimpor…' : 'Impor Soal'}</button>
                 </div>
             </form>

@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import { isAxiosError } from 'axios';
 import QuestionContent from './QuestionContent';
+import { fieldClass } from '../../components/ui/styles';
+export { fieldClass, primaryClass } from '../../components/ui/styles';
 
 const types = ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY'] as const;
 const typeLabels = { PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', BS: 'Benar / Salah', ISIAN: 'Isian Singkat', ESSAY: 'Essay' };
@@ -15,8 +17,6 @@ export interface Question {
     isi: { gambar?: string; items?: Item[]; jawaban?: string[]; angka?: boolean; pedoman?: string } | null;
 }
 
-export const fieldClass = 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm';
-export const primaryClass = 'rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
 export function errorMessage(error: unknown) {
     return isAxiosError(error) ? error.response?.data?.message || 'Permintaan gagal. Coba lagi.' : 'Permintaan gagal. Coba lagi.';
 }
@@ -74,16 +74,16 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
     const changed = !question || JSON.stringify(soal) !== JSON.stringify(initial);
 
     return (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="ui-card overflow-hidden border bg-white">
             <div className={'flex items-center justify-between gap-2 px-5 py-4 ' + (type === 'ESSAY' ? 'bg-amber-100 text-amber-950' : 'bg-blue-600 text-white')}>
                 <h2 className="flex flex-wrap items-center gap-2 font-bold"><span className="grid size-8 place-items-center rounded-full bg-white/20 text-sm">{number}</span> Soal {number}<span className="text-xs font-normal opacity-80">· {typeLabels[type]}</span></h2>
-                <button type="button" className="shrink-0 rounded-lg border border-current/20 px-3 py-1.5 text-xs font-semibold" onClick={onRemove}>Hapus Soal</button>
+                <button type="button" className="ui-button ui-button-secondary shrink-0 border border-current/20 text-xs" onClick={onRemove}>Hapus Soal</button>
             </div>
             {question && <input type="hidden" name="soalAktif" value={question.id} />}
             {changed && <input type="hidden" name="perubahan" value={JSON.stringify({ id: question?.id ?? null, nomor: number, soal })} />}
             {reading > 0 && <input type="hidden" name="gambarDiproses" value="1" />}
             <div className="space-y-4 p-5">
-                <label className="block text-sm font-semibold">Tipe soal
+                <label className="ui-label block">Tipe soal
                     <select className={fieldClass} value={type} onChange={event => {
                         const next = event.target.value as QuestionType;
                         setType(next);
@@ -92,13 +92,13 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                         {types.map(value => <option key={value} value={value}>{typeLabels[value]}</option>)}
                     </select>
                 </label>
-                <label className="block text-sm font-semibold">Soal
+                <label className="ui-label block">Soal
                     <textarea className={fieldClass} autoFocus={focus} required maxLength={12000} rows={3} value={text} onChange={e => setText(e.target.value)} />
                 </label>
-                <label className="block text-sm font-semibold">URL gambar soal (opsional)
+                <label className="ui-label block">URL gambar soal (opsional)
                     <input type="url" className={fieldClass} maxLength={2000} value={image.startsWith('data:') ? '' : image} onChange={e => setImage(e.target.value)} />
                 </label>
-                <label className="block text-sm">Atau unggah gambar soal
+                <label className="ui-label block">Atau unggah gambar soal
                     <input className={fieldClass} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={e => readImage(e.target.files?.[0], setImage)} />
                 </label>
@@ -130,11 +130,11 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                                 <button type="button" aria-label={'Hapus baris ' + (index + 1)} disabled={items.length <= (type === 'BS' ? 1 : 2)}
                                     className="rounded px-2 py-1 text-red-700 disabled:opacity-30"
                                     onClick={() => setItems(current => current.filter((_, i) => i !== index))}>Hapus</button>
-                                <label className="col-span-full text-xs text-slate-600">URL gambar baris {index + 1} (opsional)
+                                <label className="ui-label col-span-full">URL gambar baris {index + 1} (opsional)
                                     <input type="url" className={fieldClass} maxLength={2000} value={item.gambar?.startsWith('data:') ? '' : item.gambar ?? ''}
                                         onChange={e => updateItem(index, { gambar: e.target.value })} />
                                 </label>
-                                <label className="col-span-full text-xs">Atau unggah gambar baris {index + 1}
+                                <label className="ui-label col-span-full">Atau unggah gambar baris {index + 1}
                                     <input className={fieldClass} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
                                         onChange={e => readImage(e.target.files?.[0], gambar => updateItem(index, { gambar }))} />
                                 </label>
@@ -152,7 +152,7 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                 )}
                 {type === 'ISIAN' && (
                     <>
-                        <label className="block text-sm font-semibold">Jawaban diterima (satu per baris)
+                        <label className="ui-label block">Jawaban diterima (satu per baris)
                             <textarea className={fieldClass} required rows={3} value={answers} onChange={e => setAnswers(e.target.value)} />
                         </label>
                         <label className="flex items-center gap-2 text-sm">
@@ -162,15 +162,15 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                 )}
                 {type === 'ESSAY' && (
                     <>
-                        <label className="block text-sm font-semibold">Pedoman penilaian (opsional)
+                        <label className="ui-label block">Pedoman penilaian (opsional)
                             <textarea className={fieldClass} rows={3} value={rubric} onChange={e => setRubric(e.target.value)} />
                         </label>
-                        <label className="block text-sm font-semibold">Poin maksimum
+                        <label className="ui-label block">Poin maksimum
                             <input className={fieldClass} type="number" min="1" max="100" step="1" required value={points} onChange={e => setPoints(Number(e.target.value))} />
                         </label>
                     </>
                 )}
-                {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             </div>
         </section>
     );

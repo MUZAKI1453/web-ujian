@@ -3,37 +3,84 @@
 @tailwind utilities;
 
 @layer base {
+    :root {
+        --ui-canvas: #f8fafc;
+        --ui-surface: #ffffff;
+        --ui-border: #e2e8f0;
+        --ui-ink: #1e293b;
+        --ui-radius-card: 1rem;
+        --ui-radius-control: 0.75rem;
+        --ui-shadow-card: 0 2px 8px rgb(15 23 42 / 4%);
+        --ui-shadow-dialog: 0 24px 64px rgb(15 23 42 / 18%);
+        --ui-brand-gradient: linear-gradient(135deg, #2563eb, #1e40af);
+    }
+    html { @apply font-sans antialiased; color: var(--ui-ink); background: var(--ui-canvas); }
+    body { @apply m-0; }
+    h1, h2, h3 { @apply tracking-tight; }
+    input, select, textarea { @apply accent-blue-600; }
     button, input, select, textarea { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2; }
-    button { @apply disabled:cursor-not-allowed; }
+    button { @apply touch-manipulation disabled:cursor-not-allowed; }
 }
 
 @layer components {
+    .ui-app { background: var(--ui-canvas); color: var(--ui-ink); }
+    .ui-login { background: var(--ui-brand-gradient); }
+    .ui-content { @apply mx-auto w-full max-w-[1200px]; }
+    .ui-navbar { background: var(--ui-brand-gradient); box-shadow: 0 2px 8px rgb(15 23 42 / 10%); }
+    .ui-navbar button { @apply min-h-11; }
+    .ui-page-title { @apply text-xl font-bold leading-tight text-slate-800 sm:text-2xl; }
+    .ui-label { @apply block text-sm font-semibold leading-6 text-slate-700; }
+    .ui-card { @apply border; background: var(--ui-surface); border-color: var(--ui-border); border-radius: var(--ui-radius-card); box-shadow: var(--ui-shadow-card); }
+    .ui-button { @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold leading-5 transition-colors disabled:opacity-50; border-radius: var(--ui-radius-control); }
+    .ui-button-primary { @apply border border-blue-600 bg-blue-600 text-white enabled:hover:border-blue-700 enabled:hover:bg-blue-700; }
+    .ui-button-secondary { @apply border border-slate-300 bg-white text-slate-700 enabled:hover:border-slate-400 enabled:hover:bg-slate-50; }
+    .ui-button-soft { @apply border border-blue-100 bg-blue-50 text-blue-700 enabled:hover:bg-blue-100; }
+    .ui-button-success { @apply border border-emerald-600 bg-emerald-600 text-white enabled:hover:bg-emerald-700; }
+    .ui-button-danger { @apply border border-red-600 bg-red-600 text-white enabled:hover:bg-red-700; }
+    .ui-button-danger-soft { @apply border border-red-100 bg-red-50 text-red-700 enabled:hover:bg-red-100; }
+    .ui-button-warning { @apply border border-amber-200 bg-amber-50 text-amber-900 enabled:hover:bg-amber-100; }
+    .ui-icon-button { @apply size-11 min-h-11 shrink-0 p-2.5; }
+    .ui-input { @apply min-h-11 border border-slate-300 bg-white px-3 py-2.5 text-base font-normal leading-6 text-slate-800 placeholder:text-slate-400 focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm sm:leading-6; border-radius: var(--ui-radius-control); }
+    .ui-input[type='file'] { @apply max-w-full py-2; }
+    .ui-input[type='file']::file-selector-button { @apply mr-3 rounded-lg border-0 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700; }
+    .ui-dialog-overlay { @apply fixed inset-0 flex items-center justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4 backdrop-blur-sm; }
+    .ui-dialog-panel { @apply my-auto max-h-[90dvh] w-full overflow-y-auto border border-slate-200 bg-white p-5 text-slate-800 sm:p-6; border-radius: var(--ui-radius-card); box-shadow: var(--ui-shadow-dialog); }
+    .ui-table { @apply w-full border-collapse text-left text-sm text-slate-700; }
+    .ui-table thead th { @apply border-b border-slate-200 bg-slate-50 px-4 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-600; }
+    .ui-table tbody td { @apply border-b border-slate-100 px-4 py-3.5 align-middle; }
+    .ui-table tbody tr:last-child td { @apply border-b-0; }
+    .ui-table tbody tr:hover { @apply bg-slate-50/70; }
+    .ui-notice { @apply rounded-xl border px-4 py-3 text-sm leading-relaxed; }
+    .ui-notice-error { @apply border-red-200 bg-red-50 text-red-800; }
+    .ui-notice-success { @apply border-emerald-200 bg-emerald-50 text-emerald-800; }
+    .ui-notice-warning { @apply border-amber-200 bg-amber-50 text-amber-900; }
+    .ui-badge, .cbt-badge { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold leading-4; }
     .cbt-portal { @apply mx-auto w-full max-w-[1200px] space-y-7 text-slate-800; }
-    .cbt-student { @apply max-w-[1000px]; }
-    .cbt-hero { @apply relative flex items-center gap-6 overflow-hidden rounded-2xl px-6 py-8 text-white sm:px-8; background: linear-gradient(135deg, #0d6efd, #0043a8); box-shadow: 0 10px 30px rgb(13 110 253 / 18%); }
+    .cbt-student { @apply w-full; }
+    .cbt-hero { @apply relative flex items-center gap-6 overflow-hidden rounded-2xl px-5 py-6 text-white sm:px-8 sm:py-8; background: var(--ui-brand-gradient); box-shadow: var(--ui-shadow-card); }
     .cbt-hero::after { content: ''; @apply pointer-events-none absolute -right-12 -top-24 h-72 w-72 rounded-full bg-white/10; }
-    .cbt-hero h1 { @apply text-2xl font-extrabold sm:text-[2rem] sm:leading-tight; }
-    .cbt-hero p { @apply mt-2 max-w-2xl text-base leading-relaxed text-blue-50; }
+    .cbt-hero h1 { @apply text-2xl font-bold leading-tight sm:text-3xl; }
+    .cbt-hero p { @apply mt-2 max-w-2xl text-sm leading-relaxed text-blue-50 sm:text-base; }
     .cbt-hero-icon { @apply relative z-10 hidden shrink-0 text-white/30 sm:block; }
-    .cbt-stat { @apply flex h-full items-center gap-5 rounded-2xl border border-slate-100 bg-white p-5; box-shadow: 0 4px 15px rgb(0 0 0 / 3%); }
+    .cbt-stat { @apply flex h-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5; box-shadow: var(--ui-shadow-card); }
     .cbt-stat-icon { @apply grid size-[60px] shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600; }
     .cbt-stat-green { @apply bg-emerald-100 text-emerald-700; }
-    .cbt-stat strong { @apply text-[1.8rem] font-extrabold leading-tight; }
+    .cbt-stat strong { @apply text-3xl font-bold leading-tight; }
     .cbt-stat p { @apply mt-1 text-sm font-medium text-slate-500; }
+    button:hover > .cbt-stat { @apply border-blue-300; }
     .cbt-section-title { @apply flex items-center gap-3 text-xl font-bold; }
     .cbt-section-title::before { content: ''; @apply h-6 w-1 shrink-0 rounded-full bg-blue-600; }
-    .cbt-subject { @apply flex flex-col items-center rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm; }
-    .cbt-subject button { @apply mt-auto w-full rounded-full border border-blue-600 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:bg-blue-600 hover:text-white; }
-    .cbt-exam-card { @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm; }
+    .cbt-subject { @apply flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-5 text-center; box-shadow: var(--ui-shadow-card); }
+    .cbt-subject button { @apply mt-auto min-h-11 w-full rounded-xl border border-blue-600 px-4 py-2.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-50; }
+    .cbt-exam-card { @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5; box-shadow: var(--ui-shadow-card); }
     .cbt-exam-card::before { content: ''; @apply absolute inset-y-0 left-0 w-1.5 bg-blue-600; }
     .cbt-exam-card[data-status='Terjadwal']::before { @apply bg-amber-400; }
     .cbt-exam-card[data-status='Selesai']::before { @apply bg-slate-400; }
-    .cbt-exam-card h3 { @apply my-4 break-words text-xl font-extrabold leading-snug; }
-    .cbt-badge { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold; }
+    .cbt-exam-card h3 { @apply my-4 break-words text-xl font-bold leading-snug; }
     .cbt-table thead th { @apply bg-slate-50 px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-600; }
     .cbt-table tbody td { @apply px-5 py-4 align-middle; }
     .cbt-table tbody tr { @apply hover:bg-slate-50/60; }
-    .cbt-action { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition hover:brightness-95 disabled:opacity-50; }
+    .cbt-action { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors hover:brightness-95 disabled:opacity-50; }
     .cbt-exam-layout { @apply mx-auto grid w-full max-w-6xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]; }
     .cbt-option { @apply flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 transition hover:border-blue-300 hover:bg-blue-50/40; }
     .cbt-option:has(input:checked) { @apply border-blue-600 bg-blue-50 text-blue-950 ring-1 ring-blue-600; }
@@ -41,6 +88,10 @@
     .cbt-number[data-state='Terjawab'] { @apply border-emerald-600 bg-emerald-600 text-white; }
     .cbt-number[data-state='Ragu'], .cbt-number[data-state='Belum lengkap'] { @apply border-amber-400 bg-amber-300 text-amber-950; }
     .cbt-number[aria-current='step'] { @apply ring-2 ring-blue-700 ring-offset-2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
 @media (max-width: 639px) {

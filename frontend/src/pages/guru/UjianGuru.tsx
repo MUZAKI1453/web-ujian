@@ -1,9 +1,10 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { ArrowLeft, BarChart3, BookOpen, CalendarDays, ClipboardList, Eye, Info, Laptop, Plus, SquarePen } from 'lucide-react';
 import { PortalHeader, PortalStat } from '../../components/PortalHeader';
 import ClassPicker from '../../components/ClassPicker';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../services/api';
-import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 import ImportSoal from './ImportSoal';
 import EditUjian from './EditUjian';
@@ -162,18 +163,18 @@ export default function UjianGuru({ name }: { name: string }) {
 
     return (
         <section className="cbt-portal">
-            {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+            {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             {exam ? (
                 <>
-                    <button type="button" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700" onClick={() => { setExam(null); setNotice(''); }}><ArrowLeft size={16} /> Kembali ke Ujian Saya</button>
-                    <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <button type="button" className="ui-button ui-button-secondary inline-flex items-center gap-2 border bg-white" onClick={() => { setExam(null); setNotice(''); }}><ArrowLeft size={16} /> Kembali ke Ujian Saya</button>
+                    <div className="ui-card flex flex-wrap items-start justify-between gap-3 border bg-white p-5">
                         <div>
                             <p className="text-sm font-semibold text-blue-700">Preview Ujian</p>
-                            <h1 className="text-2xl font-bold text-slate-800">{exam.judul}</h1>
+                            <h1 className="ui-page-title">{exam.judul}</h1>
                             <p className="text-sm text-slate-600">{exam.mapel.nama} · {examClassNames(exam)} · {exam.durasiMenit} menit · {exam.draf ? 'Draf' : 'Terbit'}</p>
                         </div>
                         {exam.draf && <div className="flex flex-wrap gap-2">
-                            <button type="button" className="rounded-xl border px-4 py-2 text-sm font-semibold text-blue-700"
+                            <button type="button" className="ui-button ui-button-secondary border"
                                 onClick={() => { setNotice(''); setImporting(true); }}>Impor Excel</button>
                             <button type="button" className={primaryClass} onClick={() => setEditor({})}>Edit Ujian</button>
                         </div>}
@@ -197,9 +198,9 @@ export default function UjianGuru({ name }: { name: string }) {
                             type === 'lainnya' ? !questionGroups.some(([known]) => known === question.tipeSoal.toUpperCase()) : question.tipeSoal.toUpperCase() === type);
                         if (!questions.length) return null;
                         const special = specialPointTypes.find(item => item === type);
-                        return <section key={type} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                        return <section key={type} className="ui-card overflow-hidden border bg-white">
                             <h2 className={'flex items-center justify-between px-4 py-3 font-semibold ' + (type === 'ESSAY' ? 'bg-amber-300 text-slate-900' : 'bg-blue-700 text-white')}>
-                                {label}<span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{questions.length} soal</span>
+                                {label}<span className="ui-badge bg-white/20">{questions.length} soal</span>
                             </h2>
                             {exam.draf && <div className="flex flex-wrap items-center gap-3 border-b bg-slate-50 px-4 py-3 text-sm text-slate-700">
                                 {special ? <>
@@ -211,14 +212,14 @@ export default function UjianGuru({ name }: { name: string }) {
                                     {pointSettings[special] !== undefined ? <input type="number" min="0.0001" max="100" step="0.0001"
                                         aria-label={'Poin per soal ' + label} value={pointSettings[special]}
                                         onChange={event => setPointSettings(current => ({ ...current, [special]: event.target.value }))}
-                                        className="w-24 rounded-lg border bg-white p-1" /> : <span>Poin dibagi rata dari sisa total.</span>}
+                                        className="ui-input w-24 border p-1" /> : <span>Poin dibagi rata dari sisa total.</span>}
                                 </> : <span>{type === 'ESSAY' ? 'Atur poin maksimum pada masing-masing soal essay.' : 'Poin dibagi rata dari sisa total.'}</span>}
                             </div>}
                             <div className="divide-y divide-slate-200">{questions.map(({ question, index }) => (
                         <article key={question.id} className="p-4 sm:p-5">
                             <div className="flex items-start justify-between gap-2">
                                 <h2 className="flex flex-wrap items-center gap-2 font-semibold"><span className="grid min-h-8 min-w-8 place-items-center rounded-full bg-blue-700 px-1 text-sm text-white">{index + 1}</span> Soal{question.dibatalkan && <span className="ml-2 text-xs text-red-700">Dibatalkan</span>}</h2>
-                                {exam.draf && <button type="button" className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+                                {exam.draf && <button type="button" className="ui-button ui-button-warning shrink-0 border"
                                     aria-label={'Edit Soal ' + (index + 1)} onClick={() => setEditor({ focusId: question.id })}>Edit Soal</button>}
                             </div>
                             <div className="mt-3 whitespace-pre-wrap break-words text-base leading-relaxed"><QuestionContent text={question.pertanyaan} image={question.isi?.gambar} /></div>
@@ -282,22 +283,22 @@ export default function UjianGuru({ name }: { name: string }) {
                                 <h2 className="font-bold">Buat Draf Ujian</h2>
                                 <button type="button" disabled={busy} className="text-sm text-slate-600" onClick={() => setCreating(false)}>Batal</button>
                             </div>
-                            <label className="text-sm font-semibold">Judul ujian<input ref={draftTitle} name="judul" className={fieldClass} required maxLength={150} /></label>
+                            <label className="ui-label">Judul ujian<input ref={draftTitle} name="judul" className={fieldClass} required maxLength={150} /></label>
                             <div className="self-center text-sm text-slate-600">Mata pelajaran: <strong>{subjects.find(item => String(item.id) === subject)?.nama}</strong></div>
                             <div className="sm:col-span-2"><ClassPicker classes={formPairs.map(pair => pair.kelas)} selected={targetClasses} onChange={setTargetClasses} disabled={busy} />
                                 <p className="mt-2 text-xs text-slate-500">Pilih satu atau beberapa kelas. Semua kelas menggunakan soal dan jadwal ujian yang sama.</p>
                             </div>
-                            <label className="text-sm font-semibold">Mulai<input name="mulai" type="datetime-local" defaultValue={draftSchedule.start} required className={fieldClass} /></label>
-                            <label className="text-sm font-semibold">Selesai<input name="selesai" type="datetime-local" defaultValue={draftSchedule.end} required className={fieldClass} /></label>
-                            <label className="text-sm font-semibold">Durasi (menit)<input name="durasi" type="number" min="1" step="1" defaultValue={defaultDuration} required className={fieldClass} /></label>
+                            <label className="ui-label">Mulai<input name="mulai" type="datetime-local" defaultValue={draftSchedule.start} required className={fieldClass} /></label>
+                            <label className="ui-label">Selesai<input name="selesai" type="datetime-local" defaultValue={draftSchedule.end} required className={fieldClass} /></label>
+                            <label className="ui-label">Durasi (menit)<input name="durasi" type="number" min="1" step="1" defaultValue={defaultDuration} required className={fieldClass} /></label>
                             <button type="submit" disabled={busy} className={primaryClass + ' self-end justify-self-start'}>{busy ? 'Menyimpan…' : 'Simpan dan Preview'}</button>
                         </form>
                     )}
-                    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <section className="ui-card overflow-hidden border bg-white">
                         <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                             <h2 className="cbt-section-title">Riwayat Ujian</h2>
                             <input aria-label="Cari ujian" type="search" placeholder="Cari ujian, mapel, atau kelas…" value={search}
-                                onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm sm:w-64" />
+                                onChange={event => setSearch(event.target.value)} className="ui-input w-full border sm:w-64" />
                         </header>
                         {!loading && !error && !matches.length && <p className="p-6 text-sm text-slate-600">{exams.length ? 'Ujian tidak ditemukan.' : 'Belum ada ujian. Pilih mata pelajaran untuk membuat draf.'}</p>}
                         {!!matches.length && <div className="overflow-x-auto">
@@ -315,11 +316,11 @@ export default function UjianGuru({ name }: { name: string }) {
                                             <td className="px-4 py-3"><span className={'whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ' + (status === 'Draf' ? 'bg-amber-100 text-amber-900' : status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700')}>{status}</span></td>
                                             <td className="px-4 py-3"><div className="flex flex-wrap gap-2">
                                                 <button type="button" disabled={busy} onClick={() => void openExam(item.id)}
-                                                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-50"><Eye size={15} /> Preview</button>
+                                                    className="ui-button ui-button-secondary inline-flex items-center gap-1.5 whitespace-nowrap border"><Eye size={15} /> Preview</button>
                                                 {item.draf && <button type="button" disabled={busy} onClick={() => void openExam(item.id, true)}
-                                                    className="cbt-action bg-amber-100 text-amber-900"><SquarePen size={15} /> Edit Soal</button>}
+                                                    className="ui-button ui-button-soft"><SquarePen size={15} /> Edit Soal</button>}
                                                 {!item.draf && <button type="button" disabled={busy} onClick={() => void openExam(item.id, false, 'rekap')}
-                                                    className="cbt-action bg-cyan-100 text-cyan-900"><BarChart3 size={15} /> Lihat Nilai</button>}
+                                                    className="ui-button ui-button-secondary"><BarChart3 size={15} /> Lihat Nilai</button>}
                                             </div></td>
                                         </tr>;
                                     })}

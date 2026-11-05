@@ -1,7 +1,8 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
 import StudentCorrection, { type ReportRow } from './StudentCorrection';
-import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 
 type Student = { nama: string | null; username: string };
@@ -98,7 +99,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         ((row.siswa.nama ?? '') + ' ' + row.siswa.username).toLowerCase().includes(keyword));
 
     if (active) return <section id="koreksi-siswa" className="scroll-mt-24 space-y-3">
-        {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{notice}</p>}
         <StudentCorrection key={active.id} row={active} questions={questions} busy={busy}
             onBack={() => { setStudentId(null); setError(''); setNotice(''); }}
@@ -107,7 +108,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
 
     return <section className="space-y-4 rounded-xl border bg-white p-4">
         <h2 className="font-semibold">Rekap, koreksi, dan rilis</h2>
-        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
         <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
             <p>Essay belum dikoreksi: {status.essayPending} soal dari {status.studentsPending} siswa</p>
@@ -135,7 +136,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         <div id="antrean-essay" className="space-y-3 rounded-xl border bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">Rekap Nilai Siswa</h3>
-                <button type="button" className="rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-800"
+                <button type="button" className="ui-button ui-button-secondary border"
                     disabled={busy || !data.rows.length} onClick={() => void perform(async () => {
                         const { data: file } = await api.get<Blob>(url + '/rekap/excel', { responseType: 'blob' });
                         const href = URL.createObjectURL(file);
@@ -148,13 +149,13 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
             </div>
             <div className="flex flex-wrap items-center gap-3">
                 <input type="search" aria-label="Cari siswa" placeholder="Cari nama atau NIS" value={search}
-                    onChange={event => setSearch(event.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+                    onChange={event => setSearch(event.target.value)} className="ui-input border" />
                 <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={filter} onChange={event => setFilter(event.target.checked)} /> Belum dikoreksi
                 </label>
             </div>
             {!visible.length ? <p className="text-sm text-slate-600">{data.rows.length ? 'Tidak ada siswa yang cocok.' : 'Belum ada jawaban terkirim.'}</p> :
-                <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+                <div className="overflow-x-auto"><table className="ui-table w-full text-left text-sm">
                     <thead className="bg-slate-100"><tr>{['Siswa', 'Poin otomatis', 'Poin essay', 'Total', 'Status', 'Aksi'].map(title =>
                         <th key={title} scope="col" className="whitespace-nowrap p-3">{title}</th>)}</tr></thead>
                     <tbody>{visible.map(row => <tr key={row.id} className="border-b">
@@ -172,14 +173,14 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         </div>
         {!status.ongoing && !!available.length && <form onSubmit={correct} className="space-y-3 rounded-lg border p-3 text-sm">
             <h3 className="font-semibold">Perbaiki Soal</h3>
-            <label className="block">Soal
+            <label className="ui-label block">Soal
                 <select value={selected} className={fieldClass} onChange={e => { setSelected(Number(e.target.value)); setAction('ubah-kunci'); setPreview(null); }}>
                     <option value={0}>Pilih soal</option>
                     {available.map(q => <option key={q.id} value={q.id}>{q.tipeSoal} · {q.pertanyaan.slice(0, 100)}</option>)}
                 </select>
             </label>
             {question && <>
-                <label className="block">Tindakan
+                <label className="ui-label block">Tindakan
                     <select className={fieldClass} value={action} onChange={e => { setAction(e.target.value); setPreview(null); }}>
                         <option value="ubah-kunci">Ubah kunci</option>
                         <option value="terima-semua">Terima semua jawaban</option>
@@ -188,16 +189,16 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
                     </select>
                 </label>
                 {(action === 'ubah-kunci' || action === 'tambah-jawaban') && (question.tipeSoal === 'ISIAN'
-                    ? <label className="block">Jawaban diterima (satu per baris)<textarea name="jawaban" required className={fieldClass} onChange={() => setPreview(null)} /></label>
+                    ? <label className="ui-label block">Jawaban diterima (satu per baris)<textarea name="jawaban" required className={fieldClass} onChange={() => setPreview(null)} /></label>
                     : <fieldset key={question.id}>
                         <legend>Kunci baru</legend>
-                        {question.isi?.items?.map((item, index) => <label className="block" key={index}>
-                            <select name={'item-' + index} defaultValue={String(item.benar)} onChange={() => setPreview(null)} className="mr-2 rounded border">
+                        {question.isi?.items?.map((item, index) => <label className="ui-label block" key={index}>
+                            <select name={'item-' + index} defaultValue={String(item.benar)} onChange={() => setPreview(null)} className="ui-input mr-2 rounded border">
                                 <option value="true">Benar</option><option value="false">Salah</option>
                             </select>{item.teks}
                         </label>)}
                     </fieldset>)}
-                <label className="block">Alasan<input name="alasan" required maxLength={2000} className={fieldClass} onChange={() => setPreview(null)} /></label>
+                <label className="ui-label block">Alasan<input name="alasan" required maxLength={2000} className={fieldClass} onChange={() => setPreview(null)} /></label>
                 <button type="submit" disabled={busy || queued} className={primaryClass}>Pratinjau Dampak</button>
                 {preview && <div className="space-y-2" role="status">
                     <p>{preview.impact.naik} naik · {preview.impact.turun} turun · {preview.impact.tetap} tetap</p>

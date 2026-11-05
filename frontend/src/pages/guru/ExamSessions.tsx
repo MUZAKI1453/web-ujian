@@ -1,6 +1,7 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
-import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { errorMessage } from './QuestionEditor';
 import { violationLabels } from '../siswa/useExamSecurity';
 
 type Student = { id: number; nama: string | null; username: string };
@@ -83,7 +84,7 @@ export default function ExamSessions({ examId }: { examId: number }) {
             <button type="button" className={primaryClass} onClick={() => setProjection(null)}>Tutup</button>
         </dialog>}
         <h2 className="font-semibold">Sesi dan pengerjaan</h2>
-        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {sessions.map(session => {
             const ongoing = +new Date(session.waktuSelesai) > now;
             const status = !ongoing ? 'Selesai' : +new Date(session.waktuMulai) > now ? 'Terjadwal' : 'Berlangsung';
@@ -105,7 +106,7 @@ export default function ExamSessions({ examId }: { examId: number }) {
                 <details>
                     <summary className="cursor-pointer text-sm font-semibold">{session.students.length} peserta</summary>
                     <div className="overflow-x-auto">
-                        <table className="mt-2 w-full text-left text-sm">
+                        <table className="ui-table mt-2 w-full text-left text-sm">
                             <thead><tr>{['Siswa', 'Status', 'Keamanan', 'Nilai tercatat', 'Aksi'].map(label => <th scope="col" className="p-2" key={label}>{label}</th>)}</tr></thead>
                             <tbody>{session.students.map(student => {
                                 const attempt = attempts.get(student.id);
@@ -131,11 +132,11 @@ export default function ExamSessions({ examId }: { examId: number }) {
         <button type="button" disabled={busy || !eligible.length} className={primaryClass} onClick={() => setMaking(value => !value)}>{making ? 'Tutup Form Susulan' : 'Tambah Sesi Susulan'}</button>
         {!eligible.length && <p className="text-sm text-slate-600">Belum ada peserta yang bisa ditambahkan ke sesi susulan.</p>}
         {making && <form onSubmit={makeup} className="space-y-3 rounded-xl border p-4">
-            <label className="block text-sm">Mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label>
-            <label className="block text-sm">Selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label>
+            <label className="ui-label block">Mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label>
+            <label className="ui-label block">Selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label>
             <fieldset className="max-h-40 space-y-1 overflow-auto">
                 <legend className="text-sm font-semibold">Pilih peserta</legend>
-                {eligible.map(student => <label key={student.id} className="block text-sm">
+                {eligible.map(student => <label key={student.id} className="ui-label block">
                     <input type="checkbox" name="peserta" value={student.id} /> {student.nama || student.username} · {student.username}
                 </label>)}
             </fieldset>

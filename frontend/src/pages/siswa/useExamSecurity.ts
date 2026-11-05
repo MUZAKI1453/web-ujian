@@ -8,7 +8,7 @@ export const violationLabels: Record<SecurityEvent['reason'], string> = {
     'split-screen': 'Ukuran layar menunjukkan mode jendela atau split screen'
 };
 
-export default function useExamSecurity(current: MutableRefObject<LocalAttempt>, update: (attempt: LocalAttempt) => void, finished: boolean) {
+export default function useExamSecurity(current: MutableRefObject<LocalAttempt>, update: (attempt: LocalAttempt) => void, finished: boolean, prepared = false) {
     const [ready, setReady] = useState(false);
     const [error, setError] = useState('');
     const [activating, setActivating] = useState(false);
@@ -16,6 +16,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
     const incident = useRef(false);
     const audio = useRef<AudioContext>();
     const wakeLock = useRef<WakeLockSentinel | null>(null);
+    const cleanupTimer = useRef<ReturnType<typeof setTimeout>>();
     const callback = useRef(update);
     callback.current = update;
     const finishedRef = useRef(finished);
@@ -78,6 +79,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
     }
 
     useEffect(() => {
+        clearTimeout(cleanupTimer.current);
         let blurTimer: ReturnType<typeof setTimeout> | undefined;
         let resizeTimer: ReturnType<typeof setTimeout> | undefined;
         const hidden = () => {
@@ -108,6 +110,11 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         document.addEventListener('keydown', shortcut);
         document.addEventListener('copy', clipboard); document.addEventListener('cut', clipboard); document.addEventListener('paste', clipboard);
         window.addEventListener('blur', blur); window.addEventListener('focus', focus); window.addEventListener('resize', resize);
+        // A newly started attempt arrives with fullscreen already approved. Arm monitoring immediately.
+        if (prepared && !current.current.security?.warning && !current.current.send &&
+            !document.hidden && document.hasFocus() && (!fullscreenSupported || !!document.fullscreenElement)) {
+            void activate();
+        }
         return () => {
             armed.current = false;
             clearTimeout(blurTimer); clearTimeout(resizeTimer);
@@ -117,9 +124,12 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
             document.removeEventListener('keydown', shortcut);
             document.removeEventListener('copy', clipboard); document.removeEventListener('cut', clipboard); document.removeEventListener('paste', clipboard);
             window.removeEventListener('blur', blur); window.removeEventListener('focus', focus); window.removeEventListener('resize', resize);
-            void wakeLock.current?.release().catch(() => {});
-            void audio.current?.close().catch(() => {});
-            if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+            // StrictMode remounts effects. Only leave fullscreen when the component really unmounts.
+            cleanupTimer.current = setTimeout(() => {
+                void wakeLock.current?.release().catch(() => {});
+                void audio.current?.close().catch(() => {});
+                if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+            }, 0);
         };
     }, []);
 

@@ -30,9 +30,9 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
 
     return (
         /* Background gradasi biru lembut (soft & minimalis) yang responsif penuh */
-        <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen w-full flex items-center justify-center ui-login px-4 sm:px-6 lg:px-8">
             {/* Kartu login dengan lebar maksimal yang pas dan padding adaptif */}
-            <div className="w-full max-w-sm sm:max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-10 border border-white/20 transition-all duration-300">
+            <div className="ui-dialog-panel max-w-md p-6 sm:p-8">
 
                 <div className="text-center mb-6 sm:mb-8 flex flex-col items-center">
                     {/* Logo responsif (lebih kecil di HP, proporsional di PC) */}
@@ -45,19 +45,19 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
                             (e.target as HTMLElement).style.display = 'none';
                         }}
                     />
-                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">System Ujian Berbasis Web</h1>
+                    <h1 className="ui-page-title tracking-tight">Sistem Ujian Berbasis Web</h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">Silakan masuk menggunakan akun Anda</p>
                 </div>
 
                 {error && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs sm:text-sm rounded-xl text-center font-medium shadow-sm">
+                    <div role="alert" className="ui-notice ui-notice-error mb-4">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                     <div>
-                        <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 sm:mb-2">Username / NIS / NIP</label>
+                        <label htmlFor="login-username" className="ui-label mb-2 block">Username / NIS / NIP</label>
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
                                 <User size={18} />
@@ -68,13 +68,13 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 placeholder="Masukkan username..."
-                                className="w-full pl-11 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition shadow-inner"
+                                className="ui-input w-full pl-11 pr-4 sm:py-3 border transition"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 sm:mb-2">Password</label>
+                        <label htmlFor="login-password" className="ui-label mb-2 block">Password</label>
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
                                 <Lock size={18} />
@@ -85,7 +85,7 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full pl-11 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition shadow-inner"
+                                className="ui-input w-full pl-11 pr-4 sm:py-3 border transition"
                             />
                         </div>
                     </div>
@@ -93,7 +93,7 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 sm:py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition duration-200 flex items-center justify-center text-sm mt-2"
+                        className="ui-button ui-button-primary mt-2 w-full"
                     >
                         {loading ? 'Memproses Masuk...' : 'Masuk ke Sistem'}
                     </button>

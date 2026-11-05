@@ -7,6 +7,7 @@ export interface Question {
 export interface LocalAttempt {
     attemptId: number; deadline: number; offset: number; versi: number; saved: number;
     jawaban: Record<string, Value>; soal: Question[]; ragu: number[]; index: number; send: boolean;
+    lastSavedAt?: number; savedAnswers?: Record<string, Value>;
     security?: { count: number; pending: SecurityEvent[]; warning?: string };
 }
 

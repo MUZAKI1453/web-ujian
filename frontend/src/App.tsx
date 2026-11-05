@@ -7,9 +7,9 @@ import DataSiswa from './pages/admin/DataSiswa';
 import DataGuru from './pages/admin/DataGuru';
 import DataMapel from './pages/admin/DataMapel';
 import MonitoringUjian from './pages/admin/MonitoringUjian';
-import PengaturanNavbar, { defaultNavbar, navbarLogos, type NavbarSettings } from './pages/admin/PengaturanNavbar';
+import { defaultNavbar, navbarLogos, type NavbarSettings } from './pages/admin/PengaturanNavbar';
 import api from './services/api';
-import GantiPassword from './pages/GantiPassword';
+import Pengaturan from './pages/Pengaturan';
 import UjianGuru from './pages/guru/UjianGuru';
 import BerandaSiswa from './pages/siswa/BerandaSiswa';
 import type { ViewRole } from './components/NavbarLayout';
@@ -68,9 +68,6 @@ export default function App() {
         guru: <DataGuru />,
         mapel: <DataMapel />,
         monitoring: <MonitoringUjian />,
-        navbar: navbarLoaded
-            ? <PengaturanNavbar settings={navbar} onSaved={setNavbar} />
-            : <p role="status">Pengaturan navbar belum tersedia. Muat ulang halaman untuk mencoba lagi.</p>,
     };
 
     return (
@@ -87,12 +84,12 @@ export default function App() {
                 setPage(nextPage);
             }}
         >
-            {page === 'ganti-password' ? <GantiPassword /> : viewRole === 'admin' && pages[page] ? pages[page] : page === 'dashboard' && viewRole === 'guru' ? (
+            {page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : page === 'dashboard' && viewRole === 'guru' ? (
                 <UjianGuru name={user.nama || user.username} />
             ) : page === 'dashboard' && viewRole === 'siswa' ? (
                 <BerandaSiswa name={user.nama || user.username} username={user.username} adminMode={user.role === 'admin'} />
             ) : (
-                <div className="rounded-2xl bg-white p-6 shadow-sm">
+                <div className="ui-card bg-white p-6">
                     Halaman ini belum tersedia di repository.
                 </div>
             )}

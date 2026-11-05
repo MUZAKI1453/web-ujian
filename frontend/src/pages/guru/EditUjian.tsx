@@ -1,6 +1,7 @@
+import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { useRef, useState, type FormEvent } from 'react';
 import api from '../../services/api';
-import QuestionEditor, { errorMessage, fieldClass, primaryClass, type Question } from './QuestionEditor';
+import QuestionEditor, { errorMessage, type Question } from './QuestionEditor';
 import type { ExamDetail } from './UjianGuru';
 import { examClassNames } from './UjianGuru';
 
@@ -70,30 +71,30 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
     return (
         <form onSubmit={save} className="cbt-portal pb-20 sm:pb-0">
             <fieldset disabled={saving} className="space-y-5">
-                <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-5 shadow-sm">
+                <header className="ui-card flex flex-wrap items-center justify-between gap-3 border bg-white p-5">
                     <div>
                         <p className="mb-1 text-sm font-semibold text-blue-600">Edit Soal & Ujian</p>
-                        <h1 className="text-2xl font-bold text-slate-800">{exam.judul}</h1>
+                        <h1 className="ui-page-title">{exam.judul}</h1>
                         <p className="text-sm text-slate-600">{exam.mapel.nama} · {examClassNames(exam)}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={onCancel}>Batal</button>
+                        <button type="button" className="ui-button ui-button-secondary border" onClick={onCancel}>Batal</button>
                         <button type="submit" className={primaryClass}>{saving ? 'Menyimpan…' : 'Simpan Perubahan'}</button>
                     </div>
                 </header>
-                {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <section className="grid gap-3 rounded-xl border bg-white p-5 sm:grid-cols-2">
                     <h2 className="cbt-section-title sm:col-span-2">Pengaturan Umum</h2>
-                    <label className="text-sm font-semibold">Judul ujian
+                    <label className="ui-label">Judul ujian
                         <input name="judul" required maxLength={150} defaultValue={exam.judul} className={fieldClass} />
                     </label>
-                    <label className="text-sm font-semibold">Durasi (menit)
+                    <label className="ui-label">Durasi (menit)
                         <input name="durasi" type="number" required min={1} defaultValue={exam.durasiMenit} className={fieldClass} />
                     </label>
-                    <label className="text-sm font-semibold">Waktu mulai
+                    <label className="ui-label">Waktu mulai
                         <input name="mulai" type="datetime-local" step="1" required defaultValue={localDateTime(exam.waktuMulai)} className={fieldClass} />
                     </label>
-                    <label className="text-sm font-semibold">Waktu selesai
+                    <label className="ui-label">Waktu selesai
                         <input name="selesai" type="datetime-local" step="1" required defaultValue={localDateTime(exam.waktuSelesai)} className={fieldClass} />
                     </label>
                 </section>
@@ -102,7 +103,7 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
                         onRemove={() => setRows(current => current.filter(item => item.key !== row.key))} />
                 ))}
                 <div className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap justify-between gap-2 border-t bg-white p-3 shadow-lg sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-                    <button type="button" className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700" onClick={() => {
+                    <button type="button" className="ui-button ui-button-secondary border bg-white" onClick={() => {
                         const key = nextKey.current--;
                         setRows(current => [...current, { key, question: null }]);
                     }}>Tambah Soal</button>

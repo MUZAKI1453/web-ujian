@@ -569,7 +569,8 @@ router.get('/ujian/:id/rekap', handle(async (req, res, actor) => {
                 id: row.id, siswa: row.siswa, nilai: result.values.totalNilai, pending: result.pending, rincian: result.rincian, jawaban: object(row.detailJawaban),
                 essay: exam.soal.filter(q => q.tipeSoal === 'ESSAY' && !q.dibatalkan).map(q => ({
                     id: q.id, soal: q.pertanyaan, pedoman: object(q.isi).pedoman, maksimum: essayLimit(q),
-                    jawaban: object(row.detailJawaban)[q.id] ?? '', nilai: object(row.koreksiEssay)[q.id] ?? null
+                    jawaban: object(row.detailJawaban)[q.id] ?? '', nilai: object(row.koreksiEssay)[q.id] ?? null,
+                    catatan: object(object(row.koreksiEssay).catatan)[q.id] ?? ''
                 }))
             };
         })
@@ -601,13 +602,14 @@ router.put('/ujian/:id/rekap/:jawabanId/essay/:soalId?', handle(async (req, res,
     const [id, jawabanId] = [req.params.id, req.params.jawabanId].map(Number);
     if (![id, jawabanId].every(validId)) return res.status(404).json({ message: 'Koreksi tidak ditemukan.' });
     const entries: unknown = req.params.soalId
-        ? [{ soalId: Number(req.params.soalId), nilai: req.body.nilai, alasan: req.body.alasan }]
+        ? [{ soalId: Number(req.params.soalId), nilai: req.body.nilai, alasan: req.body.alasan, catatan: req.body.catatan }]
         : req.body.nilai;
     if (!Array.isArray(entries) || !entries.length) return res.status(400).json({ message: 'Isi nilai essay terlebih dahulu.' });
     const result = await lockedExam(id, actor, async (tx, exam) => {
         const answer = exam.jawaban.find(row => row.id === jawabanId);
         if (!answer) return 'Jawaban tidak ditemukan.';
         const manual = { ...object(answer.koreksiEssay) } as Prisma.InputJsonObject;
+        const notes = { ...object(manual.catatan) } as Record<string, Prisma.InputJsonValue>;
         const changes: { soalId: number; lama: number | null; baru: number; alasan: string | null }[] = [];
         const seen = new Set<number>();
         for (const entry of entries) {
@@ -616,13 +618,16 @@ router.put('/ujian/:id/rekap/:jawabanId/essay/:soalId?', handle(async (req, res,
             if (!question || seen.has(soalId)) return 'Soal essay tidak ditemukan atau dikirim dua kali.';
             seen.add(soalId);
             if (!Number.isInteger(nilai) || nilai < 0 || nilai > essayLimit(question)) return 'Nilai harus bilangan bulat dalam batas poin soal.';
+            if (entry.catatan !== undefined && (typeof entry.catatan !== 'string' || entry.catatan.length > 2000)) return 'Catatan maksimal 2000 karakter.';
+            const note = entry.catatan === undefined ? String(notes[soalId] ?? '') : entry.catatan.trim();
             const previous = object(answer.koreksiEssay)[soalId];
-            if (previous === nilai) continue;
+            if (previous === nilai && note === String(notes[soalId] ?? '')) continue;
+            notes[soalId] = note;
             const alasan = reason(entry.alasan);
             changes.push({ soalId, lama: typeof previous === 'number' ? previous : null, baru: nilai, alasan });
         }
         if (!changes.length) return '';
-        const updated = { ...manual, ...Object.fromEntries(changes.map(change => [change.soalId, change.baru])) };
+        const updated = { ...manual, catatan: notes, ...Object.fromEntries(changes.map(change => [change.soalId, change.baru])) };
         const current = grade(exam.soal, answer.detailJawaban, updated);
         const old = grade(exam.soal, answer.detailJawaban, answer.koreksiEssay);
         await tx.jawabanSiswa.update({ where: { id: jawabanId }, data: { ...current.values, koreksiEssay: updated } });

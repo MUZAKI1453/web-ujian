@@ -213,36 +213,36 @@ export default function DataGuru() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Header Utama & Kontrol */}
-            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2.5">
+                    <h1 className="ui-page-title flex items-center gap-2.5">
                         <GraduationCap className="text-blue-600" size={28} /> Kelola Data Guru & Penugasan
                     </h1>
-                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         Daftar akun guru beserta pengaturan mata pelajaran dan kelas yang diampu.
                     </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                     <div className="relative flex items-center w-full sm:w-64">
-                        <Search size={18} className="absolute left-3.5 text-gray-400" />
+                        <Search size={18} className="absolute left-3.5 text-slate-400" />
                         <input
                             type="text"
                             placeholder="Cari nama atau NIP..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100/65 focus:bg-white border border-gray-200 focus:border-blue-600 rounded-2xl focus:outline-none text-sm text-gray-700 transition"
+                            className="ui-input w-full pl-10 pr-4 hover:bg-slate-100/65 border focus:border-blue-600 transition"
                         />
                     </div>
                     <button
                         onClick={() => setShowImportModal(true)}
-                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5 text-sm shrink-0"
+                        className="ui-button ui-button-success flex items-center justify-center gap-2 shadow-emerald-600/20 shrink-0"
                     >
                         <UploadCloud size={18} /> Import Excel
                     </button>
                     <button
                         onClick={handleOpenAdd}
-                        className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-2xl font-semibold shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5 text-sm shrink-0"
+                        className="ui-button ui-button-primary flex items-center justify-center gap-2 shadow-blue-600/20 shrink-0"
                     >
                         <Plus size={18} /> Tambah Guru
                     </button>
@@ -250,20 +250,20 @@ export default function DataGuru() {
             </div>
 
             {/* Tabel Data Guru */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="ui-card bg-white border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="ui-table w-full text-left border-collapse">
                         <thead>
                         <tr>
                             <td colSpan={6} className="px-6 py-3">
                                 <button type="button" disabled={!visibleSelected.length}
                                         onClick={() => setDeleteIds(visibleSelected)}
-                                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                                        className="ui-button ui-button-danger">
                                     Hapus terpilih ({visibleSelected.length})
                                 </button>
                             </td>
                         </tr>
-                        <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                        <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-slate-100">
                             <th className="pl-6">
                                 <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
                                        checked={allSelected} disabled={!visibleIds.length}
@@ -276,14 +276,14 @@ export default function DataGuru() {
                             <th className="py-4 px-6 text-center">Aksi</th>
                         </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-12 text-gray-400 animate-pulse">Memuat data guru...</td>
+                                <td colSpan={6} className="text-center py-12 text-slate-400 animate-pulse">Memuat data guru...</td>
                             </tr>
                         ) : filteredGuru.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-12 text-gray-400">Belum ada data guru ditemukan.</td>
+                                <td colSpan={6} className="text-center py-12 text-slate-400">Belum ada data guru ditemukan.</td>
                             </tr>
                         ) : (
                             filteredGuru.map((item, index) => (
@@ -296,34 +296,34 @@ export default function DataGuru() {
                                                    setSelectedIds(ids => checked ? [...ids, item.id] : ids.filter(id => id !== item.id));
                                                }} />
                                     </td>
-                                    <td className="py-4 px-6 font-medium text-gray-500">{index + 1}</td>
-                                    <td className="py-4 px-6 font-mono font-semibold text-gray-600">{item.username}</td>
-                                    <td className="py-4 px-6 font-bold text-gray-800">{item.nama}</td>
+                                    <td className="py-4 px-6 font-medium text-slate-500">{index + 1}</td>
+                                    <td className="py-4 px-6 font-mono font-semibold text-slate-600">{item.username}</td>
+                                    <td className="py-4 px-6 font-bold text-slate-800">{item.nama}</td>
                                     <td className="py-4 px-6">
                                         {item.pengampu && item.pengampu.length > 0 ? (
                                             <div className="flex flex-wrap gap-1.5">
                                                 {item.pengampu.map((p) => (
-                                                    <span key={p.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full">
+                                                    <span key={p.id} className="ui-badge inline-flex items-center gap-1 bg-blue-50 text-blue-700">
                                                         <BookOpen size={12} /> {p.mapel?.nama} ({p.kelas.namaKelas})
                                                     </span>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <span className="text-xs text-gray-400 italic">Belum ada penugasan</span>
+                                            <span className="text-xs text-slate-400 italic">Belum ada penugasan</span>
                                         )}
                                     </td>
                                     <td className="py-4 px-6 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => handleOpenEdit(item)}
-                                                className="p-2 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-xl transition-colors"
+                                                className="ui-button ui-button-soft ui-icon-button"
                                                 title="Edit Guru"
                                             >
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteIds([item.id])}
-                                                className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors"
+                                                className="ui-button ui-button-danger-soft ui-icon-button"
                                                 title="Hapus Guru"
                                             >
                                                 <Trash2 size={16} />
@@ -373,13 +373,13 @@ export default function DataGuru() {
             {/* Modal Tambah / Edit Guru & Penugasan Dinamis */}
             {showModal && (
                 <ModalOverlay>
-                    <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800">
+                    <div className="ui-dialog-panel max-w-xl space-y-4">
+                        <h3 className="text-lg font-bold text-slate-800">
                             {isEdit ? 'Edit Data Guru & Penugasan' : 'Tambah Guru & Penugasan Baru'}
                         </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">NIP / Username (Angka Saja)</label>
+                                <label className="ui-label block mb-1">NIP / Username (Angka Saja)</label>
                                 <input
                                     type="text"
                                     inputMode="numeric"
@@ -388,48 +388,48 @@ export default function DataGuru() {
                                     placeholder="Contoh: 198501252010011001"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value.replace(/\D/g, ''))}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm font-mono"
+                                    className="ui-input w-full border focus:border-blue-600 font-mono"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Nama Lengkap & Gelar</label>
+                                <label className="ui-label block mb-1">Nama Lengkap & Gelar</label>
                                 <input
                                     type="text"
                                     required
                                     placeholder="Contoh: Budi Santoso, S.Pd."
                                     value={nama}
                                     onChange={(e) => setNama(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-blue-600 text-sm"
+                                    className="ui-input w-full border focus:border-blue-600"
                                 />
                             </div>
 
                             {/* Bagian Penugasan Mengajar Dinamis */}
-                            <div className="border-t border-gray-100 pt-4 space-y-3">
+                            <div className="border-t border-slate-100 pt-4 space-y-3">
                                 <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-bold uppercase text-gray-500">Mata Pelajaran & Kelas yang Diampu</label>
+                                    <label className="ui-label block">Mata Pelajaran & Kelas yang Diampu</label>
                                     <button
                                         type="button"
                                         onClick={handleAddPenugasanRow}
-                                        className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1"
+                                        className="ui-button ui-button-soft text-xs flex items-center gap-1"
                                     >
                                         <Plus size={14} /> Tambah Mapel Ajar
                                     </button>
                                 </div>
 
                                 {penugasanList.length === 0 ? (
-                                    <p className="text-xs text-gray-400 italic bg-slate-50 p-3 rounded-xl text-center">
+                                    <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl text-center">
                                         Tambahkan mapel dan pilih kelas. Pilihan yang sudah diampu guru lain akan dinonaktifkan.
                                     </p>
                                 ) : (
                                     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                                         {penugasanList.map((p, index) => (
-                                            <div key={index} className="space-y-3 bg-slate-50 p-3 rounded-xl border border-gray-100">
+                                            <div key={index} className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                 <div className="flex items-center gap-2">
                                                 <select
                                                     value={p.mapelId}
                                                     onChange={(e) => handlePenugasanChange(index, e.target.value)}
                                                     aria-label="Mata pelajaran penugasan"
-                                                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:border-blue-600"
+                                                    className="ui-input flex-1 border focus:border-blue-600"
                                                     required
                                                 >
                                                     <option value="">-- Pilih Mapel --</option>
@@ -455,18 +455,18 @@ export default function DataGuru() {
                                 )}
                             </div>
 
-                            {assignmentError && <p role="alert" className="text-sm text-red-700">{assignmentError}</p>}
-                            <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                            {assignmentError && <p role="alert" className="ui-notice ui-notice-error">{assignmentError}</p>}
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="px-4 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-semibold text-sm transition"
+                                    className="ui-button ui-button-secondary"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-md transition"
+                                    className="ui-button ui-button-primary"
                                 >
                                     {isEdit ? 'Simpan Perubahan' : 'Simpan Guru'}
                                 </button>
@@ -479,38 +479,38 @@ export default function DataGuru() {
             {/* Modal Import Excel Guru */}
             {showImportModal && (
                 <ModalOverlay>
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800">Import Data Guru via Excel</h3>
+                    <div className="ui-dialog-panel max-w-md space-y-4">
+                        <h3 className="text-lg font-bold text-slate-800">Import Data Guru via Excel</h3>
                         <p className="text-sm text-slate-600">Pertahankan judul kolom di baris 11. Ganti contoh dengan NIP dan nama lengkap guru mulai baris 12. Tulis NIP sebagai teks agar nol di depan tetap tersimpan.</p>
                         <button
                             type="button"
                             onClick={() => void downloadImportTemplate('guru')}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                            className="ui-button ui-button-secondary w-full border"
                         >
                             Unduh Template Guru
                         </button>
                         <form onSubmit={handleImportSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Pilih File Excel (.xlsx / .xls)</label>
+                                <label className="ui-label block mb-1">Pilih File Excel (.xlsx / .xls)</label>
                                 <input
                                     type="file"
                                     accept=".xlsx, .xls"
                                     required
                                     onChange={(e) => setFileExcel(e.target.files ? e.target.files[0] : null)}
-                                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                                    className="ui-input w-full file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
                                 />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowImportModal(false)}
-                                    className="px-4 py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 font-semibold text-sm transition"
+                                    className="ui-button ui-button-secondary"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-md transition"
+                                    className="ui-button ui-button-success"
                                 >
                                     Mulai Import
                                 </button>

@@ -1,6 +1,7 @@
+import { primaryClass } from '../../components/ui/styles';
 import { useState } from 'react';
 import api from '../../services/api';
-import { errorMessage, primaryClass } from './QuestionEditor';
+import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 
 export const specialPointTypes = ['PM', 'BS', 'ISIAN'] as const;
@@ -41,20 +42,20 @@ export default function PublishExam({ examId, settings, hasQuestions, onPublish 
                 </div>
                 <div className="flex flex-wrap gap-2">
                 <button type="button" disabled={busy || !hasQuestions} onClick={() => void calculate(false)}
-                    className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">Pratinjau Pembagian Poin</button>
+                    className="ui-button ui-button-secondary border">Pratinjau Pembagian Poin</button>
                 <button type="button" disabled={busy || !hasQuestions} onClick={() => void calculate(true)} className={primaryClass}>Terbitkan Ujian</button>
                 </div>
             </div>
-            {rows.length > 0 && <table className="w-full text-left text-sm">
+            {rows.length > 0 && <table className="ui-table w-full text-left text-sm">
                 <thead className="bg-slate-50"><tr>{['Soal', 'Tipe', 'Sumber poin', 'Poin'].map(title => <th key={title} scope="col" className="p-2">{title}</th>)}</tr></thead>
                 <tbody>{rows.map((row, index) => <tr key={row.id} className="border-b">
                     <td className="p-2">{index + 1}</td><td className="p-2">{row.tipeSoal}</td><td className="p-2">{row.source}</td><td className="p-2">{row.poin}</td>
                 </tr>)}</tbody>
                 <tfoot><tr><th scope="row" colSpan={3} className="p-2">Total</th><td className="p-2 font-semibold">100.0000</td></tr></tfoot>
             </table>}
-            {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+            {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             {rows.length > 0 && <div className="flex gap-2">
-                <button type="button" disabled={busy} onClick={() => setRows([])} className="rounded-xl border px-4 py-2 text-sm">Tutup Pratinjau</button>
+                <button type="button" disabled={busy} onClick={() => setRows([])} className="ui-button ui-button-secondary border">Tutup Pratinjau</button>
             </div>}
         </section>
     );

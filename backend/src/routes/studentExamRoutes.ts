@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { grade, object } from './examGrading';
 import { studentClassScope } from './examClasses';
 import { MAX_VIOLATIONS, parseSecurityEvents, recordSecurity } from './examSecurity';
+import { studentReceipt } from './studentReceipt';
 
 const router = Router();
 router.use(requireUser);
@@ -67,9 +68,8 @@ router.get('/ujian', respond(async (_req, res, user) => {
             { pengerjaan: { some: { siswaId: user.id } } }, { jawaban: { some: { siswaId: user.id } } }
         ] } : { draf: false, waktuMulai: { lte: new Date(now) }, waktuSelesai: { gte: new Date(now - 30 * 60000) } },
         include: {
-            ...examData, soal: false,
+            ...examData, soal: { where: { tipeSoal: 'ESSAY', dibatalkan: false }, select: { id: true } },
             pengerjaan: { where: { siswaId: user.id } }, jawaban: { where: { siswaId: user.id }, orderBy: { waktuSubmit: 'desc' }, take: 1, select: { siswaId: true, koreksiEssay: true } },
-            _count: { select: { soal: { where: { tipeSoal: 'ESSAY', dibatalkan: false } } } }
         },
         orderBy: { waktuMulai: 'asc' }
     });
@@ -83,7 +83,8 @@ router.get('/ujian', respond(async (_req, res, user) => {
             mulai: session.waktuMulai, selesai: session.waktuSelesai, susulan: sessionId !== null,
             status: exam.draf ? 'Draf' : submitted || ends <= now ? 'Selesai' : +session.waktuMulai > now ? 'Terjadwal' : 'Berlangsung',
             masukBuka: admin || (session.masukBuka && Boolean(session.token)), attempt: attempt?.id ?? null, submitted,
-            hasil: exam.hasilRilis && exam.jawaban.length > 0 && !attempt?.diterimaOffline && Object.keys(object(exam.jawaban[0]?.koreksiEssay)).length >= item._count.soal,
+            hasil: exam.hasilRilis && exam.jawaban.length > 0 && !attempt?.diterimaOffline && item.soal.every(q => typeof object(exam.jawaban[0]?.koreksiEssay)[q.id] === 'number'),
+            menungguKoreksi: exam.jawaban.length > 0 && item.soal.some(q => typeof object(exam.jawaban[0]?.koreksiEssay)[q.id] !== 'number'),
             pembahasan: exam.bahasanRilis && exam.jawaban.length > 0,
             offline: Boolean(attempt?.diterimaOffline)
         };
@@ -258,7 +259,9 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
         return { status: 200, state: kirim === true ? 'submitted' : 'saved', versi, ...security };
     }, kirim !== true && events.length === 0);
     if (!result) return res.status(404).json({ message: 'Ujian tidak tersedia.' });
-    res.status(result.status).json(result);
+    const receipt = result.status === 200 && ['submitted', 'review'].includes(result.state ?? '')
+        ? await studentReceipt(id, user.id) : undefined;
+    res.status(result.status).json({ ...result, serverTime: Date.now(), receipt });
 }));
 
 export default router;

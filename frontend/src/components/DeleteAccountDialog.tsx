@@ -43,35 +43,35 @@ export default function DeleteAccountDialog({ role, ids, onClose, onDeleted }: P
     };
 
     return (
-        <ModalOverlay>
+        <ModalOverlay onClose={() => { if (!pending) onClose(); }}>
             <section role="dialog" aria-modal="true" aria-labelledby="delete-account-title"
-                     className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-xl">
+                     className="ui-dialog-panel max-w-sm space-y-4">
                 <h3 id="delete-account-title" className="text-lg font-bold">
                     Hapus {ids.length} {getRoleLabel()}?
                 </h3>
                 {role === 'siswa' && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-slate-500">
                         Riwayat pengerjaan dan jawaban ujian siswa terpilih juga akan terhapus.
                     </p>
                 )}
                 {role === 'kelas' && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-slate-500">
                         Jika ada kelas terpilih yang masih memiliki siswa, seluruh penghapusan dibatalkan. Penugasan dan ujian terkait ikut terhapus saat kelas dihapus.
                     </p>
                 )}
                 {role === 'mapel' && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-slate-500">
                         Penugasan guru, ujian, soal, jawaban, dan nilai yang terkait dengan mata pelajaran ini juga akan terhapus.
                     </p>
                 )}
-                {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <div className="flex justify-end gap-3 pt-2">
                     <button type="button" autoFocus disabled={pending} onClick={onClose}
-                            className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-100 transition">
+                            className="ui-button ui-button-secondary">
                         Batal
                     </button>
                     <button type="button" disabled={pending} onClick={remove}
-                            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-red-700 disabled:opacity-50 transition">
+                            className="ui-button ui-button-danger">
                         {pending ? 'Menghapus…' : 'Hapus'}
                     </button>
                 </div>
