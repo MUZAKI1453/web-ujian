@@ -1,6 +1,7 @@
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
+import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { downloadImportTemplate } from '../../services/downloadImportTemplate';
@@ -51,8 +52,9 @@ export default function DataGuru() {
 
     const [assignmentError, setAssignmentError] = useState('');
 
-    // State untuk Dialog Sukses
+    // State untuk Dialog Sukses & Error Kustom
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const otherAssignments = guruList
         .filter(guru => !isEdit || guru.id !== selectedId)
@@ -95,6 +97,7 @@ export default function DataGuru() {
         setNama('');
         setPenugasanList([]);
         setAssignmentError('');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -109,6 +112,7 @@ export default function DataGuru() {
         })) || [];
         setPenugasanList(mappedPenugasan);
         setAssignmentError('');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -130,7 +134,7 @@ export default function DataGuru() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (penugasanList.some(item => !item.mapelId || !item.kelasId)) {
-            alert('Lengkapi mata pelajaran dan kelas pada setiap penugasan.');
+            setAssignmentError('Lengkapi mata pelajaran dan kelas pada setiap penugasan.');
             return;
         }
         setAssignmentError('');
@@ -151,7 +155,11 @@ export default function DataGuru() {
                     fetchData();
                     setSuccessMessage('Data guru berhasil diperbarui.');
                 })
-                .catch((err) => setAssignmentError(err.response?.data?.message || 'Gagal memperbarui guru'));
+                .catch((err) => {
+                    const msg = err.response?.data?.message || 'Gagal memperbarui guru';
+                    setAssignmentError(msg);
+                    setErrorMessage(msg);
+                });
         } else {
             api.post('/admin/guru', payload)
                 .then(() => {
@@ -159,14 +167,18 @@ export default function DataGuru() {
                     fetchData();
                     setSuccessMessage('Data guru baru berhasil ditambahkan.');
                 })
-                .catch((err) => setAssignmentError(err.response?.data?.message || 'Gagal menambah guru'));
+                .catch((err) => {
+                    const msg = err.response?.data?.message || 'Gagal menambah guru';
+                    setAssignmentError(msg);
+                    setErrorMessage(msg);
+                });
         }
     };
 
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!fileExcel) {
-            alert('Pilih file Excel terlebih dahulu!');
+            setErrorMessage('Pilih file Excel terlebih dahulu!');
             return;
         }
 
@@ -182,7 +194,7 @@ export default function DataGuru() {
                 fetchData();
                 setSuccessMessage(res.data.message || 'Import data guru berhasil!');
             })
-            .catch((err) => alert(err.response?.data?.message || 'Gagal mengimport file Excel'));
+            .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal mengimport file Excel'));
     };
 
     const filteredGuru = guruList.filter((g) =>
@@ -342,6 +354,15 @@ export default function DataGuru() {
                     title="Berhasil!"
                     message={successMessage}
                     onClose={() => setSuccessMessage(null)}
+                />
+            )}
+
+            {/* Dialog Notifikasi Error / Peringatan Menggunakan AlertDialog */}
+            {errorMessage && (
+                <AlertDialog
+                    title="Perhatian"
+                    message={errorMessage}
+                    onClose={() => setErrorMessage(null)}
                 />
             )}
 

@@ -1,6 +1,7 @@
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
+import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
@@ -28,8 +29,9 @@ export default function DataKelas() {
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
-    // State untuk memicu Dialog Sukses (Bisa dipakai untuk Tambah, Edit, maupun Hapus)
+    // State untuk memicu Dialog Sukses & Error
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const fetchKelas = () => {
         setLoading(true);
@@ -54,6 +56,7 @@ export default function DataKelas() {
         setIsEdit(false);
         setSelectedId(null);
         setNamaKelas('');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -61,22 +64,24 @@ export default function DataKelas() {
         setIsEdit(true);
         setSelectedId(item.id);
         setNamaKelas(item.namaKelas);
+        setErrorMessage(null);
         setShowModal(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setErrorMessage(null);
+
         if (isEdit && selectedId !== null) {
             api.put(`/admin/kelas/${selectedId}`, { namaKelas })
                 .then(() => {
                     setShowModal(false);
                     setNamaKelas('');
                     fetchKelas();
-                    // Munculkan pop-up sukses edit
                     setSuccessMessage('Data kelas berhasil diperbarui.');
                 })
                 .catch((err) => {
-                    alert(err.response?.data?.message || 'Gagal memperbarui kelas');
+                    setErrorMessage(err.response?.data?.message || 'Gagal memperbarui kelas');
                 });
         } else {
             api.post('/admin/kelas', { namaKelas })
@@ -84,11 +89,10 @@ export default function DataKelas() {
                     setShowModal(false);
                     setNamaKelas('');
                     fetchKelas();
-                    // Munculkan pop-up sukses tambah
                     setSuccessMessage('Data kelas baru berhasil ditambahkan.');
                 })
                 .catch((err) => {
-                    alert(err.response?.data?.message || 'Gagal menambah kelas');
+                    setErrorMessage(err.response?.data?.message || 'Gagal menambah kelas');
                 });
         }
     };
@@ -228,12 +232,21 @@ export default function DataKelas() {
                 />
             )}
 
-            {/* Dialog Notifikasi Sukses (Untuk Tambah, Edit, & Hapus) */}
+            {/* Dialog Notifikasi Sukses */}
             {successMessage && (
                 <SuccessDialog
                     title="Berhasil!"
                     message={successMessage}
                     onClose={() => setSuccessMessage(null)}
+                />
+            )}
+
+            {/* Dialog Notifikasi Error / Peringatan Menggunakan AlertDialog */}
+            {errorMessage && (
+                <AlertDialog
+                    title="Perhatian"
+                    message={errorMessage}
+                    onClose={() => setErrorMessage(null)}
                 />
             )}
 

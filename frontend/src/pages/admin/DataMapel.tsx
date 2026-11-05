@@ -1,6 +1,7 @@
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
+import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { BookOpen, Plus, Edit3, Trash2, Search, GraduationCap } from 'lucide-react';
@@ -31,8 +32,9 @@ export default function DataMapel() {
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
-    // State untuk memicu Dialog Sukses
+    // State untuk memicu Dialog Sukses & Error
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const fetchMapel = () => {
         setLoading(true);
@@ -57,6 +59,7 @@ export default function DataMapel() {
         setIsEdit(false);
         setSelectedId(null);
         setNama('');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -64,11 +67,13 @@ export default function DataMapel() {
         setIsEdit(true);
         setSelectedId(item.id);
         setNama(item.nama);
+        setErrorMessage(null);
         setShowModal(true);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setErrorMessage(null);
         const payload = { nama };
 
         if (isEdit && selectedId !== null) {
@@ -78,7 +83,9 @@ export default function DataMapel() {
                     fetchMapel();
                     setSuccessMessage('Mata pelajaran berhasil diperbarui.');
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal memperbarui mata pelajaran'));
+                .catch((err) => {
+                    setErrorMessage(err.response?.data?.message || 'Gagal memperbarui mata pelajaran');
+                });
         } else {
             api.post('/admin/mapel', payload)
                 .then(() => {
@@ -86,7 +93,9 @@ export default function DataMapel() {
                     fetchMapel();
                     setSuccessMessage('Mata pelajaran baru berhasil ditambahkan.');
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal menambah mata pelajaran'));
+                .catch((err) => {
+                    setErrorMessage(err.response?.data?.message || 'Gagal menambah mata pelajaran');
+                });
         }
     };
 
@@ -234,6 +243,15 @@ export default function DataMapel() {
                     title="Berhasil!"
                     message={successMessage}
                     onClose={() => setSuccessMessage(null)}
+                />
+            )}
+
+            {/* Dialog Notifikasi Error / Peringatan */}
+            {errorMessage && (
+                <AlertDialog
+                    title="Perhatian"
+                    message={errorMessage}
+                    onClose={() => setErrorMessage(null)}
                 />
             )}
 

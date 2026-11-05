@@ -1,6 +1,7 @@
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
+import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { downloadImportTemplate } from '../../services/downloadImportTemplate';
@@ -39,8 +40,9 @@ export default function DataSiswa() {
     const [showImportModal, setShowImportModal] = useState(false);
     const [fileExcel, setFileExcel] = useState<File | null>(null);
 
-    // State untuk memicu Dialog Sukses (Tambah / Edit / Hapus / Import)
+    // State untuk memicu Dialog Sukses atau Error
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const fetchData = () => {
         setLoading(true);
@@ -69,6 +71,7 @@ export default function DataSiswa() {
         setUsername('');
         setNama('');
         setKelasId('');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -78,6 +81,7 @@ export default function DataSiswa() {
         setUsername(siswa.username);
         setNama(siswa.nama);
         setKelasId(siswa.kelas ? String(siswa.kelas.id) : '');
+        setErrorMessage(null);
         setShowModal(true);
     };
 
@@ -85,7 +89,7 @@ export default function DataSiswa() {
         e.preventDefault();
 
         if (!kelasId) {
-            alert('Kelas siswa wajib dipilih!');
+            setErrorMessage('Kelas siswa wajib dipilih!');
             return;
         }
 
@@ -102,7 +106,7 @@ export default function DataSiswa() {
                     fetchData();
                     setSuccessMessage('Data siswa berhasil diperbarui.');
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal memperbarui siswa'));
+                .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal memperbarui siswa'));
         } else {
             api.post('/admin/siswa', payload)
                 .then(() => {
@@ -110,19 +114,18 @@ export default function DataSiswa() {
                     fetchData();
                     setSuccessMessage('Data siswa baru berhasil ditambahkan.');
                 })
-                .catch((err) => alert(err.response?.data?.message || 'Gagal menambah siswa'));
+                .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal menambah siswa'));
         }
     };
 
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!fileExcel) {
-            alert('Pilih file Excel terlebih dahulu!');
+            setErrorMessage('Pilih file Excel terlebih dahulu!');
             return;
         }
 
         const formData = new FormData();
-        // DISINKRONKAN MENJADI 'file' AGAR COCOK DENGAN BACKEND MULTER (.single('file'))
         formData.append('file', fileExcel);
 
         api.post('/admin/siswa/import', formData, {
@@ -134,7 +137,7 @@ export default function DataSiswa() {
                 fetchData();
                 setSuccessMessage(res.data.message || 'Import data siswa berhasil!');
             })
-            .catch((err) => alert(err.response?.data?.message || 'Gagal mengimport file Excel'));
+            .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal mengimport file Excel'));
     };
 
     const filteredSiswa = siswaList.filter((s) => {
@@ -152,7 +155,7 @@ export default function DataSiswa() {
     const allSelected = visibleIds.length > 0 && visibleSelected.length === visibleIds.length;
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="space-y-6 max-w-7xl mx-auto relative">
             {/* Header Utama & Kontrol */}
             <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
@@ -455,6 +458,15 @@ export default function DataSiswa() {
                         </form>
                     </div>
                 </ModalOverlay>
+            )}
+
+            {/* AlertDialog dipindahkan keluar dari struktur utama atau pastikan posisinya merender secara global (portal) jika diperlukan */}
+            {errorMessage && (
+                <AlertDialog
+                    title="Perhatian"
+                    message={errorMessage}
+                    onClose={() => setErrorMessage(null)}
+                />
             )}
         </div>
     );
