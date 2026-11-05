@@ -219,7 +219,7 @@ export default function DataGuru() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Header Utama & Kontrol */}
-            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="ui-card ui-data-right flex flex-col items-start justify-between gap-4 py-5 pl-5 sm:py-8 sm:pl-8 lg:flex-row lg:items-center">
                 <div>
                     <h1 className="ui-page-title flex items-center gap-2.5">
                         <GraduationCap className="text-blue-600" size={28} /> Kelola Data Guru
@@ -229,8 +229,8 @@ export default function DataGuru() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                    <div className="relative flex min-w-0 items-center w-full sm:w-80">
+                <div className="ui-data-search-area">
+                    <div className="ui-data-search">
                         <Search size={18} className="pointer-events-none absolute left-3.5 text-slate-400" aria-hidden="true" />
                         <input
                             type="search"
@@ -241,13 +241,6 @@ export default function DataGuru() {
                             className="ui-input w-full pl-10"
                         />
                     </div>
-                    <div className="relative min-w-0 w-full sm:w-64 sm:shrink-0">
-                        <Select aria-label="Filter mata pelajaran guru" value={selectedMapelFilter}
-                            onValueChange={event => setSelectedMapelFilter(event)} className="ui-input w-full appearance-none pr-9">
-                            <option value="">Semua Mapel</option>
-                            {mapelList.map(mapel => <option key={mapel.id} value={mapel.id}>{mapel.nama}</option>)}
-                        </Select>
-                    </div>
                 </div>
             </div>
 
@@ -256,7 +249,12 @@ export default function DataGuru() {
                 <AccountToolbar role="guru" selectedCount={visibleSelected.length}
                     onDelete={() => setDeleteIds(visibleSelected)}
                     onImport={() => { setImportFile(null); setShowImportModal(true); }}
-                    onAdd={handleOpenAdd} />
+                    onAdd={handleOpenAdd}
+                    filter={<Select aria-label="Filter mata pelajaran guru" value={selectedMapelFilter}
+                            onValueChange={event => setSelectedMapelFilter(event)} className="ui-input w-full appearance-none pr-9">
+                            <option value="">Semua Mapel</option>
+                            {mapelList.map(mapel => <option key={mapel.id} value={mapel.id}>{mapel.nama}</option>)}
+                        </Select>} />
                 <div className="overflow-x-auto">
                     <table className="ui-table w-full text-left border-collapse">
                         <thead>

@@ -109,7 +109,7 @@ export default function DataKelas() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Header Utama & Kontrol */}
-            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="ui-card ui-data-right flex flex-col items-start justify-between gap-4 py-5 pl-5 sm:py-8 sm:pl-8 lg:flex-row lg:items-center">
                 <div>
                     <h1 className="ui-page-title flex items-center gap-2.5">
                         <Layers className="text-blue-600" size={28} /> Kelola Data Kelas
@@ -119,15 +119,16 @@ export default function DataKelas() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
-                    <div className="relative flex items-center w-full md:w-72">
-                        <Search size={18} className="absolute left-3.5 text-slate-400" />
+                <div className="ui-data-search-area">
+                    <div className="ui-data-search">
+                        <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input
-                            type="text"
+                            type="search"
+                            aria-label="Cari nama kelas"
                             placeholder="Cari nama kelas..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="ui-input w-full pl-10 pr-4 hover:bg-slate-100/60 border focus:border-blue-600 transition"
+                            className="ui-input w-full pl-10"
                         />
                     </div>
 

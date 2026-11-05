@@ -26,6 +26,9 @@
     .ui-app { background: var(--ui-canvas); color: var(--ui-ink); }
     .ui-login { background: var(--ui-brand-gradient); }
     .ui-content { @apply mx-auto w-full max-w-[1200px]; }
+    .ui-data-right { @apply pr-5 sm:pr-8; }
+    .ui-data-search-area { @apply flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto; }
+    .ui-data-search { @apply relative flex min-w-0 w-full items-center sm:w-80 sm:shrink-0; }
     .ui-navbar { background: var(--ui-brand-gradient); box-shadow: 0 2px 8px rgb(15 23 42 / 10%); }
     .ui-navbar button { @apply min-h-11; }
     .ui-page-title { @apply text-xl font-bold leading-tight text-slate-800 sm:text-2xl; }
@@ -61,6 +64,7 @@
     .ui-table tbody td { @apply border-b border-slate-100 px-4 py-3.5 align-middle; }
     .ui-table tbody tr:last-child td { @apply border-b-0; }
     .ui-table tbody tr:hover { @apply bg-slate-50/70; }
+    .monitor-session-summary::-webkit-details-marker { display: none; }
     .ui-notice { @apply rounded-xl border px-4 py-3 text-sm leading-relaxed; }
     .ui-notice-error { @apply border-red-200 bg-red-50 text-red-800; }
     .ui-notice-success { @apply border-emerald-200 bg-emerald-50 text-emerald-800; }

@@ -159,7 +159,7 @@ export default function DataSiswa() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto relative">
             {/* Header Utama & Kontrol */}
-            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="ui-card ui-data-right flex flex-col items-start justify-between gap-4 py-5 pl-5 sm:py-8 sm:pl-8 lg:flex-row lg:items-center">
                 <div>
                     <h1 className="ui-page-title flex items-center gap-2.5">
                         <Users className="text-blue-600" size={28} /> Kelola Data Siswa
@@ -169,18 +169,11 @@ export default function DataSiswa() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                    <div className="relative min-w-0 w-full sm:w-80">
+                <div className="ui-data-search-area">
+                    <div className="ui-data-search">
                         <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input type="search" aria-label="Cari siswa berdasarkan nama atau NIS" placeholder="Cari nama atau NIS..."
                             value={searchTerm} onChange={event => setSearchTerm(event.target.value)} className="ui-input w-full pl-10" />
-                    </div>
-                    <div className="relative min-w-0 w-full sm:w-64 sm:shrink-0">
-                        <Select aria-label="Filter kelas siswa" value={selectedKelasFilter} onValueChange={event => setSelectedKelasFilter(event)}
-                            className="ui-input w-full appearance-none pr-9">
-                            <option value="">Semua Kelas</option>
-                            {kelasList.map(kelas => <option key={kelas.id} value={kelas.id}>{kelas.namaKelas}</option>)}
-                        </Select>
                     </div>
                 </div>
             </div>
@@ -190,7 +183,12 @@ export default function DataSiswa() {
                 <AccountToolbar role="siswa" selectedCount={visibleSelected.length}
                     onDelete={() => setDeleteIds(visibleSelected)}
                     onImport={() => { setImportFile(null); setShowImportModal(true); }}
-                    onAdd={handleOpenAdd} />
+                    onAdd={handleOpenAdd}
+                    filter={<Select aria-label="Filter kelas siswa" value={selectedKelasFilter} onValueChange={event => setSelectedKelasFilter(event)}
+                            className="ui-input w-full appearance-none pr-9">
+                            <option value="">Semua Kelas</option>
+                            {kelasList.map(kelas => <option key={kelas.id} value={kelas.id}>{kelas.namaKelas}</option>)}
+                        </Select>} />
                 <div className="overflow-x-auto">
                     <table className="ui-table w-full text-left border-collapse">
                         <thead>
