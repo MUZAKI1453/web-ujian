@@ -20,4 +20,16 @@ Akun admin hasil seed: username `admin`, password `admin123` (untuk development 
 
 `npm run build` memeriksa TypeScript dan membuat build frontend/backend.
 
-Halaman yang tersedia: login, dashboard admin, kelas, siswa, guru, dan mata pelajaran. Menu monitoring, ganti password, dan portal guru/siswa belum memiliki implementasi halaman dalam repository ini.
+Halaman yang tersedia: login, dashboard admin, kelas, siswa, guru, mata pelajaran, monitoring ujian, pengaturan navbar, dan ganti password.
+
+Portal guru dan siswa mengikuti tampilan referensi CBT Sekolah: banner biru, kartu ringkasan, kartu mata pelajaran, riwayat ujian, dan kartu jadwal siswa. Guru dapat membuat draf, mengedit atau mengimpor soal, menerbitkan ujian, mengelola sesi, serta membuka koreksi dan rekap nilai. Editor mendukung PG, pilihan majemuk, benar/salah, isian, dan essay.
+
+Penugasan guru memakai pilihan beberapa kelas per mata pelajaran. Saat membuat ujian, guru dapat mencentang satu atau beberapa kelas dalam penugasannya; soal, jadwal, dan sesi reguler digunakan bersama oleh semua kelas tujuan. Daftar peserta dan monitoring mencakup seluruh kelas yang dipilih. Jalankan `npm run db:push` setelah memperbarui kode untuk menambahkan relasi kelas tujuan; ujian lama tetap memakai kelas awalnya.
+
+Pengujian kelas tujuan: `npm test -w backend`. Untuk menyertakan pemeriksaan database lokal, atur `RUN_DATABASE_TESTS=1` sebelum menjalankannya dari folder backend; data pengujian dibuat dalam transaksi yang dibatalkan setelah selesai.
+
+Siswa dapat memverifikasi token, mengerjakan soal dengan timer, menandai ragu, dan memeriksa ringkasan sebelum mengumpulkan. Navigasi nomor soal tampil di samping pada desktop dan melalui tombol Daftar soal pada HP. Jawaban disimpan di perangkat dan disinkronkan ke server; hasil serta pembahasan tersedia setelah dirilis guru.
+
+Pengamanan ujian diaktifkan lewat tombol **Masuk & Lanjutkan Ujian**. Browser yang mendukungnya meminta fullscreen; keluar fullscreen, tab tersembunyi, kehilangan fokus jendela lebih dari 750 ms, dan perubahan lebar yang menunjukkan split screen memunculkan peringatan. Kejadian yang bersamaan dihitung sekali sampai siswa melanjutkan. Pada kejadian ketiga, pengerjaan dikumpulkan dan dikunci di server. Laporan yang terkirim ulang tidak menambah hitungan; catatan disimpan per ID pengerjaan dan dapat dilihat guru melalui **Sesi & Peserta → peserta → Keamanan**. Saat offline, laporan diantrekan di perangkat dan dikirim setelah koneksi kembali. Browser yang tidak mendukung fullscreen menampilkan pemberitahuan dan tetap memantau visibilitas/fokus. Dukungan fullscreen, bunyi, dan Wake Lock mengikuti kemampuan browser; ini tidak mengunci sistem operasi atau perangkat kedua.
+
+Verifikasi token tidak mengirim isi soal. Isi soal pertama kali diberikan saat server memulai pengerjaan dan menetapkan deadline. Pengujian keamanan API memakai data uji tersendiri yang dibersihkan setelah selesai (`RUN_DATABASE_TESTS=1 npm test` dari folder backend).

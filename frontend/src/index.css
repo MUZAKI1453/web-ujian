@@ -1,3 +1,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    button, input, select, textarea { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2; }
+    button { @apply disabled:cursor-not-allowed; }
+}
+
+@layer components {
+    .cbt-portal { @apply mx-auto w-full max-w-[1200px] space-y-7 text-slate-800; }
+    .cbt-student { @apply max-w-[1000px]; }
+    .cbt-hero { @apply relative flex items-center gap-6 overflow-hidden rounded-2xl px-6 py-8 text-white sm:px-8; background: linear-gradient(135deg, #0d6efd, #0043a8); box-shadow: 0 10px 30px rgb(13 110 253 / 18%); }
+    .cbt-hero::after { content: ''; @apply pointer-events-none absolute -right-12 -top-24 h-72 w-72 rounded-full bg-white/10; }
+    .cbt-hero h1 { @apply text-2xl font-extrabold sm:text-[2rem] sm:leading-tight; }
+    .cbt-hero p { @apply mt-2 max-w-2xl text-base leading-relaxed text-blue-50; }
+    .cbt-hero-icon { @apply relative z-10 hidden shrink-0 text-white/30 sm:block; }
+    .cbt-stat { @apply flex h-full items-center gap-5 rounded-2xl border border-slate-100 bg-white p-5; box-shadow: 0 4px 15px rgb(0 0 0 / 3%); }
+    .cbt-stat-icon { @apply grid size-[60px] shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600; }
+    .cbt-stat-green { @apply bg-emerald-100 text-emerald-700; }
+    .cbt-stat strong { @apply text-[1.8rem] font-extrabold leading-tight; }
+    .cbt-stat p { @apply mt-1 text-sm font-medium text-slate-500; }
+    .cbt-section-title { @apply flex items-center gap-3 text-xl font-bold; }
+    .cbt-section-title::before { content: ''; @apply h-6 w-1 shrink-0 rounded-full bg-blue-600; }
+    .cbt-subject { @apply flex flex-col items-center rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-sm; }
+    .cbt-subject button { @apply mt-auto w-full rounded-full border border-blue-600 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:bg-blue-600 hover:text-white; }
+    .cbt-exam-card { @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm; }
+    .cbt-exam-card::before { content: ''; @apply absolute inset-y-0 left-0 w-1.5 bg-blue-600; }
+    .cbt-exam-card[data-status='Terjadwal']::before { @apply bg-amber-400; }
+    .cbt-exam-card[data-status='Selesai']::before { @apply bg-slate-400; }
+    .cbt-exam-card h3 { @apply my-4 break-words text-xl font-extrabold leading-snug; }
+    .cbt-badge { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold; }
+    .cbt-table thead th { @apply bg-slate-50 px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-600; }
+    .cbt-table tbody td { @apply px-5 py-4 align-middle; }
+    .cbt-table tbody tr { @apply hover:bg-slate-50/60; }
+    .cbt-action { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition hover:brightness-95 disabled:opacity-50; }
+    .cbt-exam-layout { @apply mx-auto grid w-full max-w-6xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]; }
+    .cbt-option { @apply flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 transition hover:border-blue-300 hover:bg-blue-50/40; }
+    .cbt-option:has(input:checked) { @apply border-blue-600 bg-blue-50 text-blue-950 ring-1 ring-blue-600; }
+    .cbt-number { @apply min-h-11 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700; }
+    .cbt-number[data-state='Terjawab'] { @apply border-emerald-600 bg-emerald-600 text-white; }
+    .cbt-number[data-state='Ragu'], .cbt-number[data-state='Belum lengkap'] { @apply border-amber-400 bg-amber-300 text-amber-950; }
+    .cbt-number[aria-current='step'] { @apply ring-2 ring-blue-700 ring-offset-2; }
+}
+
+@media (max-width: 639px) {
+    .cbt-table thead { display: none; }
+    .cbt-table, .cbt-table tbody, .cbt-table tr, .cbt-table td { display: block; width: 100%; }
+    .cbt-table tbody tr { padding: 12px 0; }
+    .cbt-table tbody td { padding: 6px 20px; }
+}

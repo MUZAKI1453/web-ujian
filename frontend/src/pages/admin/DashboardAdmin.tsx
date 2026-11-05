@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Users, GraduationCap, BookOpen, Layers } from 'lucide-react';
 
-export default function DashboardAdmin() {
+export default function DashboardAdmin({ onNavigate }: { onNavigate: (page: string) => void }) {
     const [stats, setStats] = useState({
         totalKelas: 0,
         totalSiswa: 0,
@@ -50,7 +50,7 @@ export default function DashboardAdmin() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 
                 {/* Kartu 1: Total Kelas */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-blue-200 group cursor-pointer">
+                <button type="button" onClick={() => onNavigate('kelas')} aria-label={`Buka Data Kelas, total ${stats.totalKelas}`} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-blue-200 group cursor-pointer">
                     <div>
                         <p className="text-sm text-gray-500 font-medium group-hover:text-blue-600 transition-colors">Total Kelas</p>
                         <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.totalKelas}</h3>
@@ -58,10 +58,10 @@ export default function DashboardAdmin() {
                     <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-xs transition-transform duration-300 group-hover:scale-110">
                         <Layers size={28} />
                     </div>
-                </div>
+                </button>
 
                 {/* Kartu 2: Total Siswa */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-emerald-200 group cursor-pointer">
+                <button type="button" onClick={() => onNavigate('siswa')} aria-label={`Buka Data Siswa, total ${stats.totalSiswa}`} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-emerald-200 group cursor-pointer">
                     <div>
                         <p className="text-sm text-gray-500 font-medium group-hover:text-emerald-600 transition-colors">Total Siswa</p>
                         <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.totalSiswa}</h3>
@@ -69,10 +69,10 @@ export default function DashboardAdmin() {
                     <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl shadow-xs transition-transform duration-300 group-hover:scale-110">
                         <Users size={28} />
                     </div>
-                </div>
+                </button>
 
                 {/* Kartu 3: Total Guru */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-amber-200 group cursor-pointer">
+                <button type="button" onClick={() => onNavigate('guru')} aria-label={`Buka Data Guru, total ${stats.totalGuru}`} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-amber-200 group cursor-pointer">
                     <div>
                         <p className="text-sm text-gray-500 font-medium group-hover:text-amber-600 transition-colors">Total Guru</p>
                         <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.totalGuru}</h3>
@@ -80,10 +80,10 @@ export default function DashboardAdmin() {
                     <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-xs transition-transform duration-300 group-hover:scale-110">
                         <GraduationCap size={28} />
                     </div>
-                </div>
+                </button>
 
                 {/* Kartu 4: Mata Pelajaran */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-purple-200 group cursor-pointer">
+                <button type="button" onClick={() => onNavigate('mapel')} aria-label={`Buka Mata Pelajaran, total ${stats.totalMapel}`} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-purple-200 group cursor-pointer">
                     <div>
                         <p className="text-sm text-gray-500 font-medium group-hover:text-purple-600 transition-colors">Mata Pelajaran</p>
                         <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.totalMapel}</h3>
@@ -91,7 +91,7 @@ export default function DashboardAdmin() {
                     <div className="p-4 bg-purple-50 text-purple-600 rounded-2xl shadow-xs transition-transform duration-300 group-hover:scale-110">
                         <BookOpen size={28} />
                     </div>
-                </div>
+                </button>
 
             </div>
         </div>

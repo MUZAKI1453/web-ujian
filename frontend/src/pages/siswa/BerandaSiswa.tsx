@@ -1,6 +1,8 @@
 import { isAxiosError } from 'axios';
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BookOpen, CalendarDays } from 'lucide-react';
+import { ArrowRight, Bell, BookOpen, CalendarDays, ClipboardList, Clock, GraduationCap, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { PortalHeader, PortalStat } from '../../components/PortalHeader';
+import PortalDialog from '../../components/PortalDialog';
 import api from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
 import KerjakanUjian from './KerjakanUjian';
@@ -14,7 +16,7 @@ type Exam = {
     attempt: number | null; submitted: boolean; hasil: boolean; pembahasan: boolean; offline: boolean;
 };
 type Packet = {
-    attemptId: number; deadline: number; now: number; versi: number; jawaban: Record<string, Value>; soal: Question[];
+    attemptId: number; deadline: number; now: number; versi: number; jawaban: Record<string, Value>; soal: Question[]; securityCount: number;
 };
 type Notice = { id: number; jenis: string; dibaca: boolean; ujian: { judul: string } };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
@@ -70,16 +72,7 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
             try {
                 const url = '/siswa/ujian/' + exam.id;
                 if (!adminMode && !exam.attempt && !prepared) {
-                    const { data } = await api.post<{ izin: string; soal: Question[] }>(url + '/siapkan', { token }, { timeout: 12000 });
-                    const images = [...new Set(data.soal.flatMap(q => [q.gambar, ...q.items.map(item => item.gambar)]).filter(Boolean))];
-                    await Promise.race([
-                        Promise.allSettled(images.map(source => {
-                            const image = new Image();
-                            image.src = source!;
-                            return image.decode();
-                        })),
-                        new Promise(resolve => setTimeout(resolve, 5000))
-                    ]);
+                    const { data } = await api.post<{ izin: string }>(url + '/siapkan', { token }, { timeout: 12000 });
                     setPrepared(data.izin);
                     return;
                 }
@@ -100,7 +93,8 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
                 attemptId: packet.attemptId, deadline: packet.deadline, offset: packet.now - Date.now(),
                 versi: queued ? same.versi : packet.versi, saved: packet.versi,
                 jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
-                index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false
+                index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false,
+                security: { count: Math.max(same?.security?.count ?? 0, packet.securityCount ?? 0), pending: same?.security?.pending ?? [], warning: same?.security?.warning }
             };
             await storeAttempt(key(exam.id), attempt).catch(() => {});
             for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {
@@ -108,7 +102,10 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
             }
             setWorking({ exam, attempt });
             setSelected(null);
-        } catch (err) { setError(errorMessage(err)); }
+        } catch (err) {
+            if (isAxiosError(err) && err.response?.status === 409 && !exam.attempt) setPrepared(null);
+            setError(errorMessage(err));
+        }
         finally { setBusy(false); }
     }
 
@@ -154,12 +151,15 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
         </article>)}
     </section>;
 
-    return <section className="space-y-5">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white shadow-sm">
-            <div><p className="text-sm text-blue-100">Panel Siswa</p><h1 className="text-2xl font-bold">Halo, {name}</h1><p className="mt-1 text-sm text-blue-100">Lihat jadwal dan kerjakan ujian Anda.</p></div>
+    return <section className="cbt-portal cbt-student">
+        <PortalHeader name={name} subtitle="Selamat datang di Panel Ujian. Persiapkan dirimu, kerjakan dengan jujur, dan raih hasil terbaik!" icon={GraduationCap}>
             <button type="button" aria-expanded={showNotices} className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-sm"
                 onClick={() => setShowNotices(value => !value)}><Bell size={16} /> Notifikasi {notices.filter(n => !n.dibaca).length || ''}</button>
-        </header>
+        </PortalHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+            <PortalStat value={loading ? '—' : exams.filter(exam => !exam.submitted && exam.status !== 'Selesai' && exam.status !== 'Draf').length} label="Ujian Tersedia" icon={ClipboardList} />
+            <PortalStat value="Jujur" label="Prinsip Utama" icon={ShieldCheck} green />
+        </div>
         {showNotices && <section className="space-y-2 rounded-xl bg-white p-4 shadow-sm">
             <h2 className="font-semibold">Notifikasi</h2>
             {!notices.length && <p className="text-sm text-slate-600">Belum ada notifikasi.</p>}
@@ -171,51 +171,59 @@ export default function BerandaSiswa({ name, username, adminMode }: { name: stri
             </button>)}
         </section>}
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-        {selected && <form onSubmit={event => { event.preventDefault(); void enter(selected, new FormData(event.currentTarget).get('token')); }} className="space-y-3 rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold">Instruksi · {selected.judul}</h2>
-            <p className="text-sm text-slate-600">Durasi {selected.durasi} menit. Kerjakan satu soal per layar, tandai jika ragu, dan periksa jawaban sebelum mengirim.</p>
+        {selected && <PortalDialog titleId="exam-instructions" onClose={() => { if (!busy) { setSelected(null); setPrepared(null); } }}><form onSubmit={event => { event.preventDefault(); void enter(selected, new FormData(event.currentTarget).get('token')); }} className="space-y-5">
+            <span className="inline-flex rounded-xl bg-blue-50 p-3 text-blue-600"><ClipboardList size={28} /></span>
+            <div><p className="text-sm font-semibold text-blue-600">Sebelum memulai</p><h2 id="exam-instructions" className="mt-1 text-xl font-bold">{selected.judul}</h2></div>
+            <div className="rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600"><p className="font-semibold text-slate-800">Durasi ujian: {selected.durasi} menit</p><ul className="mt-2 list-disc space-y-1 pl-5"><li>Kerjakan satu soal per layar dan gunakan navigasi untuk berpindah soal.</li><li>Tandai soal yang ragu dan periksa kembali sebelum mengumpulkan.</li><li>Jawaban disimpan otomatis. Tetap di halaman ujian sampai jawaban terkirim.</li></ul></div>
+            {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
             {!selected.attempt && !prepared && <label className="block max-w-xs text-sm font-semibold">Token ujian
                 <input name="token" autoComplete="off" maxLength={6} minLength={6} required className={fieldClass + ' uppercase'} />
             </label>}
-            {prepared && <p role="status" className="text-sm text-green-800">Soal siap. Timer dimulai setelah Anda memilih Mulai Ujian.</p>}
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Ujian memakai mode pengamanan. Keluar fullscreen, berpindah tab/aplikasi, atau split screen akan dicatat. Setelah 3 pelanggaran, ujian dikumpulkan otomatis.</p>
+            {prepared && <p role="status" className="text-sm text-green-800">Token terverifikasi. Soal dan timer dimulai setelah Anda memilih Mulai Ujian.</p>}
             <div className="flex gap-2">
                 <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => { setSelected(null); setPrepared(null); }}>Batal</button>
                 <button type="submit" disabled={busy} className={primaryClass}>
                     {busy ? 'Menyiapkan soal…' : selected.attempt ? 'Lanjutkan Ujian' : prepared ? 'Mulai Ujian' : 'Verifikasi Token'}
                 </button>
             </div>
-        </form>}
+        </form></PortalDialog>}
         {loading && <p role="status">Memuat daftar ujian…</p>}
-        {!loading && !exams.length && <p className="rounded-xl bg-white p-5 text-sm text-slate-600">Belum ada ujian yang tersedia.</p>}
+        {!loading && !exams.length && <div className="rounded-2xl border border-slate-100 bg-white px-5 py-12 text-center shadow-sm"><ClipboardList size={52} className="mx-auto mb-4 text-slate-300" /><h2 className="text-lg font-bold">Tidak ada ujian aktif</h2><p className="mt-2 text-sm text-slate-500">Silakan cek kembali nanti atau hubungi gurumu.</p></div>}
         {(['Berlangsung', 'Terjadwal', 'Selesai', 'Draf'] as const).map(status => {
             const group = exams.filter(exam => exam.status === status);
             if (!group.length) return null;
             return <section key={status} className="space-y-3">
-                <h2 className="text-lg font-bold">{status === 'Berlangsung' ? 'Ujian Berlangsung' : status === 'Terjadwal' ? 'Ujian Terjadwal' : status === 'Draf' ? 'Draf Ujian' : 'Ujian Selesai'}</h2>
-                {group.map(exam => <article key={exam.id} className={'flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 shadow-sm ' +
-                    (status === 'Berlangsung' ? 'border-blue-300' : 'border-slate-200')}>
-                    <div>
-                        <h3 className="flex items-center gap-2 font-semibold"><BookOpen size={16} className="text-blue-700" /> {exam.judul}</h3>
-                        <p className="mt-1 text-sm text-slate-600">{exam.mapel} · {exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
-                        <p className="mt-1 text-xs text-slate-600"><CalendarDays className="mr-1 inline" size={13} />{schedule.format(new Date(exam.mulai))} s.d. {schedule.format(new Date(exam.selesai))}</p>
+                <h2 className="cbt-section-title">{status === 'Berlangsung' ? 'Ujian Berlangsung' : status === 'Terjadwal' ? 'Ujian Terjadwal' : status === 'Draf' ? 'Draf Ujian' : 'Ujian Selesai'}</h2>
+                <div className="grid gap-5 md:grid-cols-2">
+                {group.map(exam => <article key={exam.id} className="cbt-exam-card" data-status={status}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="cbt-badge bg-blue-50 text-blue-600"><BookOpen size={14} />{exam.mapel}</span>
+                        <span className={'cbt-badge ' + (status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-800' : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600')}>{status === 'Terjadwal' ? 'Belum Mulai' : status}</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <h3>{exam.judul}</h3>
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600"><CalendarDays size={16} />{schedule.format(new Date(exam.mulai))}</p>
+                    <p className="mb-2 flex items-center gap-2 text-sm text-slate-500"><Clock size={16} />Durasi: {exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
+                    <p className="mb-6 text-xs text-slate-500">Batas akhir: {schedule.format(new Date(exam.selesai))}</p>
+                    <div className="mt-auto flex flex-col gap-2">
                         {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
-                            <button type="button" disabled={busy} className={primaryClass} onClick={() => {
+                            <button type="button" disabled={busy} className={primaryClass + ' flex w-full items-center justify-center gap-2 py-3'} onClick={() => {
                                 setOutput(null);
                                 setError('');
                                 if (adminMode) void enter(exam);
                                 else { setSelected(exam); setPrepared(null); }
                             }}>
-                                {exam.attempt ? 'Lanjutkan' : adminMode ? 'Kerjakan Ujian' : 'Instruksi & Token'}
+                                {exam.attempt ? 'Lanjutkan Ujian' : 'Kerjakan Ujian'} <ArrowRight size={17} />
                             </button>}
                         {exam.hasil && <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void show(exam, 'hasil')}>Lihat Hasil</button>}
                         {exam.pembahasan && <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void show(exam, 'pembahasan')}>Pembahasan</button>}
                         {exam.offline && <span className="text-sm text-amber-800">Menunggu tinjauan guru</span>}
                         {exam.submitted && !exam.hasil && !exam.offline && <span className="text-sm text-slate-600">Hasil belum tersedia</span>}
                         {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
+                        {!exam.attempt && !exam.submitted && (status === 'Terjadwal' || status === 'Selesai' || status === 'Draf') && <button type="button" disabled className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-semibold text-slate-400"><LockKeyhole size={17} />{status === 'Selesai' ? 'Waktu Habis' : 'Belum Dibuka'}</button>}
                     </div>
                 </article>)}
+                </div>
             </section>;
         })}
     </section>;

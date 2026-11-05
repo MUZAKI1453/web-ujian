@@ -42,6 +42,7 @@ export async function monitorUjian(_req: Request, res: Response) {
                     namaKelas: true,
                     users: { where: { role: 'siswa' }, select: studentFields, orderBy: { nama: 'asc' } }
                 } },
+                kelasTujuan: { select: { id: true, namaKelas: true, users: { where: { role: 'siswa' }, select: studentFields, orderBy: { nama: 'asc' } } } },
                 _count: { select: { soal: true } },
                 jawaban: { select: { siswaId: true, waktuSubmit: true, siswa: { select: studentFields } } },
                 pengerjaan: { select: {
@@ -57,7 +58,7 @@ export async function monitorUjian(_req: Request, res: Response) {
         const now = Date.now();
         res.json({ status: 'SUCCESS', data: exams.flatMap(exam => {
             const attempts = new Map(exam.pengerjaan.map(attempt => [attempt.siswaId, attempt]));
-            const regular = new Map(exam.kelas.users.map(student => [student.id, student]));
+            const regular = new Map([...exam.kelas.users, ...exam.kelasTujuan.flatMap(k => k.users)].map(student => [student.id, student]));
             for (const session of exam.susulan) {
                 for (const { siswa } of session.peserta) regular.delete(siswa.id);
             }
@@ -68,7 +69,8 @@ export async function monitorUjian(_req: Request, res: Response) {
                 if (attempts.get(answer.siswaId)?.sesiSusulanId == null) regular.set(answer.siswaId, answer.siswa);
             }
 
-            const common = { ujianId: exam.id, judul: exam.judul, mapel: exam.mapel.nama, kelas: exam.kelas.namaKelas, soal: exam._count.soal };
+            const classNames = [...new Set([exam.kelas.namaKelas, ...exam.kelasTujuan.map(k => k.namaKelas)])].join(', ');
+            const common = { ujianId: exam.id, judul: exam.judul, mapel: exam.mapel.nama, kelas: classNames, soal: exam._count.soal };
             return [
                 {
                     ...common, id: 'reguler-' + exam.id, jenis: 'Reguler',

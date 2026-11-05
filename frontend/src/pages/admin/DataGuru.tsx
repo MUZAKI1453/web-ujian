@@ -1,4 +1,5 @@
 import ModalOverlay from '../../components/ModalOverlay';
+import ClassPicker from '../../components/ClassPicker';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
@@ -19,7 +20,7 @@ interface Kelas {
 
 interface PengampuItem {
     mapelId: number | string;
-    kelasId: string;
+    kelasIds: number[];
 }
 
 interface Guru {
@@ -106,10 +107,13 @@ export default function DataGuru() {
         setSelectedId(guru.id);
         setUsername(guru.username);
         setNama(guru.nama);
-        const mappedPenugasan = guru.pengampu?.map((p) => ({
-            mapelId: p.mapel.id,
-            kelasId: String(p.kelas.id)
-        })) || [];
+        const grouped = new Map<number, PengampuItem>();
+        for (const p of guru.pengampu ?? []) {
+            const row = grouped.get(p.mapel.id) ?? { mapelId: p.mapel.id, kelasIds: [] };
+            if (!row.kelasIds.includes(p.kelas.id)) row.kelasIds.push(p.kelas.id);
+            grouped.set(p.mapel.id, row);
+        }
+        const mappedPenugasan = [...grouped.values()];
         setPenugasanList(mappedPenugasan);
         setAssignmentError('');
         setErrorMessage(null);
@@ -117,7 +121,7 @@ export default function DataGuru() {
     };
 
     const handleAddPenugasanRow = () => {
-        setPenugasanList([...penugasanList, { mapelId: '', kelasId: '' }]);
+        setPenugasanList([...penugasanList, { mapelId: '', kelasIds: [] }]);
     };
 
     const handleRemovePenugasanRow = (index: number) => {
@@ -125,27 +129,27 @@ export default function DataGuru() {
         setPenugasanList(updated);
     };
 
-    const handlePenugasanChange = (index: number, field: 'mapelId' | 'kelasId', value: string) => {
+    const handlePenugasanChange = (index: number, value: string) => {
         const updated = [...penugasanList];
-        updated[index][field] = value;
+        updated[index] = { mapelId: value, kelasIds: [] };
         setPenugasanList(updated);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (penugasanList.some(item => !item.mapelId || !item.kelasId)) {
+        if (penugasanList.some(item => !item.mapelId || !item.kelasIds.length)) {
             setAssignmentError('Lengkapi mata pelajaran dan kelas pada setiap penugasan.');
             return;
         }
         setAssignmentError('');
-        if (penugasanList.some(item => isOccupied(item.mapelId, item.kelasId))) {
+        if (penugasanList.some(item => item.kelasIds.some(id => isOccupied(item.mapelId, String(id))))) {
             setAssignmentError('Mata pelajaran di kelas yang dipilih sudah diampu guru lain.');
             return;
         }
         const payload = {
             username,
             nama,
-            pengampu: penugasanList.map(({ mapelId, kelasId }) => ({ mapelId, kelasId: Number(kelasId) }))
+            pengampu: penugasanList.flatMap(({ mapelId, kelasIds }) => kelasIds.map(kelasId => ({ mapelId, kelasId })))
         };
 
         if (isEdit && selectedId !== null) {
@@ -408,7 +412,7 @@ export default function DataGuru() {
                                         onClick={handleAddPenugasanRow}
                                         className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1"
                                     >
-                                        <Plus size={14} /> Tambah Kelas/Mapel Ajar
+                                        <Plus size={14} /> Tambah Mapel Ajar
                                     </button>
                                 </div>
 
@@ -417,30 +421,20 @@ export default function DataGuru() {
                                         Tambahkan mapel dan pilih kelas. Pilihan yang sudah diampu guru lain akan dinonaktifkan.
                                     </p>
                                 ) : (
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                                         {penugasanList.map((p, index) => (
-                                            <div key={index} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-gray-100">
+                                            <div key={index} className="space-y-3 bg-slate-50 p-3 rounded-xl border border-gray-100">
+                                                <div className="flex items-center gap-2">
                                                 <select
                                                     value={p.mapelId}
-                                                    onChange={(e) => handlePenugasanChange(index, 'mapelId', e.target.value)}
-                                                    className="w-1/2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:border-blue-600"
+                                                    onChange={(e) => handlePenugasanChange(index, e.target.value)}
+                                                    aria-label="Mata pelajaran penugasan"
+                                                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:border-blue-600"
                                                     required
                                                 >
                                                     <option value="">-- Pilih Mapel --</option>
                                                     {mapelList.map((m) => (
-                                                        <option key={m.id} value={m.id} disabled={p.kelasId ? isOccupied(m.id, p.kelasId) : kelasList.length > 0 && kelasList.every(k => isOccupied(m.id, String(k.id)))}>{m.nama}</option>
-                                                    ))}
-                                                </select>
-                                                <select
-                                                    value={p.kelasId}
-                                                    aria-label="Kelas penugasan"
-                                                    onChange={(e) => handlePenugasanChange(index, 'kelasId', e.target.value)}
-                                                    className="w-1/2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:border-blue-600"
-                                                    required
-                                                >
-                                                    <option value="">Pilih kelas</option>
-                                                    {kelasList.map(k => (
-                                                        <option key={k.id} value={String(k.id)} disabled={isOccupied(p.mapelId, String(k.id))}>{k.namaKelas}</option>
+                                                        <option key={m.id} value={m.id} disabled={penugasanList.some((row, i) => i !== index && Number(row.mapelId) === m.id) || (kelasList.length > 0 && kelasList.every(k => isOccupied(m.id, String(k.id))))}>{m.nama}</option>
                                                     ))}
                                                 </select>
                                                 <button
@@ -451,6 +445,10 @@ export default function DataGuru() {
                                                 >
                                                     <X size={16} />
                                                 </button>
+                                                </div>
+                                                <ClassPicker label="Kelas yang diampu" classes={kelasList} selected={p.kelasIds} disabled={!p.mapelId}
+                                                    unavailable={id => isOccupied(p.mapelId, String(id))}
+                                                    onChange={kelasIds => setPenugasanList(rows => rows.map((row, i) => i === index ? { ...row, kelasIds } : row))} />
                                             </div>
                                         ))}
                                     </div>

@@ -11,5 +11,10 @@ yarn-error.log*
 .vscode/*
 **/node_modules/
 **/dist/
-**/.env
 *.local
+
+# Environment variables
+.env
+.env.*
+!.env.example
+backend/.env

@@ -1,4 +1,5 @@
 export type Value = number | number[] | (boolean | null)[] | string;
+export type SecurityEvent = { id: string; reason: 'tab-hidden' | 'window-blur' | 'fullscreen-exit' | 'split-screen' };
 export interface Question {
     id: number; tipeSoal: string; pertanyaan: string; gambar?: string;
     items: { teks: string; gambar?: string; benar?: boolean }[];
@@ -6,6 +7,7 @@ export interface Question {
 export interface LocalAttempt {
     attemptId: number; deadline: number; offset: number; versi: number; saved: number;
     jawaban: Record<string, Value>; soal: Question[]; ragu: number[]; index: number; send: boolean;
+    security?: { count: number; pending: SecurityEvent[]; warning?: string };
 }
 
 let database: Promise<IDBDatabase> | undefined;

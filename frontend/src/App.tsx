@@ -62,7 +62,7 @@ export default function App() {
     };
 
     const pages: Record<string, React.ReactNode> = {
-        dashboard: <DashboardAdmin />,
+        dashboard: <DashboardAdmin onNavigate={setPage} />,
         kelas: <DataKelas />,
         siswa: <DataSiswa />,
         guru: <DataGuru />,
@@ -87,14 +87,6 @@ export default function App() {
                 setPage(nextPage);
             }}
         >
-            {user.role === 'admin' && viewRole !== 'admin' && (
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    <span>Mode {viewRole === 'guru' ? 'Guru' : 'Siswa'}</span>
-                    <button type="button" className="font-semibold underline" onClick={() => changeView('admin')}>
-                        Kembali ke Admin
-                    </button>
-                </div>
-            )}
             {page === 'ganti-password' ? <GantiPassword /> : viewRole === 'admin' && pages[page] ? pages[page] : page === 'dashboard' && viewRole === 'guru' ? (
                 <UjianGuru name={user.nama || user.username} />
             ) : page === 'dashboard' && viewRole === 'siswa' ? (

@@ -1,0 +1,101 @@
+# Perbandingan keamanan ujian siswa
+
+Tanggal pemeriksaan: 5 November 2026.
+
+## Pembaruan implementasi
+
+Setelah riset awal di bawah, pengamanan telah diterapkan: fullscreen melalui aksi
+siswa, deteksi perpindahan tab/jendela dan keluar fullscreen, deteksi perubahan
+lebar layar, peringatan dengan konfirmasi, pencatatan per pengerjaan di server,
+serta pengumpulan otomatis setelah tiga kejadian. Laporan idempotent dan disimpan
+di antrean lokal saat offline. Guru dapat melihat hitungan dan rincian pada Sesi &
+Peserta. Endpoint persiapan tidak lagi mengirim isi soal sebelum timer dimulai.
+
+Lima pengujian backend/API lolos, termasuk pengiriman ulang, pemulihan hitungan,
+pengumpulan pada kejadian ketiga, dan penolakan perubahan jawaban sesudahnya.
+Pengujian UI browser masih terkendala timeout alat kontrol browser. Tabel dan
+temuan berikut mencatat keadaan saat riset awal, bukan status implementasi terbaru.
+
+Sumber lama: `C:\Users\ijaaal\Downloads\CBT_Sekolah-main.zip`, terutama
+`CBT_Sekolah/routes/siswa_routes.py` dan `CBT_Sekolah/templates/siswa/ujian.html`.
+Sumber baru: `backend/src/routes/studentExamRoutes.ts`, `backend/src/middleware/auth.ts`,
+`backend/src/controllers/authController.ts`, `backend/src/routes/guruRoutes.ts`,
+dan `frontend/src/pages/siswa/`.
+
+## Ruang lingkup dan batas pemeriksaan
+
+Perbandingan dilakukan melalui pembacaan kode. Database lokal dapat diakses dan
+berisi 0 akun siswa serta 0 ujian terbit saat diperiksa. Browser lokal mengalami
+timeout; login siswa, fullscreen, dan pengiriman jawaban belum diuji langsung.
+Tidak ada perubahan pada kebijakan keamanan atau data ujian dalam pemeriksaan ini.
+
+## Perbandingan
+
+| Pengamanan | Proyek lama | Proyek sekarang |
+| --- | --- | --- |
+| Fullscreen | Diminta saat mulai dan lanjut setelah peringatan; kegagalan tidak menghentikan ujian | Belum diterapkan |
+| Pindah tab/aplikasi | `visibilitychange`, `blur` dengan toleransi 500 ms, serta `fullscreenchange` | `visibilitychange` menampilkan peringatan yang dapat ditutup |
+| Batas pelanggaran | Tiga kejadian memicu pengiriman form dari browser | Belum ada penghitung atau pencatatan pelanggaran siswa |
+| Persistensi pelanggaran | Variabel JavaScript kembali nol saat reload; penanda ban ditulis tetapi dihapus saat inisialisasi | Belum diterapkan |
+| Split screen | Overlay berdasarkan rasio ukuran jendela; tinggi mendapat pengecualian ketika mengetik | Belum diterapkan |
+| Tombol dan klik kanan | Mencoba memblokir beberapa shortcut dan context menu | Belum diterapkan |
+| Layar tetap menyala | Meminta Wake Lock jika tersedia | Belum diterapkan |
+| Urutan soal | PG dan essay diacak konsisten berdasarkan siswa dan ujian; opsi tetap urut | Berdasarkan ID soal, tanpa pengacakan per siswa |
+| Kontrol akses ujian | Rute siswa memeriksa role dan jadwal; tidak ada pemeriksaan kelas/token pada rute yang diperiksa | Server memeriksa role, kelas/penugasan susulan, jadwal, akses masuk, serta token |
+| Percobaan token | Tidak ada pada rute siswa yang diperiksa | Lima token salah menyebabkan jeda satu menit |
+| Sesi login siswa | Tidak ditemukan pembatasan sesi pada rute siswa yang diperiksa | Login baru mengganti sesi; permintaan dengan sesi lama ditolak |
+| Batas waktu | Berdasarkan waktu selesai jadwal, toleransi submit dua menit; durasi individual tidak digunakan di rute siswa | Deadline individual disimpan di server dan dibatasi waktu selesai sesi |
+| Jawaban | LocalStorage dan submit form | IndexedDB, sinkronisasi berkala, validasi format/versi di server, transaksi database |
+| Kiriman terlambat | POST diterima dalam toleransi jadwal | Antrean versi baru dalam lima menit ditahan untuk tinjauan guru, bukan langsung menjadi nilai |
+| Kunci jawaban | Koreksi PG di server | Respons pengerjaan memuat teks/gambar opsi tanpa kunci; penilaian di server |
+
+## Temuan yang perlu didahulukan
+
+1. **Isi soal tersedia sebelum timer dimulai.** Endpoint `siapkan` mengirim
+   `publicQuestions(exam)`, tetapi pengerjaan dan deadline baru dibuat pada `mulai`.
+   UI belum menampilkan soal saat persiapan, tetapi respons tersebut sudah dapat
+   dibaca oleh klien yang sah. Masa berlaku izin tiga menit tidak mengatasi hal ini
+   karena persiapan dapat diulang selama akses sesi masih dibuka. Mulai deadline
+   ketika isi soal pertama kali diberikan, atau ubah persiapan agar hanya mengirim
+   metadata yang tidak membocorkan isi soal.
+
+2. **Anti-pindah aplikasi belum setara dengan referensi.** Tambahkan alur mulai,
+   permintaan fullscreen sesuai dukungan browser, peringatan yang jelas, dan log
+   kejadian yang dikaitkan dengan ID pengerjaan di server. Penghitungan server
+   mempertahankan kejadian yang diterima saat reload, tetapi tidak menjamin browser
+   yang dimodifikasi akan mengirim semua kejadian. Hindari menganggap deteksi ini
+   sebagai bukti pasti kecurangan.
+
+3. **Preview admin berbeda dari siswa sebenarnya.** Admin melewati token dan
+   memakai waktu selesai sesi sebagai deadline. Pengujian token, kelas, durasi,
+   dan sesi login harus memakai akun siswa sungguhan dalam lingkungan uji.
+
+4. **Pengacakan per siswa belum ada.** Jika ditambahkan, simpan urutan per
+   pengerjaan agar reload dan sinkronisasi tidak mengubah pemetaan jawaban.
+
+5. **Antrean offline tetap memerlukan tinjauan.** Server tidak memiliki bukti
+   pasti kapan perubahan jawaban dibuat ketika perangkat offline. Pertahankan
+   pemisahan kiriman terlambat dan jawaban yang diterima sebelum deadline.
+
+## Batas pengamanan browser
+
+Fullscreen memerlukan interaksi pengguna dan bergantung pada dukungan serta
+kebijakan browser. Fullscreen tidak mengunci seluruh sistem operasi. Perubahan
+visibilitas bisa terjadi ketika tab ditinggalkan, jendela diminimalkan, atau layar
+dimatikan. Ukuran jendela dan kehilangan fokus merupakan sinyal, bukan bukti
+pasti split screen atau kecurangan. Detektor sisi klien tidak mengamati perangkat
+kedua dan bukan pengganti pengawasan ujian.
+
+Rujukan primer:
+
+- [MDN: requestFullscreen](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen)
+- [MDN: Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+- [WHATWG: Fullscreen Standard](https://fullscreen.spec.whatwg.org/)
+
+## Pengujian lanjutan
+
+Gunakan akun siswa uji dan ujian uji untuk memeriksa: akses kelas lain, lima token
+salah, persiapan sebelum timer, reload, login kedua, perpindahan tab, fullscreen
+ditolak/tidak didukung, keyboard HP, jaringan putus, deadline server, antrean
+terlambat, serta perubahan jawaban setelah pengumpulan. Belum dijalankan dalam
+pemeriksaan ini.

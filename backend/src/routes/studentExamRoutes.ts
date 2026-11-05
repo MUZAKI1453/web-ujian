@@ -4,6 +4,8 @@ import prisma from '../config/db';
 import { jwtSecret, requireUser } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { grade, object } from './examGrading';
+import { studentClassScope } from './examClasses';
+import { MAX_VIOLATIONS, parseSecurityEvents, recordSecurity } from './examSecurity';
 
 const router = Router();
 router.use(requireUser);
@@ -60,7 +62,7 @@ router.get('/ujian', respond(async (_req, res, user) => {
     const now = Date.now();
     const exams = await prisma.ujian.findMany({
         where: student ? { draf: false, OR: [
-            ...(student.kelasId ? [{ kelasId: student.kelasId }] : []),
+            ...(student.kelasId ? [studentClassScope(student.kelasId)] : []),
             { susulan: { some: { peserta: { some: { siswaId: user.id } } } } },
             { pengerjaan: { some: { siswaId: user.id } } }, { jawaban: { some: { siswaId: user.id } } }
         ] } : { draf: false, waktuMulai: { lte: new Date(now) }, waktuSelesai: { gte: new Date(now - 30 * 60000) } },
@@ -102,7 +104,7 @@ async function locked<T>(id: number, user: ExamUser, callback: (
         const student = await tx.user.findFirst({ where: { id: userId, role: user.role, sesiLogin: user.role === 'siswa' ? user.sesiLogin ?? null : undefined }, select: { kelasId: true } });
         if (!student) return null;
         const exam = await tx.ujian.findFirst({ where: { id, draf: false, OR: user.role === 'admin' ? undefined : [
-            ...(student.kelasId ? [{ kelasId: student.kelasId }] : []),
+            ...(student.kelasId ? [studentClassScope(student.kelasId)] : []),
             { susulan: { some: { peserta: { some: { siswaId: userId } } } } },
             { pengerjaan: { some: { siswaId: userId } } }
         ] }, include: {
@@ -112,10 +114,10 @@ async function locked<T>(id: number, user: ExamUser, callback: (
     });
 }
 
-function packet(exam: Exam, attempt: Exam['pengerjaan'][number], session: { waktuSelesai: Date }) {
+function packet(exam: Exam, attempt: Exam['pengerjaan'][number], session: { waktuSelesai: Date }, securityCount = 0) {
     return {
         attemptId: attempt.id, now: Date.now(), deadline: deadline(attempt, session), versi: attempt.versiJawaban,
-        jawaban: object(attempt.jawabanTersimpan), soal: publicQuestions(exam)
+        jawaban: object(attempt.jawabanTersimpan), soal: publicQuestions(exam), securityCount
     };
 }
 
@@ -128,7 +130,8 @@ router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user)
         if (exam.jawaban.length || attempt?.waktuKirim) return { status: 409, message: 'Jawaban sudah terkirim.' };
         if (attempt) {
             if (deadline(attempt, session) <= now) return { status: 409, message: 'Waktu ujian habis.' };
-            return { status: 200, data: packet(exam, attempt, session) };
+            const security = await recordSecurity(tx, id, user.id, attempt.id, []);
+            return { status: 200, data: packet(exam, attempt, session, security.securityCount) };
         }
         const admin = user.role === 'admin';
         if (+session.waktuMulai > now || +session.waktuSelesai <= now || (!admin && (!session.masukBuka || !session.token))) {
@@ -171,7 +174,7 @@ router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user)
             scope: 'mulai-ujian', ujianId: id, siswaId: user.id, sesiId: sessionId,
             sesiLogin: user.sesiLogin, gate
         }, jwtSecret, { expiresIn: '3m' });
-        return { status: 200, data: { izin, soal: publicQuestions(exam) } };
+        return { status: 200, data: { izin } };
     });
     if (!result) return res.status(404).json({ message: 'Ujian tidak tersedia.' });
     res.status(result.status).json(result.data ?? { message: result.message });
@@ -197,6 +200,8 @@ function validatedAnswers(exam: Exam, input: unknown): Prisma.InputJsonObject | 
 router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
     const id = Number(req.params.id);
     const { attemptId, versi, jawaban, kirim, antrean } = req.body;
+    const events = parseSecurityEvents(req.body.securityEvents);
+    if (!events) return res.status(400).json({ message: 'Data keamanan ujian tidak valid.' });
     if (![id, attemptId].every(value => Number.isSafeInteger(value) && value > 0 && value <= 2147483647) || !Number.isSafeInteger(versi) || versi < 0 || versi > 2147483647) {
         return res.status(400).json({ message: 'Data pengerjaan tidak valid.' });
     }
@@ -206,7 +211,22 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
         if (!attempt || attempt.id !== attemptId) return { status: 409, code: 'RESET', message: 'Pengerjaan sudah direset.' };
         if (attempt.diterimaOffline) return { status: 200, state: 'review', versi: attempt.versiJawaban };
         if (attempt.waktuKirim || exam.jawaban.length) return { status: 200, state: 'submitted', versi: attempt.versiJawaban, message: +session.waktuSelesai < +attempt.batasWaktu ? 'Sesi diakhiri guru. Jawaban yang tersimpan sudah dikumpulkan.' : undefined };
+        const security = await recordSecurity(tx, id, user.id, attempt.id, events);
         const finish = deadline(attempt, session);
+        if (security.securityCount >= MAX_VIOLATIONS) {
+            const input = validatedAnswers(exam, jawaban);
+            const accepted = now < finish && versi > attempt.versiJawaban && input
+                ? input : object(attempt.jawabanTersimpan) as Prisma.InputJsonObject;
+            const marks = grade(exam.soal, accepted, null);
+            await tx.pengerjaanUjian.update({ where: { id: attemptId }, data: {
+                waktuKirim: new Date(now), jawabanTersimpan: accepted, versiJawaban: Math.max(versi, attempt.versiJawaban)
+            } });
+            await tx.jawabanSiswa.create({ data: { ujianId: id, siswaId: user.id, detailJawaban: accepted, ...marks.values } });
+            await tx.ujian.update({ where: { id }, data: { revisiNilai: { increment: 1 } } });
+            if (exam.hasilRilis && !marks.pending) await tx.notifikasiUjian.create({ data: { ujianId: id, siswaId: user.id, jenis: 'hasil-dirilis' } });
+            return { status: 200, state: 'submitted', versi: Math.max(versi, attempt.versiJawaban), ...security,
+                message: 'Ujian dikumpulkan otomatis setelah tiga pelanggaran. Jawaban yang diterima server sudah disimpan.' };
+        }
         if (versi < attempt.versiJawaban) return { status: 409, code: 'VERSI', message: 'Jawaban yang lebih baru sudah tersimpan. Buka ulang ujian.' };
         const data = validatedAnswers(exam, jawaban);
         if (!data) return { status: 400, message: 'Ada jawaban dalam format yang salah.' };
@@ -215,13 +235,13 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
                 return { status: 409, code: 'HABIS', message: 'Waktu habis. Server memakai jawaban terakhir yang tersimpan.' };
             }
             await tx.pengerjaanUjian.update({ where: { id: attemptId }, data: { kirimanOffline: data, diterimaOffline: new Date(now), versiJawaban: versi } });
-            return { status: 200, state: 'review', versi };
+            return { status: 200, state: 'review', versi, ...security };
         }
         if (versi === attempt.versiJawaban) {
             if (JSON.stringify(data) !== JSON.stringify(object(attempt.jawabanTersimpan))) {
                 return { status: 409, code: 'VERSI', message: 'Jawaban berbeda pada versi yang sama. Buka ulang ujian.' };
             }
-            if (kirim !== true) return { status: 200, state: 'saved', versi };
+            if (kirim !== true) return { status: 200, state: 'saved', versi, ...security };
         }
         const accepted = versi === attempt.versiJawaban ? object(attempt.jawabanTersimpan) as Prisma.InputJsonObject : data;
         await tx.pengerjaanUjian.update({ where: { id: attemptId }, data: {
@@ -235,8 +255,8 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
                 data: { ujianId: id, siswaId: user.id, jenis: 'hasil-dirilis' }
             });
         }
-        return { status: 200, state: kirim === true ? 'submitted' : 'saved', versi };
-    }, kirim !== true);
+        return { status: 200, state: kirim === true ? 'submitted' : 'saved', versi, ...security };
+    }, kirim !== true && events.length === 0);
     if (!result) return res.status(404).json({ message: 'Ujian tidak tersedia.' });
     res.status(result.status).json(result);
 }));

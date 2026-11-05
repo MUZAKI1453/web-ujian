@@ -1,13 +1,15 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
 import { errorMessage, fieldClass, primaryClass } from './QuestionEditor';
+import { violationLabels } from '../siswa/useExamSecurity';
 
 type Student = { id: number; nama: string | null; username: string };
 type Window = { token: string | null; masukBuka: boolean; waktuMulai: string; waktuSelesai: string };
 type Makeup = Window & { id: number; peserta: { siswaId: number; siswa: Student }[] };
 type Attempt = { id: number; siswaId: number; sesiSusulanId: number | null; mulai: string; batasWaktu: string; waktuKirim: string | null; siswa: Student };
 type Answer = { siswaId: number; totalNilai: string; waktuSubmit: string; siswa: Student };
-type Sessions = Window & { kelas: { users: Student[] }; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[] };
+type Sessions = Window & { kelas: { users: Student[] }; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
+    keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string }[] };
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 const formatted = (value: string) => date.format(new Date(value));
@@ -104,16 +106,18 @@ export default function ExamSessions({ examId }: { examId: number }) {
                     <summary className="cursor-pointer text-sm font-semibold">{session.students.length} peserta</summary>
                     <div className="overflow-x-auto">
                         <table className="mt-2 w-full text-left text-sm">
-                            <thead><tr>{['Siswa', 'Status', 'Nilai tercatat', 'Aksi'].map(label => <th scope="col" className="p-2" key={label}>{label}</th>)}</tr></thead>
+                            <thead><tr>{['Siswa', 'Status', 'Keamanan', 'Nilai tercatat', 'Aksi'].map(label => <th scope="col" className="p-2" key={label}>{label}</th>)}</tr></thead>
                             <tbody>{session.students.map(student => {
                                 const attempt = attempts.get(student.id);
                                 const attemptHere = attempt?.sesiSusulanId === session.id ? attempt : undefined;
+                                const violations = (data.keamanan ?? []).filter(row => row.attemptId === attemptHere?.id);
                                 const answer = (attempt?.sesiSusulanId ?? null) === session.id ? answers.get(student.id) : undefined;
                                 const state = attemptHere?.waktuKirim || answer ? 'Sudah mengirim' : attemptHere
                                     ? Math.min(+new Date(attemptHere.batasWaktu), +new Date(session.waktuSelesai)) <= now ? 'Waktu habis' : 'Mengerjakan'
                                     : 'Belum mulai';
                                 return <tr key={student.id} className="border-t">
                                     <td className="p-2">{student.nama || student.username}</td><td className="p-2">{state}</td>
+                                    <td className="p-2">{violations.length ? <details className="min-w-40 text-amber-800"><summary className="cursor-pointer font-semibold">{violations.length}/3 pelanggaran</summary><ul className="mt-2 space-y-2 text-xs">{violations.map(row => <li key={row.id}>{violationLabels[row.reason] || row.reason}<span className="block text-slate-500">{formatted(row.waktu)}</span></li>)}</ul></details> : <span className="text-slate-500">{attemptHere ? '0/3' : '—'}</span>}</td>
                                     <td className="p-2">{answer?.totalNilai ?? '—'}</td>
                                     <td className="p-2">{(attemptHere || answer) && <button type="button" disabled={busy} className="text-red-700"
                                         onClick={() => { if (confirm('Reset pengerjaan dan hapus jawaban peserta ini?')) void perform(() => api.delete(url + '/pengerjaan/' + student.id)); }}>Reset</button>}</td>

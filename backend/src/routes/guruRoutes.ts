@@ -8,6 +8,7 @@ import { uploadExcel } from '../middleware/upload';
 import { questionTemplate, readQuestionWorkbook } from './questionWorkbook';
 import { calculatePoints } from './examPoints';
 import { essayLimit, grade, object, revise } from './examGrading';
+import { examClassIds, parseClassIds } from './examClasses';
 
 const router = Router();
 router.use(requireUser, (_req, res, next) => {
@@ -30,7 +31,10 @@ function examScope(actor: Actor): Prisma.UjianWhereInput {
             { guruId: actor.id },
             {
                 guru: { role: 'admin' },
-                OR: actor.pairs.map(({ mapel, kelas }) => ({ mapelId: mapel.id, kelasId: kelas.id }))
+                OR: [...new Set(actor.pairs.map(pair => pair.mapel.id))].map(mapelId => {
+                    const ids = actor.pairs.filter(pair => pair.mapel.id === mapelId).map(pair => pair.kelas.id);
+                    return { mapelId, kelasId: { in: ids }, kelasTujuan: { every: { id: { in: ids } } } };
+                })
             }
         ]
     };
@@ -70,7 +74,8 @@ async function assignments(actor: Account) {
 
 const examFields = {
     id: true, judul: true, waktuMulai: true, waktuSelesai: true, durasiMenit: true, draf: true,
-    mapel: { select: { nama: true } }, kelas: { select: { namaKelas: true } }
+    mapel: { select: { nama: true } }, kelas: { select: { namaKelas: true } },
+    kelasTujuan: { select: { id: true, namaKelas: true }, orderBy: { namaKelas: 'asc' } }
 } satisfies Prisma.UjianSelect;
 
 router.get('/ujian', handle(async (_req, res, actor) => {
@@ -98,19 +103,20 @@ function parseExamSchedule(body: Record<string, unknown>) {
 }
 
 router.post('/ujian', handle(async (req, res, actor) => {
-    const { mapelId, kelasId } = req.body;
+    const { mapelId } = req.body;
+    const kelasIds = parseClassIds(req.body.kelasIds ?? (req.body.kelasId === undefined ? undefined : [req.body.kelasId]));
     const schedule = parseExamSchedule(req.body);
-    if (!schedule || !validId(mapelId) || !validId(kelasId)) {
+    if (!schedule || !validId(mapelId) || !kelasIds) {
         return res.status(400).json({ message: 'Lengkapi judul, penugasan, dan jadwal. Rentang jadwal harus cukup untuk durasi ujian.' });
     }
     const allowed = actor.role === 'admin'
-        ? await Promise.all([prisma.mapel.count({ where: { id: mapelId } }), prisma.kelas.count({ where: { id: kelasId } })]).then(counts => counts.every(Boolean))
-        : actor.pairs.some(pair => pair.mapel.id === mapelId && pair.kelas.id === kelasId);
+        ? await Promise.all([prisma.mapel.count({ where: { id: mapelId } }), prisma.kelas.count({ where: { id: { in: kelasIds } } })]).then(([subjects, classes]) => subjects === 1 && classes === kelasIds.length)
+        : kelasIds.every(kelasId => actor.pairs.some(pair => pair.mapel.id === mapelId && pair.kelas.id === kelasId));
     if (!allowed) {
         return res.status(403).json({ message: 'Mapel dan kelas ini di luar penugasan Anda.' });
     }
     const exam = await prisma.ujian.create({
-        data: { guruId: actor.id, ...schedule, mapelId, kelasId, draf: true },
+        data: { guruId: actor.id, ...schedule, mapelId, kelasId: kelasIds[0], kelasTujuan: { connect: kelasIds.map(id => ({ id })) }, draf: true },
         select: { ...examFields, _count: { select: { soal: true } } }
     });
     res.status(201).json(exam);
@@ -357,6 +363,7 @@ router.get('/ujian/:id/sesi', handle(async (req, res, actor) => {
         select: {
             token: true, masukBuka: true, waktuMulai: true, waktuSelesai: true,
             kelas: { select: { users: { where: { role: 'siswa' }, select: siswa, orderBy: { nama: 'asc' } } } },
+            kelasTujuan: { select: { users: { where: { role: 'siswa' }, select: siswa, orderBy: { nama: 'asc' } } } },
             jawaban: { select: { siswaId: true, totalNilai: true, waktuSubmit: true, siswa: { select: siswa } } },
             pengerjaan: { select: { id: true, siswaId: true, sesiSusulanId: true, mulai: true, batasWaktu: true, waktuKirim: true, siswa: { select: siswa } } },
             susulan: { orderBy: { waktuMulai: 'asc' }, select: {
@@ -366,7 +373,14 @@ router.get('/ujian/:id/sesi', handle(async (req, res, actor) => {
         }
     });
     if (!exam) return res.status(404).json({ message: 'Ujian terbit tidak ditemukan.' });
-    res.json(exam);
+    const securityLog = await prisma.kegiatanUjian.findMany({
+        where: { ujianId: id, jenis: 'pelanggaran-ujian' }, orderBy: { id: 'desc' },
+        select: { id: true, pelakuId: true, alasan: true, data: true, waktu: true }
+    });
+    res.json({ ...exam,
+        kelas: { users: [...new Map([...exam.kelas.users, ...exam.kelasTujuan.flatMap(k => k.users)].map(s => [s.id, s])).values()] },
+        keamanan: securityLog.map(row => ({ id: row.id, siswaId: row.pelakuId, attemptId: object(row.data).attemptId, reason: row.alasan, waktu: row.waktu }))
+    });
 }));
 
 router.post('/ujian/:id/susulan', handle(async (req, res, actor) => {
@@ -381,11 +395,11 @@ router.post('/ujian/:id/susulan', handle(async (req, res, actor) => {
     }
     const result = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
-        const exam = await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: false } });
+        const exam = await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: false }, include: { kelasTujuan: { select: { id: true } } } });
         if (!exam) return { status: 404, message: 'Ujian terbit tidak ditemukan.' };
         if (+selesai - +mulai < exam.durasiMenit * 60000) return { status: 400, message: 'Rentang jadwal harus cukup untuk durasi ujian.' };
         const eligible = await tx.user.count({
-            where: { id: { in: peserta }, role: 'siswa', kelasId: exam.kelasId,
+            where: { id: { in: peserta }, role: 'siswa', kelasId: { in: examClassIds(exam) },
                 pengerjaan: { none: { ujianId: id } }, jawaban: { none: { ujianId: id } },
                 pesertaSusulan: { none: { sesi: { ujianId: id } } } }
         });

@@ -12,6 +12,7 @@ model Kelas {
   namaKelas String           @unique @map("nama_kelas")
   users     User[]
   ujian     Ujian[]
+  ujianTujuan Ujian[] @relation("KelasTujuanUjian")
   pengampu  GuruMapelKelas[]
 
   @@map("kelas")
@@ -81,6 +82,7 @@ model Ujian {
 
   mapel   Mapel          @relation(fields: [mapelId], references: [id], onDelete: Cascade)
   kelas   Kelas          @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  kelasTujuan Kelas[]    @relation("KelasTujuanUjian")
   soal    Soal[]
   jawaban JawabanSiswa[]
   susulan SesiSusulan[]

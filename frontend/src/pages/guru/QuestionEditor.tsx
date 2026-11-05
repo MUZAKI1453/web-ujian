@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { isAxiosError } from 'axios';
 import QuestionContent from './QuestionContent';
 
 const types = ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY'] as const;
+const typeLabels = { PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', BS: 'Benar / Salah', ISIAN: 'Isian Singkat', ESSAY: 'Essay' };
 type QuestionType = typeof types[number];
 type Item = { teks: string; benar: boolean; gambar?: string };
 export interface Question {
@@ -37,6 +38,7 @@ function initialQuestion(question: Question | null) {
 export default function QuestionEditor({ question, number, onRemove, focus }: {
     question: Question | null; number: number; onRemove: () => void; focus?: boolean;
 }) {
+    const answerGroup = useId();
     const [initial] = useState(() => initialQuestion(question));
     const [type, setType] = useState(initial.tipeSoal);
     const [text, setText] = useState(initial.pertanyaan);
@@ -72,22 +74,22 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
     const changed = !question || JSON.stringify(soal) !== JSON.stringify(initial);
 
     return (
-        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-bold">Soal {number}</h2>
-                <button type="button" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700" onClick={onRemove}>Hapus Soal</button>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className={'flex items-center justify-between gap-2 px-5 py-4 ' + (type === 'ESSAY' ? 'bg-amber-100 text-amber-950' : 'bg-blue-600 text-white')}>
+                <h2 className="flex flex-wrap items-center gap-2 font-bold"><span className="grid size-8 place-items-center rounded-full bg-white/20 text-sm">{number}</span> Soal {number}<span className="text-xs font-normal opacity-80">· {typeLabels[type]}</span></h2>
+                <button type="button" className="shrink-0 rounded-lg border border-current/20 px-3 py-1.5 text-xs font-semibold" onClick={onRemove}>Hapus Soal</button>
             </div>
             {question && <input type="hidden" name="soalAktif" value={question.id} />}
             {changed && <input type="hidden" name="perubahan" value={JSON.stringify({ id: question?.id ?? null, nomor: number, soal })} />}
             {reading > 0 && <input type="hidden" name="gambarDiproses" value="1" />}
-            <div className="space-y-4">
+            <div className="space-y-4 p-5">
                 <label className="block text-sm font-semibold">Tipe soal
                     <select className={fieldClass} value={type} onChange={event => {
                         const next = event.target.value as QuestionType;
                         setType(next);
                         setItems(emptyItems(next));
                     }}>
-                        {types.map(value => <option key={value}>{value}</option>)}
+                        {types.map(value => <option key={value} value={value}>{typeLabels[value]}</option>)}
                     </select>
                 </label>
                 <label className="block text-sm font-semibold">Soal
@@ -108,7 +110,7 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                     <fieldset className="space-y-2">
                         <legend className="text-sm font-semibold">{type === 'BS' ? 'Pernyataan dan kunci' : 'Opsi dan kunci'}</legend>
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                            <div key={index} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <input aria-label={(type === 'BS' ? 'Pernyataan ' : 'Opsi ') + (index + 1)}
                                     required maxLength={12000} className={fieldClass} value={item.teks} onChange={e => updateItem(index, { teks: e.target.value })} />
                                 {type === 'BS' ? (
@@ -118,7 +120,7 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                                     </select>
                                 ) : (
                                     <label className="flex items-center gap-1 text-sm">
-                                        <input type={type === 'PG' ? 'radio' : 'checkbox'} name={type === 'PG' ? 'kunci' : undefined}
+                                        <input type={type === 'PG' ? 'radio' : 'checkbox'} name={type === 'PG' ? 'kunci-' + answerGroup : undefined}
                                             checked={item.benar} onChange={e => {
                                                 if (type === 'PG') setItems(current => current.map((entry, i) => ({ ...entry, benar: i === index })));
                                                 else updateItem(index, { benar: e.target.checked });

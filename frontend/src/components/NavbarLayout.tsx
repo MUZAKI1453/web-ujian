@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck, Repeat2, Laptop, SquarePen } from 'lucide-react';
+import { Layers, Users, LogOut, ChevronDown, Menu, X, Key, MonitorCheck, Repeat2, Laptop, SquarePen, Undo2 } from 'lucide-react';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
 export type ViewRole = keyof typeof viewLabels;
@@ -148,6 +148,16 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             )}
                         </div>
 
+                        <div className="flex shrink-0 items-center gap-2">
+                            {user.role === 'admin' && viewRole !== 'admin' && onViewRoleChange && (
+                                <button type="button"
+                                    aria-label="Kembali ke Admin"
+                                    title={`Kembali ke Admin (Mode ${viewRole === 'guru' ? 'Guru' : 'Siswa'})`}
+                                    onClick={() => { onViewRoleChange('admin'); closeMenus(); }}
+                                    className="grid size-10 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25">
+                                    <Undo2 size={20} aria-hidden="true" />
+                                </button>
+                            )}
                         {/* KANAN: Profil Sederhana Desktop */}
                         <div className="hidden lg:flex items-center relative" ref={profileRef}>
                             <button
@@ -192,6 +202,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
                             >
                                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                             </button>
+                        </div>
                         </div>
                     </div>
                 </div>
