@@ -1,3 +1,4 @@
+import Select from '../../components/ui/Select';
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
@@ -174,28 +175,28 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         {!status.ongoing && !!available.length && <form onSubmit={correct} className="space-y-3 rounded-lg border p-3 text-sm">
             <h3 className="font-semibold">Perbaiki Soal</h3>
             <label className="ui-label block">Soal
-                <select value={selected} className={fieldClass} onChange={e => { setSelected(Number(e.target.value)); setAction('ubah-kunci'); setPreview(null); }}>
+                <Select value={selected} className={fieldClass} onValueChange={e => { setSelected(Number(e)); setAction('ubah-kunci'); setPreview(null); }}>
                     <option value={0}>Pilih soal</option>
                     {available.map(q => <option key={q.id} value={q.id}>{q.tipeSoal} · {q.pertanyaan.slice(0, 100)}</option>)}
-                </select>
+                </Select>
             </label>
             {question && <>
                 <label className="ui-label block">Tindakan
-                    <select className={fieldClass} value={action} onChange={e => { setAction(e.target.value); setPreview(null); }}>
+                    <Select className={fieldClass} value={action} onValueChange={e => { setAction(e); setPreview(null); }}>
                         <option value="ubah-kunci">Ubah kunci</option>
                         <option value="terima-semua">Terima semua jawaban</option>
                         {question.tipeSoal === 'ISIAN' && <option value="tambah-jawaban">Tambah jawaban diterima</option>}
                         <option value="batalkan">Batalkan soal</option>
-                    </select>
+                    </Select>
                 </label>
                 {(action === 'ubah-kunci' || action === 'tambah-jawaban') && (question.tipeSoal === 'ISIAN'
                     ? <label className="ui-label block">Jawaban diterima (satu per baris)<textarea name="jawaban" required className={fieldClass} onChange={() => setPreview(null)} /></label>
                     : <fieldset key={question.id}>
                         <legend>Kunci baru</legend>
                         {question.isi?.items?.map((item, index) => <label className="ui-label block" key={index}>
-                            <select name={'item-' + index} defaultValue={String(item.benar)} onChange={() => setPreview(null)} className="ui-input mr-2 rounded border">
+                            <Select name={'item-' + index} defaultValue={String(item.benar)} onValueChange={() => setPreview(null)} className="ui-input mr-2 rounded border">
                                 <option value="true">Benar</option><option value="false">Salah</option>
-                            </select>{item.teks}
+                            </Select>{item.teks}
                         </label>)}
                     </fieldset>)}
                 <label className="ui-label block">Alasan<input name="alasan" required maxLength={2000} className={fieldClass} onChange={() => setPreview(null)} /></label>

@@ -43,6 +43,17 @@
     .ui-input { @apply min-h-11 border border-slate-300 bg-white px-3 py-2.5 text-base font-normal leading-6 text-slate-800 placeholder:text-slate-400 focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm sm:leading-6; border-radius: var(--ui-radius-control); }
     .ui-input[type='file'] { @apply max-w-full py-2; }
     .ui-input[type='file']::file-selector-button { @apply mr-3 rounded-lg border-0 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700; }
+    .ui-select { @apply relative inline-grid min-w-0 max-w-full align-middle; width: max-content; grid-template-columns: minmax(0, 1fr); border: 0; padding: 0; background: transparent; border-radius: var(--ui-radius-control); }
+    .ui-select-sizer { @apply pointer-events-none invisible grid min-w-0 overflow-hidden text-base font-normal leading-6 sm:text-sm; grid-area: 1 / 1; }
+    .ui-select-sizer > span { @apply whitespace-nowrap py-2.5 pl-3 pr-11; grid-area: 1 / 1; }
+    .ui-select-trigger { @apply relative flex min-h-11 min-w-0 w-full items-center gap-3 border border-slate-300 bg-white px-3 py-2.5 text-base font-normal leading-6 text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm; grid-area: 1 / 1; border-radius: var(--ui-radius-control); }
+    .ui-select-trigger[aria-expanded='true'] { @apply border-blue-600 ring-2 ring-blue-100; }
+    .ui-select-trigger[aria-invalid='true'] { @apply border-red-500; }
+    .ui-select-popup { @apply z-[120] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800; box-shadow: 0 12px 32px rgb(15 23 42 / 16%); }
+    .ui-select-option { @apply flex min-h-11 cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal leading-5; }
+    .ui-select-option[data-active='true'] { @apply bg-slate-100; }
+    .ui-select-option[aria-selected='true'] { @apply bg-blue-50 font-semibold text-blue-800; }
+    .ui-select-option[aria-disabled='true'] { @apply cursor-not-allowed bg-transparent font-normal text-slate-400; }
     .ui-dialog-overlay { @apply fixed inset-0 flex items-center justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4 backdrop-blur-sm; }
     .ui-dialog-panel { @apply my-auto max-h-[90dvh] w-full overflow-y-auto border border-slate-200 bg-white p-5 text-slate-800 sm:p-6; border-radius: var(--ui-radius-card); box-shadow: var(--ui-shadow-dialog); }
     .ui-table { @apply w-full border-collapse text-left text-sm text-slate-700; }

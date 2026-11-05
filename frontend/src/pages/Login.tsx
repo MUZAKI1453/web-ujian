@@ -57,17 +57,21 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
 
                 <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                     <div>
-                        <label htmlFor="login-username" className="ui-label mb-2 block">Username / NIS / NIP</label>
+                        <label htmlFor="login-identifier" className="ui-label mb-2 block">NIS / NIP</label>
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
                                 <User size={18} />
                             </span>
                             <input
+                                id="login-identifier"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
                                 type="text"
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                placeholder="Masukkan username..."
+                                placeholder="Masukkan NIS atau NIP..."
                                 className="ui-input w-full pl-11 pr-4 sm:py-3 border transition"
                             />
                         </div>
@@ -80,6 +84,8 @@ export default function Login({ onLoginSuccess, brandLogo }: { onLoginSuccess: (
                                 <Lock size={18} />
                             </span>
                             <input
+                                id="login-password"
+                                autoComplete="current-password"
                                 type="password"
                                 required
                                 value={password}

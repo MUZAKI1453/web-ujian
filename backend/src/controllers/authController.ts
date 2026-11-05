@@ -11,7 +11,7 @@ export const loginUser = async (req: Request, res: Response) => {
         const { username, password } = req.body;
 
         if (typeof username !== 'string' || typeof password !== 'string') {
-            return res.status(400).json({ message: 'Username dan password wajib diisi.' });
+            return res.status(400).json({ message: 'NIS / NIP dan password wajib diisi.' });
         }
         // 1. Cari user berdasarkan username (bisa NIS, NIP, atau username admin)
         const user = await prisma.user.findUnique({
@@ -20,14 +20,14 @@ export const loginUser = async (req: Request, res: Response) => {
         });
 
         if (!user) {
-            return res.status(401).json({ status: 'ERROR', message: 'Username atau password salah!' });
+            return res.status(401).json({ status: 'ERROR', message: 'NIS / NIP atau password salah!' });
         }
 
         // 2. Cek kecocokan password menggunakan bcrypt.compare
         const match = await bcrypt.compare(password, user.password);
 
         if (!match) {
-            return res.status(401).json({ status: 'ERROR', message: 'Username atau password salah!' });
+            return res.status(401).json({ status: 'ERROR', message: 'NIS / NIP atau password salah!' });
         }
 
         // 3. Buat token JWT

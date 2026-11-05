@@ -1,10 +1,11 @@
+import AccountToolbar from '../../components/AccountToolbar';
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Plus, Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
+import { Trash2, Edit3, Layers, Search, Users } from 'lucide-react';
 
 interface Kelas {
     id: number;
@@ -114,7 +115,7 @@ export default function DataKelas() {
                         <Layers className="text-blue-600" size={28} /> Kelola Data Kelas
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Daftar seluruh nama kelas aktif di portal CBT SMPIP Baitussalam.
+                        Daftar seluruh nama kelas aktif.
                     </p>
                 </div>
 
@@ -129,29 +130,17 @@ export default function DataKelas() {
                             className="ui-input w-full pl-10 pr-4 hover:bg-slate-100/60 border focus:border-blue-600 transition"
                         />
                     </div>
-                    <button
-                        onClick={handleOpenAdd}
-                        className="ui-button ui-button-primary flex items-center justify-center gap-2 shadow-blue-600/20 shrink-0"
-                    >
-                        <Plus size={18} /> Tambah Kelas
-                    </button>
+
                 </div>
             </div>
 
             {/* Tabel Data Kelas */}
             <div className="ui-card bg-white border overflow-hidden">
+                <AccountToolbar role="kelas" selectedCount={visibleSelected.length}
+                    onDelete={() => setDeleteIds(visibleSelected)} onAdd={handleOpenAdd} />
                 <div className="overflow-x-auto">
                     <table className="ui-table w-full text-left border-collapse">
                         <thead>
-                        <tr>
-                            <td colSpan={5} className="px-6 py-3">
-                                <button type="button" disabled={!visibleSelected.length}
-                                        onClick={() => setDeleteIds(visibleSelected)}
-                                        className="ui-button ui-button-danger">
-                                    Hapus terpilih ({visibleSelected.length})
-                                </button>
-                            </td>
-                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-slate-100">
                             <th className="pl-6 w-12">
                                 <input type="checkbox" aria-label="Pilih semua yang ditampilkan"

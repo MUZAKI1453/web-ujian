@@ -1,3 +1,4 @@
+import Select from '../../components/ui/Select';
 import { useState, type FormEvent } from 'react';
 import api from '../../services/api';
 
@@ -58,11 +59,11 @@ export default function PengaturanNavbar({ settings, onSaved }: Props) {
                     </label>
                     <label className="ui-label block">
                         Logo sekolah
-                        <select name="logo" value={logo} onChange={event => setLogo(event.target.value === 'smaip' ? 'smaip' : 'smpip')}
+                        <Select name="logo" value={logo} onValueChange={event => setLogo(event === 'smaip' ? 'smaip' : 'smpip')}
                                 className="ui-input mt-1 block w-full border">
                             <option value="smpip">SMPIP</option>
                             <option value="smaip">SMAIP</option>
-                        </select>
+                        </Select>
                     </label>
                     <img src={navbarLogos[logo]} alt={'Pratinjau logo ' + logo.toUpperCase()} className="h-14 w-14 object-contain" />
                     <button type="submit" className="ui-button ui-button-primary">

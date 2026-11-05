@@ -12,6 +12,6 @@ export async function downloadImportTemplate(role: 'siswa' | 'guru') {
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-        alert('Gagal mengunduh template Excel.');
+        alert('Gagal mengunduh template.');
     }
 }

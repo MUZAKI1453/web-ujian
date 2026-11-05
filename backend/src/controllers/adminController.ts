@@ -141,7 +141,7 @@ export const createSiswa = async (req: Request, res: Response) => {
 
         // Validasi: NIS harus angka saja
         if (typeof username !== 'string' || !/^\d{1,50}$/.test(username)) {
-            return res.status(400).json({ status: 'WARNING', message: 'NIS / Username siswa harus berupa angka (numerik) saja!' });
+            return res.status(400).json({ status: 'WARNING', message: 'NIS siswa harus berupa angka (numerik) saja!' });
         }
 
         // Validasi: Kelas wajib diisi
@@ -151,7 +151,7 @@ export const createSiswa = async (req: Request, res: Response) => {
 
         const existing = await prisma.user.findUnique({ where: { username } });
         if (existing) {
-            return res.status(400).json({ status: 'WARNING', message: 'NIS / Username sudah terdaftar!' });
+            return res.status(400).json({ status: 'WARNING', message: 'NIS sudah terdaftar!' });
         }
 
         const hashedPassword = await bcrypt.hash(username, 10);
@@ -190,13 +190,13 @@ export const updateSiswa = async (req: Request, res: Response) => {
         if (username) {
             // Validasi: NIS baru harus angka saja
             if (typeof username !== 'string' || !/^\d{1,50}$/.test(username)) {
-                return res.status(400).json({ status: 'WARNING', message: 'NIS / Username siswa harus berupa angka (numerik) saja!' });
+                return res.status(400).json({ status: 'WARNING', message: 'NIS siswa harus berupa angka (numerik) saja!' });
             }
 
             if (username !== existingSiswa.username) {
                 const duplicate = await prisma.user.findUnique({ where: { username } });
                 if (duplicate) {
-                    return res.status(400).json({ status: 'WARNING', message: 'NIS / Username sudah digunakan akun lain!' });
+                    return res.status(400).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain!' });
                 }
             }
         }
@@ -297,12 +297,12 @@ export const createGuru = async (req: Request, res: Response) => {
 
         // Validasi: NIP harus angka saja
         if (typeof username !== 'string' || !/^\d{1,50}$/.test(username)) {
-            return res.status(400).json({ status: 'WARNING', message: 'NIP / Username guru harus berupa angka (numerik) saja!' });
+            return res.status(400).json({ status: 'WARNING', message: 'NIP guru harus berupa angka (numerik) saja!' });
         }
 
         const existing = await prisma.user.findUnique({ where: { username } });
         if (existing) {
-            return res.status(400).json({ status: 'WARNING', message: 'NIP / Username guru sudah terdaftar!' });
+            return res.status(400).json({ status: 'WARNING', message: 'NIP guru sudah terdaftar!' });
         }
 
         const hashedPassword = await bcrypt.hash(username, 10);
@@ -348,13 +348,13 @@ export const updateGuru = async (req: Request, res: Response) => {
         if (username) {
             // Validasi: NIP baru harus angka saja
             if (typeof username !== 'string' || !/^\d{1,50}$/.test(username)) {
-                return res.status(400).json({ status: 'WARNING', message: 'NIP / Username guru harus berupa angka (numerik) saja!' });
+                return res.status(400).json({ status: 'WARNING', message: 'NIP guru harus berupa angka (numerik) saja!' });
             }
 
             if (username !== existingGuru.username) {
                 const duplicate = await prisma.user.findUnique({ where: { username } });
                 if (duplicate) {
-                    return res.status(400).json({ status: 'WARNING', message: 'NIP / Username sudah digunakan akun guru lain!' });
+                    return res.status(400).json({ status: 'WARNING', message: 'NIP sudah digunakan akun guru lain!' });
                 }
             }
         }

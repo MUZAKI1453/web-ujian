@@ -1,3 +1,4 @@
+import Select from '../../components/ui/Select';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -66,19 +67,19 @@ export default function MonitoringUjian() {
             <h1 className="ui-page-title">Monitoring Ujian</h1>
             <p className="mt-1 text-sm text-slate-600">Pantau peserta ujian reguler dan susulan. Data diperbarui otomatis setiap 15 detik.</p>
             <div className="my-5 flex flex-wrap items-center gap-3">
-                <select aria-label="Status ujian" value={filter} onChange={e => setFilter(e.target.value)}
+                <Select aria-label="Status ujian" value={filter} onValueChange={e => setFilter(e)}
                     className="ui-input border p-2">
                     <option value="">Semua status</option>
                     <option>Terjadwal</option>
                     <option>Berlangsung</option>
                     <option>Selesai</option>
-                </select>
-                <select aria-label="Jenis sesi" value={kind} onChange={e => setKind(e.target.value)}
+                </Select>
+                <Select aria-label="Jenis sesi" value={kind} onValueChange={e => setKind(e)}
                     className="ui-input border p-2">
                     <option value="">Semua sesi</option>
                     <option>Reguler</option>
                     <option>Susulan</option>
-                </select>
+                </Select>
                 <button type="button" onClick={() => setRefreshKey(value => value + 1)}
                     className="ui-button ui-button-primary">
                     Muat ulang

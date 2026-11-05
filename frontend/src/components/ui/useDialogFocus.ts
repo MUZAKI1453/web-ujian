@@ -14,7 +14,7 @@ export function useDialogFocus(panel: RefObject<HTMLElement>, onClose?: () => vo
         }
         const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(
             'button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'
-        ) ?? []).filter(element => element.getClientRects().length > 0);
+        ) ?? []).filter(element => !element.matches('[tabindex="-1"], [aria-hidden="true"]') && element.getClientRects().length > 0);
         (focusable()[0] ?? panel.current)?.focus();
         const keydown = (event: KeyboardEvent) => {
             const layers = document.querySelectorAll('[data-dialog-layer]');

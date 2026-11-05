@@ -208,7 +208,7 @@ export function importUsers(role: Role) {
             const details = [
                 ...issues.slice(0, 5),
                 ...(issues.length > 5 ? [(issues.length - 5) + ' baris lainnya tidak valid.'] : []),
-                ...(duplicates ? [duplicates + ' baris dilewati karena ' + idLabel + ' sudah terdaftar sebagai username.'] : [])
+                ...(duplicates ? [duplicates + ' baris dilewati karena ' + idLabel + ' sudah terdaftar.'] : [])
             ].join('\n');
             if (!count) return res.status(400).json({ message: 'Tidak ada data yang berhasil diimpor.\n' + details });
             res.json({ status: 'SUCCESS', message: 'Impor selesai. Berhasil ' + count + ', dilewati ' + skipped + '.' + (details ? '\n' + details : '') });

@@ -1,3 +1,4 @@
+import Select from '../../components/ui/Select';
 import { useId, useState } from 'react';
 import { isAxiosError } from 'axios';
 import QuestionContent from './QuestionContent';
@@ -84,13 +85,13 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
             {reading > 0 && <input type="hidden" name="gambarDiproses" value="1" />}
             <div className="space-y-4 p-5">
                 <label className="ui-label block">Tipe soal
-                    <select className={fieldClass} value={type} onChange={event => {
-                        const next = event.target.value as QuestionType;
+                    <Select className={fieldClass} value={type} onValueChange={event => {
+                        const next = event as QuestionType;
                         setType(next);
                         setItems(emptyItems(next));
                     }}>
                         {types.map(value => <option key={value} value={value}>{typeLabels[value]}</option>)}
-                    </select>
+                    </Select>
                 </label>
                 <label className="ui-label block">Soal
                     <textarea className={fieldClass} autoFocus={focus} required maxLength={12000} rows={3} value={text} onChange={e => setText(e.target.value)} />
@@ -114,10 +115,10 @@ export default function QuestionEditor({ question, number, onRemove, focus }: {
                                 <input aria-label={(type === 'BS' ? 'Pernyataan ' : 'Opsi ') + (index + 1)}
                                     required maxLength={12000} className={fieldClass} value={item.teks} onChange={e => updateItem(index, { teks: e.target.value })} />
                                 {type === 'BS' ? (
-                                    <select aria-label={'Kunci pernyataan ' + (index + 1)} value={String(item.benar)}
-                                        onChange={e => updateItem(index, { benar: e.target.value === 'true' })}>
+                                    <Select aria-label={'Kunci pernyataan ' + (index + 1)} value={String(item.benar)}
+                                        onValueChange={e => updateItem(index, { benar: e === 'true' })}>
                                         <option value="true">Benar</option><option value="false">Salah</option>
-                                    </select>
+                                    </Select>
                                 ) : (
                                     <label className="flex items-center gap-1 text-sm">
                                         <input type={type === 'PG' ? 'radio' : 'checkbox'} name={type === 'PG' ? 'kunci-' + answerGroup : undefined}

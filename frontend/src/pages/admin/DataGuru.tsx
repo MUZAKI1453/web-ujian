@@ -1,3 +1,4 @@
+import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import ClassPicker from '../../components/ClassPicker';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
@@ -5,8 +6,9 @@ import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { downloadImportTemplate } from '../../services/downloadImportTemplate';
-import { GraduationCap, Plus, Edit3, Trash2, Search, UploadCloud, BookOpen, X } from 'lucide-react';
+import AccountToolbar from '../../components/AccountToolbar';
+import AccountImportDialog from '../../components/AccountImportDialog';
+import { GraduationCap, Plus, Edit3, Trash2, Search, BookOpen, X } from 'lucide-react';
 
 interface Mapel {
     id: number;
@@ -40,6 +42,7 @@ export default function DataGuru() {
     const [kelasList, setKelasList] = useState<Kelas[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedMapelFilter, setSelectedMapelFilter] = useState('');
 
     // State Modal Form (Tambah / Edit)
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
@@ -64,9 +67,9 @@ export default function DataGuru() {
         return otherAssignments.some(item => item.mapel.id === Number(mapelId) && item.kelas.id === Number(kelasId));
     }
 
-    // State Modal Import Excel
+    // State Modal Import
     const [showImportModal, setShowImportModal] = useState(false);
-    const [fileExcel, setFileExcel] = useState<File | null>(null);
+    const [importFile, setImportFile] = useState<File | null>(null);
 
     const fetchData = () => {
         setLoading(true);
@@ -181,30 +184,33 @@ export default function DataGuru() {
 
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!fileExcel) {
-            setErrorMessage('Pilih file Excel terlebih dahulu!');
+        if (!importFile) {
+            setErrorMessage('Pilih file terlebih dahulu!');
             return;
         }
 
         const formData = new FormData();
-        formData.append('file_excel', fileExcel);
+        formData.append('file_excel', importFile);
 
         api.post('/admin/guru/import', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         })
             .then((res) => {
                 setShowImportModal(false);
-                setFileExcel(null);
+                setImportFile(null);
                 fetchData();
                 setSuccessMessage(res.data.message || 'Import data guru berhasil!');
             })
-            .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal mengimport file Excel'));
+            .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal mengimpor data.'));
     };
 
-    const filteredGuru = guruList.filter((g) =>
-        g.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        g.username.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredGuru = guruList.filter(g => {
+        const matchesSearch = g.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            g.username.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesMapel = selectedMapelFilter === '' ||
+            g.pengampu?.some(assignment => String(assignment.mapel?.id) === selectedMapelFilter);
+        return matchesSearch && matchesMapel;
+    });
 
     const visibleIds = filteredGuru.map(item => item.id);
     const visibleSelected = visibleIds.filter(id => selectedIds.includes(id));
@@ -213,56 +219,47 @@ export default function DataGuru() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Header Utama & Kontrol */}
-            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="ui-card bg-white p-5 sm:p-8 border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h1 className="ui-page-title flex items-center gap-2.5">
-                        <GraduationCap className="text-blue-600" size={28} /> Kelola Data Guru & Penugasan
+                        <GraduationCap className="text-blue-600" size={28} /> Kelola Data Guru
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Daftar akun guru beserta pengaturan mata pelajaran dan kelas yang diampu.
+                        Daftar akun guru beserta mata pelajaran dan kelas yang diampu.
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                    <div className="relative flex items-center w-full sm:w-64">
-                        <Search size={18} className="absolute left-3.5 text-slate-400" />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                    <div className="relative flex min-w-0 items-center w-full sm:w-80">
+                        <Search size={18} className="pointer-events-none absolute left-3.5 text-slate-400" aria-hidden="true" />
                         <input
-                            type="text"
+                            type="search"
+                            aria-label="Cari guru berdasarkan nama atau NIP"
                             placeholder="Cari nama atau NIP..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="ui-input w-full pl-10 pr-4 hover:bg-slate-100/65 border focus:border-blue-600 transition"
+                            className="ui-input w-full pl-10"
                         />
                     </div>
-                    <button
-                        onClick={() => setShowImportModal(true)}
-                        className="ui-button ui-button-success flex items-center justify-center gap-2 shadow-emerald-600/20 shrink-0"
-                    >
-                        <UploadCloud size={18} /> Import Excel
-                    </button>
-                    <button
-                        onClick={handleOpenAdd}
-                        className="ui-button ui-button-primary flex items-center justify-center gap-2 shadow-blue-600/20 shrink-0"
-                    >
-                        <Plus size={18} /> Tambah Guru
-                    </button>
+                    <div className="relative min-w-0 w-full sm:w-64 sm:shrink-0">
+                        <Select aria-label="Filter mata pelajaran guru" value={selectedMapelFilter}
+                            onValueChange={event => setSelectedMapelFilter(event)} className="ui-input w-full appearance-none pr-9">
+                            <option value="">Semua Mapel</option>
+                            {mapelList.map(mapel => <option key={mapel.id} value={mapel.id}>{mapel.nama}</option>)}
+                        </Select>
+                    </div>
                 </div>
             </div>
 
             {/* Tabel Data Guru */}
             <div className="ui-card bg-white border overflow-hidden">
+                <AccountToolbar role="guru" selectedCount={visibleSelected.length}
+                    onDelete={() => setDeleteIds(visibleSelected)}
+                    onImport={() => { setImportFile(null); setShowImportModal(true); }}
+                    onAdd={handleOpenAdd} />
                 <div className="overflow-x-auto">
                     <table className="ui-table w-full text-left border-collapse">
                         <thead>
-                        <tr>
-                            <td colSpan={6} className="px-6 py-3">
-                                <button type="button" disabled={!visibleSelected.length}
-                                        onClick={() => setDeleteIds(visibleSelected)}
-                                        className="ui-button ui-button-danger">
-                                    Hapus terpilih ({visibleSelected.length})
-                                </button>
-                            </td>
-                        </tr>
                         <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider border-b border-slate-100">
                             <th className="pl-6">
                                 <input type="checkbox" aria-label="Pilih semua yang ditampilkan"
@@ -270,7 +267,7 @@ export default function DataGuru() {
                                        onChange={() => setSelectedIds(allSelected ? [] : visibleIds)} />
                             </th>
                             <th className="py-4 px-6">No</th>
-                            <th className="py-4 px-6">NIP / Username</th>
+                            <th className="py-4 px-6">NIP</th>
                             <th className="py-4 px-6">Nama Lengkap & Gelar</th>
                             <th className="py-4 px-6">Mata Pelajaran & Kelas Diampu</th>
                             <th className="py-4 px-6 text-center">Aksi</th>
@@ -379,7 +376,7 @@ export default function DataGuru() {
                         </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="ui-label block mb-1">NIP / Username (Angka Saja)</label>
+                                <label className="ui-label block mb-1">NIP (Angka Saja)</label>
                                 <input
                                     type="text"
                                     inputMode="numeric"
@@ -425,9 +422,9 @@ export default function DataGuru() {
                                         {penugasanList.map((p, index) => (
                                             <div key={index} className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                 <div className="flex items-center gap-2">
-                                                <select
+                                                <Select
                                                     value={p.mapelId}
-                                                    onChange={(e) => handlePenugasanChange(index, e.target.value)}
+                                                    onValueChange={(e) => handlePenugasanChange(index, e)}
                                                     aria-label="Mata pelajaran penugasan"
                                                     className="ui-input flex-1 border focus:border-blue-600"
                                                     required
@@ -436,7 +433,7 @@ export default function DataGuru() {
                                                     {mapelList.map((m) => (
                                                         <option key={m.id} value={m.id} disabled={penugasanList.some((row, i) => i !== index && Number(row.mapelId) === m.id) || (kelasList.length > 0 && kelasList.every(k => isOccupied(m.id, String(k.id))))}>{m.nama}</option>
                                                     ))}
-                                                </select>
+                                                </Select>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemovePenugasanRow(index)}
@@ -476,49 +473,8 @@ export default function DataGuru() {
                 </ModalOverlay>
             )}
 
-            {/* Modal Import Excel Guru */}
-            {showImportModal && (
-                <ModalOverlay>
-                    <div className="ui-dialog-panel max-w-md space-y-4">
-                        <h3 className="text-lg font-bold text-slate-800">Import Data Guru via Excel</h3>
-                        <p className="text-sm text-slate-600">Pertahankan judul kolom di baris 11. Ganti contoh dengan NIP dan nama lengkap guru mulai baris 12. Tulis NIP sebagai teks agar nol di depan tetap tersimpan.</p>
-                        <button
-                            type="button"
-                            onClick={() => void downloadImportTemplate('guru')}
-                            className="ui-button ui-button-secondary w-full border"
-                        >
-                            Unduh Template Guru
-                        </button>
-                        <form onSubmit={handleImportSubmit} className="space-y-4">
-                            <div>
-                                <label className="ui-label block mb-1">Pilih File Excel (.xlsx / .xls)</label>
-                                <input
-                                    type="file"
-                                    accept=".xlsx, .xls"
-                                    required
-                                    onChange={(e) => setFileExcel(e.target.files ? e.target.files[0] : null)}
-                                    className="ui-input w-full file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowImportModal(false)}
-                                    className="ui-button ui-button-secondary"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="ui-button ui-button-success"
-                                >
-                                    Mulai Import
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </ModalOverlay>
-            )}
+            {showImportModal && <AccountImportDialog role="guru"
+                onClose={() => setShowImportModal(false)} onSubmit={handleImportSubmit} onFileChange={setImportFile} />}
         </div>
     );
 }
