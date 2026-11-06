@@ -2,6 +2,12 @@ import { Children, isValidElement, type ReactNode } from 'react';
 
 export type SelectOption = { value: string; label: string; disabled: boolean };
 
+export function optionScrollTop(current: number, viewport: { top: number; bottom: number }, option: { top: number; bottom: number }) {
+    if (option.top < viewport.top) return Math.max(0, current + option.top - viewport.top);
+    if (option.bottom > viewport.bottom) return current + option.bottom - viewport.bottom;
+    return current;
+}
+
 function textContent(children: ReactNode): string {
     return Children.toArray(children).map(child => isValidElement<{ children?: ReactNode }>(child)
         ? textContent(child.props.children) : String(child)).join('');

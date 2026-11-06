@@ -1,10 +1,15 @@
+import { questionTypeLabel } from './questionTypes';
 import Select from '../../components/ui/Select';
 import { fieldClass, primaryClass } from '../../components/ui/styles';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState, type ReactNode } from 'react';
 import api from '../../services/api';
 import StudentCorrection, { type ReportRow } from './StudentCorrection';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
+import CorrectionKeyEditor from './CorrectionKeyEditor';
+import QuestionContent from './QuestionContent';
+import { Check, CircleCheck, ClipboardList, CloudDownload, Download, Eye, EyeOff, FilePenLine, KeyRound, MessageSquare, Search, SlidersHorizontal, SquarePen, Timer, Users } from 'lucide-react';
+import { correctionInput } from './correctionForm';
 
 type Student = { nama: string | null; username: string };
 type Report = {
@@ -17,8 +22,9 @@ type Report = {
 type Impact = { naik: number; turun: number; tetap: number; revisi: number };
 type Correction = { soalId: number; aksi: string; input?: boolean[] | string; alasan: string };
 
-export default function ExamReport({ examId, questions, onQuestionsChanged }: {
+export default function ExamReport({ examId, questions, onQuestionsChanged, renderHeader }: {
     examId: number; questions: Question[]; onQuestionsChanged: () => Promise<void>;
+    renderHeader: (actions?: ReactNode) => ReactNode;
 }) {
     const [data, setData] = useState<Report | null>(null);
     const [error, setError] = useState('');
@@ -67,7 +73,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         finally { setBusy(false); }
     }
 
-    if (!data) return <p role={error ? 'alert' : 'status'}>{error || 'Memuat rekap…'}</p>;
+    if (!data) return <section className="space-y-4">{renderHeader()}<p role={error ? 'alert' : 'status'}>{error || 'Memuat rekap…'}</p></section>;
     const status = data.readiness;
     const queued = data.history.some(item => item.status === 'antre');
     const failed = data.history.some(item => item.status === 'gagal');
@@ -80,8 +86,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         event.preventDefault();
         if (!question) return;
         const form = new FormData(event.currentTarget);
-        const input = question.tipeSoal === 'ISIAN' ? String(form.get('jawaban') ?? '') :
-            question.isi?.items?.map((_, i) => form.get('item-' + i) === 'true');
+        const input = correctionInput(question.tipeSoal, question.isi?.items?.length ?? 0, form);
         const payload = { soalId: question.id, aksi: action, input, alasan: String(form.get('alasan') ?? '') };
         void perform(async () => {
             const { data } = await api.post<Impact>(url + '/perbaiki', payload);
@@ -94,38 +99,53 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         void perform(() => api.patch(url + '/rilis', { jenis, rilis }), 'Pengaturan rilis disimpan.');
     }
 
+    const releaseActions = <>
+        <button type="button" className={data.hasilRilis ? 'ui-button ui-button-secondary' : 'ui-button ui-button-success'} disabled={busy || (!data.hasilRilis && !canRelease)}
+            onClick={() => release('hasil', !data.hasilRilis)}>{data.hasilRilis ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}{data.hasilRilis ? 'Sembunyikan Hasil' : 'Rilis Hasil'}</button>
+        <button type="button" className={data.bahasanRilis ? 'ui-button ui-button-secondary' : primaryClass} disabled={busy || (!data.bahasanRilis && blocking)}
+            onClick={() => release('pembahasan', !data.bahasanRilis)}>{data.bahasanRilis ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}{data.bahasanRilis ? 'Sembunyikan Pembahasan' : 'Rilis Pembahasan'}</button>
+    </>;
+
     const active = data.rows.find(row => row.id === studentId);
     const keyword = search.trim().toLowerCase();
     const visible = data.rows.filter(row => (!filter || row.pending > 0) &&
         ((row.siswa.nama ?? '') + ' ' + row.siswa.username).toLowerCase().includes(keyword));
 
     if (active) return <section id="koreksi-siswa" className="scroll-mt-24 space-y-3">
+        {renderHeader(releaseActions)}
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{notice}</p>}
         <StudentCorrection key={active.id} row={active} questions={questions} busy={busy}
             onBack={() => { setStudentId(null); setError(''); setNotice(''); }}
-            onSave={nilai => void perform(() => api.put(url + '/rekap/' + active.id + '/essay', { nilai }), 'Nilai essay disimpan.')} />
+            onSave={nilai => void perform(() => api.put(url + '/rekap/' + active.id + '/essay', { nilai }), 'Nilai esai disimpan.')} />
     </section>;
 
-    return <section className="space-y-4 rounded-xl border bg-white p-4">
-        <h2 className="font-semibold">Rekap, koreksi, dan rilis</h2>
+    return <section className="space-y-4">
+        {renderHeader(releaseActions)}
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
-        <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
-            <p>Essay belum dikoreksi: {status.essayPending} soal dari {status.studentsPending} siswa</p>
-            <p>Penilaian otomatis: {data.rows.length} dari {data.rows.length + status.automaticPending} selesai</p>
-            <p>Masih mengerjakan: {status.running}{status.lastDeadline ? ' · sisa ' + Math.max(0, Math.ceil((status.lastDeadline - now) / 1000)) + ' detik' : ''}</p>
-            <p>Kiriman offline menunggu tinjauan: {status.offlinePending}</p>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="cbt-stat border-l-4 border-l-amber-400 bg-white">
+                <span className="cbt-stat-icon bg-amber-100 text-amber-700"><FilePenLine size={28} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1"><p className="!mt-0">Esai belum dinilai</p><strong className="mt-1 block text-amber-900">{status.essayPending}</strong></div>
+            </div>
+            <div className="cbt-stat border-l-4 border-l-emerald-500 bg-white">
+                <span className="cbt-stat-icon bg-emerald-100 text-emerald-700"><CircleCheck size={28} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1"><p className="!mt-0">Penilaian otomatis</p><strong className="mt-1 block text-emerald-900">{data.rows.length}<span className="text-sm font-normal text-slate-500"> / {data.rows.length + status.automaticPending}</span></strong></div>
+            </div>
+            <div className="cbt-stat border-l-4 border-l-blue-500 bg-white" title={status.lastDeadline ? 'Sisa ' + Math.max(0, Math.ceil((status.lastDeadline - now) / 1000)) + ' detik' : undefined}>
+                <span className="cbt-stat-icon"><Timer size={28} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1"><p className="!mt-0">Sedang mengerjakan</p><strong className="mt-1 block text-blue-900">{status.running}</strong></div>
+            </div>
+            <div className="cbt-stat border-l-4 border-l-violet-500 bg-white">
+                <span className="cbt-stat-icon bg-violet-100 text-violet-700"><CloudDownload size={28} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1"><p className="!mt-0">Kiriman offline</p><strong className="mt-1 block text-violet-900">{status.offlinePending}</strong></div>
+            </div>
+        </div>
+        <div className="space-y-1 text-sm">
             {!!status.makeupPending && <p className="text-amber-800">{status.makeupPending} peserta susulan belum mengirim.</p>}
             {queued && <p>Penilaian ulang sedang antre.</p>}
-            {failed && <p role="alert">Ada penilaian ulang yang gagal. Periksa riwayat dan ajukan ulang bila perlu.</p>}
-        </div>
-        <div className="flex flex-wrap gap-2">
-            <button type="button" className={primaryClass} disabled={busy || (!data.hasilRilis && !canRelease)}
-                onClick={() => release('hasil', !data.hasilRilis)}>{data.hasilRilis ? 'Sembunyikan Hasil' : 'Rilis Hasil'}</button>
-            <button type="button" className={primaryClass} disabled={busy || (!data.bahasanRilis && blocking)}
-                onClick={() => release('pembahasan', !data.bahasanRilis)}>{data.bahasanRilis ? 'Sembunyikan Pembahasan' : 'Rilis Pembahasan'}</button>
-            {status.essayPending > 0 && <a href="#antrean-essay" onClick={() => setFilter(true)} className="self-center text-sm font-semibold text-blue-700">Buka antrean koreksi</a>}
+            {failed && <p role="alert">Penilaian ulang gagal. Ajukan ulang perbaikan soal.</p>}
         </div>
         {data.offline.map(row => <div key={row.id} className="space-y-2 rounded-lg border p-3 text-sm">
             <p>Kiriman offline · {row.siswa.nama || row.siswa.username} · {row.jumlahLokal} jawaban lokal, {row.jumlahServer} di server</p>
@@ -136,8 +156,17 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
         </div>)}
         <div id="antrean-essay" className="space-y-3 rounded-xl border bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-semibold">Rekap Nilai Siswa</h3>
-                <button type="button" className="ui-button ui-button-secondary border"
+                <h3 className="flex items-center gap-2 font-semibold"><Users size={20} className="text-blue-600" aria-hidden="true" />Rekap Nilai Siswa</h3>
+                <div className="ml-auto flex w-full flex-wrap items-center gap-2 xl:w-auto">
+                    <div className="relative w-full min-w-0 sm:w-60">
+                        <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
+                        <input type="search" aria-label="Cari siswa" placeholder="Cari nama atau NIS…" value={search}
+                            onChange={event => setSearch(event.target.value)} className="ui-input w-full border-blue-200 bg-blue-50/40 pl-9" />
+                    </div>
+                    <label className={'flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors ' + (filter ? 'border-amber-400 bg-amber-100 text-amber-900' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100')}>
+                        <input type="checkbox" className="size-4 accent-amber-600" checked={filter} onChange={event => setFilter(event.target.checked)} />Belum dikoreksi
+                    </label>
+                <button type="button" className="ui-button ui-button-success"
                     disabled={busy || !data.rows.length} onClick={() => void perform(async () => {
                         const { data: file } = await api.get<Blob>(url + '/rekap/excel', { responseType: 'blob' });
                         const href = URL.createObjectURL(file);
@@ -146,80 +175,69 @@ export default function ExamReport({ examId, questions, onQuestionsChanged }: {
                         link.download = 'rekap-ujian-' + examId + '.xlsx';
                         link.click();
                         setTimeout(() => URL.revokeObjectURL(href), 1000);
-                    })}>Unduh Excel</button>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-                <input type="search" aria-label="Cari siswa" placeholder="Cari nama atau NIS" value={search}
-                    onChange={event => setSearch(event.target.value)} className="ui-input border" />
-                <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={filter} onChange={event => setFilter(event.target.checked)} /> Belum dikoreksi
-                </label>
+                    })}><Download size={17} aria-hidden="true" />Unduh Excel</button>
+                </div>
             </div>
             {!visible.length ? <p className="text-sm text-slate-600">{data.rows.length ? 'Tidak ada siswa yang cocok.' : 'Belum ada jawaban terkirim.'}</p> :
                 <div className="overflow-x-auto"><table className="ui-table w-full text-left text-sm">
-                    <thead className="bg-slate-100"><tr>{['Siswa', 'Poin otomatis', 'Poin essay', 'Total', 'Status', 'Aksi'].map(title =>
+                    <thead className="bg-slate-100"><tr className="divide-x divide-slate-200">{['Siswa', 'Poin otomatis', 'Poin esai', 'Total', 'Status', 'Aksi'].map(title =>
                         <th key={title} scope="col" className="whitespace-nowrap p-3">{title}</th>)}</tr></thead>
-                    <tbody>{visible.map(row => <tr key={row.id} className="border-b">
+                    <tbody>{visible.map(row => <tr key={row.id} className="divide-x divide-slate-200 border-b">
                         <td className="p-3"><strong>{row.siswa.nama || row.siswa.username}</strong><p className="text-xs text-slate-600">{row.siswa.username}</p></td>
                         <td className="p-3">{Object.entries(row.rincian).filter(([type]) => type !== 'ESSAY').reduce((sum, [, item]) => sum + Number(item.poin), 0).toFixed(2)}</td>
                         <td className="p-3">{row.rincian.ESSAY?.poin ?? '—'}</td>
                         <td className="p-3 font-semibold">{row.nilai}</td>
-                        <td className="whitespace-nowrap p-3">{row.pending ? row.pending + ' essay tersisa' : 'Selesai'}</td>
+                        <td className="whitespace-nowrap p-3"><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (row.pending ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')}>{row.pending ? row.pending + ' esai tersisa' : 'Selesai'}</span></td>
                         <td className="p-3"><button type="button" className={primaryClass} onClick={() => {
                             setStudentId(row.id); setError(''); setNotice('');
                             requestAnimationFrame(() => document.getElementById('koreksi-siswa')?.scrollIntoView({ block: 'start' }));
-                        }}>Koreksi</button></td>
+                        }}><SquarePen size={16} aria-hidden="true" />Koreksi</button></td>
                     </tr>)}</tbody>
                 </table></div>}
         </div>
-        {!status.ongoing && !!available.length && <form onSubmit={correct} className="space-y-3 rounded-lg border p-3 text-sm">
-            <h3 className="font-semibold">Perbaiki Soal</h3>
-            <label className="ui-label block">Soal
-                <Select value={selected} className={fieldClass} onValueChange={e => { setSelected(Number(e)); setAction('ubah-kunci'); setPreview(null); }}>
+        {!status.ongoing && !!available.length && <form onSubmit={correct} className="ui-card space-y-4 bg-white p-5" aria-label="Perbaiki kunci soal">
+            <fieldset disabled={busy || queued} className="space-y-4">
+            <h3 className="flex items-center gap-2 font-semibold"><KeyRound size={18} className="text-blue-700" aria-hidden="true" />Perbaiki Soal</h3>
+            <div className="grid items-end gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <label className="ui-label block"><span className="flex items-center gap-1.5"><ClipboardList size={16} className="text-blue-600" aria-hidden="true" />Pilih soal</span>
+                <Select aria-label="Pilih soal untuk diperbaiki" value={selected} className={fieldClass} onValueChange={e => { setSelected(Number(e)); setAction('ubah-kunci'); setPreview(null); }}>
                     <option value={0}>Pilih soal</option>
-                    {available.map(q => <option key={q.id} value={q.id}>{q.tipeSoal} · {q.pertanyaan.slice(0, 100)}</option>)}
+                    {available.map(q => <option key={q.id} value={q.id}>{'Soal ' + (questions.indexOf(q) + 1) + ' · ' + questionTypeLabel(q.tipeSoal) + ' · ' + q.pertanyaan.slice(0, 80)}</option>)}
                 </Select>
             </label>
+            {question && <label className="ui-label block"><span className="flex items-center gap-1.5"><SlidersHorizontal size={16} className="text-indigo-600" aria-hidden="true" />Tindakan</span>
+                <Select aria-label="Tindakan perbaikan soal" className={fieldClass} value={action} onValueChange={e => { setAction(e); setPreview(null); }}>
+                    <option value="ubah-kunci">Ubah kunci</option><option value="terima-semua">Terima semua jawaban</option>
+                    {question.tipeSoal === 'ISIAN' && <option value="tambah-jawaban">Tambah alternatif jawaban</option>}
+                    <option value="batalkan">Batalkan soal</option>
+                </Select>
+            </label>}
+            </div>
             {question && <>
-                <label className="ui-label block">Tindakan
-                    <Select className={fieldClass} value={action} onValueChange={e => { setAction(e); setPreview(null); }}>
-                        <option value="ubah-kunci">Ubah kunci</option>
-                        <option value="terima-semua">Terima semua jawaban</option>
-                        {question.tipeSoal === 'ISIAN' && <option value="tambah-jawaban">Tambah jawaban diterima</option>}
-                        <option value="batalkan">Batalkan soal</option>
-                    </Select>
+                <article className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <h4 className="flex flex-wrap items-center gap-3 font-semibold">Soal {questions.indexOf(question) + 1}<span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">{questionTypeLabel(question.tipeSoal)}</span></h4>
+                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed"><QuestionContent text={question.pertanyaan} image={question.isi?.gambar} /></div>
+                    {question.tipeSoal === 'PG' && <ol className="space-y-2">{question.isi?.items?.map((item, index) => <li key={index} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                        <span className="font-semibold text-slate-500">{String.fromCharCode(65 + index)}.</span><div className="min-w-0 break-words"><QuestionContent text={item.teks} image={item.gambar} /></div>
+                    </li>)}</ol>}
+                </article>
+                {(action === 'ubah-kunci' || action === 'tambah-jawaban') && <CorrectionKeyEditor key={question.id + ':' + action} question={question} append={action === 'tambah-jawaban'} onChange={() => setPreview(null)} />}
+                <label className="ui-label block rounded-xl border border-slate-200 bg-slate-50 p-4"><span className="flex items-center gap-1.5"><MessageSquare size={16} className="text-slate-500" aria-hidden="true" />Alasan perubahan</span>
+                    <textarea name="alasan" required maxLength={2000} rows={2} className={fieldClass} placeholder="Jelaskan alasan perbaikan…" onChange={() => setPreview(null)} />
                 </label>
-                {(action === 'ubah-kunci' || action === 'tambah-jawaban') && (question.tipeSoal === 'ISIAN'
-                    ? <label className="ui-label block">Jawaban diterima (satu per baris)<textarea name="jawaban" required className={fieldClass} onChange={() => setPreview(null)} /></label>
-                    : <fieldset key={question.id}>
-                        <legend>Kunci baru</legend>
-                        {question.isi?.items?.map((item, index) => <label className="ui-label block" key={index}>
-                            <Select name={'item-' + index} defaultValue={String(item.benar)} onValueChange={() => setPreview(null)} className="ui-input mr-2 rounded border">
-                                <option value="true">Benar</option><option value="false">Salah</option>
-                            </Select>{item.teks}
-                        </label>)}
-                    </fieldset>)}
-                <label className="ui-label block">Alasan<input name="alasan" required maxLength={2000} className={fieldClass} onChange={() => setPreview(null)} /></label>
-                <button type="submit" disabled={busy || queued} className={primaryClass}>Pratinjau Dampak</button>
-                {preview && <div className="space-y-2" role="status">
-                    <p>{preview.impact.naik} naik · {preview.impact.turun} turun · {preview.impact.tetap} tetap</p>
+                <button type="submit" disabled={busy || queued} className="ui-button ui-button-secondary border"><Eye size={17} aria-hidden="true" />Pratinjau Dampak</button>
+                {preview && <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50 p-4" role="status">
+                    <div className="flex flex-wrap gap-2 text-sm"><span className="rounded-lg bg-white px-3 py-2 text-emerald-700">{preview.impact.naik} naik</span><span className="rounded-lg bg-white px-3 py-2 text-amber-700">{preview.impact.turun} turun</span><span className="rounded-lg bg-white px-3 py-2 text-slate-600">{preview.impact.tetap} tetap</span></div>
                     <button type="button" disabled={busy || queued} className={primaryClass} onClick={() => {
                         if (!confirm('Terapkan perbaikan dan antrekan penilaian ulang?')) return;
                         void perform(async () => {
                             await api.post(url + '/perbaiki', { ...preview.payload, konfirmasi: true, revisi: preview.impact.revisi });
                             setPreview(null);
                         }, 'Penilaian ulang masuk antrean.');
-                    }}>Konfirmasi Perbaikan</button>
+                    }}><Check size={17} aria-hidden="true" />Konfirmasi Perbaikan</button>
                 </div>}
             </>}
+            </fieldset>
         </form>}
-        <details className="rounded-lg border p-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Riwayat perubahan</summary>
-            {data.history.map(item => <p key={item.id} className="mt-2 border-t pt-2">
-                {new Date(item.waktu).toLocaleString('id-ID')} · {item.jenis} · {item.status} · akun #{item.pelakuId}
-                {item.data?.baru !== undefined && ' · ' + (item.data.lama ?? '—') + ' → ' + item.data.baru}
-                {item.alasan && ' · ' + item.alasan}
-            </p>)}
-        </details>
     </section>;
 }

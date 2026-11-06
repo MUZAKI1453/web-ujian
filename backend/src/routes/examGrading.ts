@@ -23,6 +23,7 @@ export function grade(questions: Question[], raw: unknown, essay: unknown) {
     const answers = object(raw);
     const manual = object(essay);
     const types: Record<string, { benar: number; total: number; poin: number; maksimum: number }> = {};
+    const penilaian: Record<string, { benar: boolean; poin: string; maksimum: string }> = {};
     let auto = 0;
     let written = 0;
     let pending = 0;
@@ -60,6 +61,7 @@ export function grade(questions: Question[], raw: unknown, essay: unknown) {
             }
             if (correct) score = max;
             auto += score;
+            penilaian[key] = { benar: correct, poin: fixed(score), maksimum: fixed(max) };
         }
         if (score === max) stats.benar++;
         stats.poin += score;
@@ -68,7 +70,7 @@ export function grade(questions: Question[], raw: unknown, essay: unknown) {
         benar: value.benar, total: value.total, poin: fixed(value.poin), maksimum: fixed(value.maksimum)
     }]));
     return {
-        pending, rincian,
+        pending, rincian, penilaian,
         values: { nilaiPg: fixed(auto), nilaiEssay: fixed(written), totalNilai: ((auto + written) / 10000).toFixed(2), rincianNilai: rincian }
     };
 }
@@ -89,7 +91,7 @@ export function revise(questions: Question[], id: number, action: unknown, input
         const items = Array.isArray(isi.items) ? isi.items : [];
         if (!Array.isArray(input) || input.length !== items.length || !input.every(value => typeof value === 'boolean')) throw new Error('Isi kunci untuk setiap opsi atau pernyataan.');
         const count = input.filter(Boolean).length;
-        if ((question.tipeSoal === 'PG' && count !== 1) || (question.tipeSoal === 'PM' && count < 2)) throw new Error('PG membutuhkan satu kunci. PM membutuhkan minimal dua kunci.');
+        if ((question.tipeSoal === 'PG' && count !== 1) || (question.tipeSoal === 'PM' && count < 2)) throw new Error('Pilihan Ganda membutuhkan satu kunci. Pilihan Majemuk membutuhkan minimal dua kunci.');
         question.isi = { ...isi, items: items.map((item, index) => ({ ...object(item), benar: input[index] })) } as Prisma.JsonObject;
         question.semuaBenar = false;
     } else if (action === 'batalkan') {

@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createElement, Fragment } from 'react';
-import { nextOption, readOptions } from '../../frontend/src/components/ui/selectOptions';
+import { nextOption, optionScrollTop, readOptions } from '../../frontend/src/components/ui/selectOptions';
+
+test('dropdown navigation scrolls only the option list and leaves visible options in place', () => {
+    const viewport = { top: 300, bottom: 500 };
+    assert.equal(optionScrollTop(80, viewport, { top: 320, bottom: 364 }), 80);
+    assert.equal(optionScrollTop(80, viewport, { top: 300, bottom: 500 }), 80);
+    assert.equal(optionScrollTop(80, viewport, { top: 280, bottom: 324 }), 60);
+    assert.equal(optionScrollTop(80, viewport, { top: 480, bottom: 524 }), 104);
+    assert.equal(optionScrollTop(0, viewport, { top: 250, bottom: 294 }), 0);
+    // Moving the page or opening the menu above its trigger does not change the list's relative scroll.
+    assert.equal(optionScrollTop(80, { top: 100, bottom: 300 }, { top: 280, bottom: 324 }), 104);
+});
 
 test('custom dropdown preserves form values, conditional options, and disabled assignments', () => {
     const options = readOptions([

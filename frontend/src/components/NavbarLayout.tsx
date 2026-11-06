@@ -67,7 +67,7 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
     const teacherMenus = [
         { page: 'dashboard', label: 'Dasbor', icon: Layers },
         { page: 'guru-ujian', label: 'Ujian Saya', icon: ClipboardList },
-        { page: 'guru-mapel', label: 'Mata Pelajaran', icon: BookOpen }
+        { page: 'guru-mapel', label: 'Buat Draf Ujian', icon: SquarePen }
     ];
     const studentMenus = [
         { page: 'dashboard', label: 'Dasbor', icon: Layers },

@@ -151,7 +151,7 @@ export const createSiswa = async (req: Request, res: Response) => {
 
         const existing = await prisma.user.findUnique({ where: { username } });
         if (existing) {
-            return res.status(400).json({ status: 'WARNING', message: 'NIS sudah terdaftar!' });
+            return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
         }
 
         const hashedPassword = await bcrypt.hash(username, 10);
@@ -168,7 +168,12 @@ export const createSiswa = async (req: Request, res: Response) => {
 
         res.status(201).json({ status: 'SUCCESS', message: 'Siswa berhasil ditambahkan!', data: newSiswa });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        // Permintaan lain dapat memakai NIS ini setelah pemeriksaan di atas.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
+        }
+        console.error('Gagal menambahkan siswa:', error);
+        res.status(500).json({ status: 'ERROR', message: 'Gagal menambahkan siswa. Coba lagi.' });
     }
 };
 
@@ -196,7 +201,7 @@ export const updateSiswa = async (req: Request, res: Response) => {
             if (username !== existingSiswa.username) {
                 const duplicate = await prisma.user.findUnique({ where: { username } });
                 if (duplicate) {
-                    return res.status(400).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain!' });
+                    return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
                 }
             }
         }
@@ -213,7 +218,11 @@ export const updateSiswa = async (req: Request, res: Response) => {
 
         res.json({ status: 'SUCCESS', message: 'Data siswa berhasil diperbarui!', data: updatedSiswa });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
+        }
+        console.error('Gagal memperbarui siswa:', error);
+        res.status(500).json({ status: 'ERROR', message: 'Gagal memperbarui siswa. Coba lagi.' });
     }
 };
 

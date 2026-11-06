@@ -3,6 +3,8 @@ import { FormEvent, useState } from 'react';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
+import ModalOverlay from '../../components/ModalOverlay';
+import { Download, UploadCloud, X } from 'lucide-react';
 
 export default function ImportSoal({ examId, onClose, onImport }: {
     examId: number; onClose: () => void; onImport: (questions: Question[]) => void;
@@ -49,15 +51,19 @@ export default function ImportSoal({ examId, onClose, onImport }: {
     }
 
     return (
-        <section aria-labelledby="import-soal-title" className="ui-card max-w-2xl border bg-white p-5 sm:p-7">
-            <h2 id="import-soal-title" className="text-xl font-bold">Impor Soal Excel</h2>
+        <ModalOverlay label="Impor Soal Excel" onClose={() => { if (!saving && !downloading) onClose(); }}>
+        <section aria-labelledby="import-soal-title" className="ui-dialog-panel max-w-xl">
+            <div className="flex items-center justify-between gap-3">
+                <h2 id="import-soal-title" className="flex items-center gap-2 text-lg font-bold"><UploadCloud size={22} className="text-blue-600" aria-hidden="true" />Impor Soal Excel</h2>
+                <button type="button" disabled={saving || downloading} aria-label="Tutup impor soal" title="Tutup"
+                    className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-40" onClick={onClose}><X size={18} aria-hidden="true" /></button>
+            </div>
             <p className="mt-2 text-sm text-slate-600">
-                Template memuat contoh PG, PM, BS, ISIAN, dan ESSAY. Ganti isinya dengan soal Anda.
-                Mulai setiap blok dengan baris <strong>tipe</strong>, lalu tulis <strong>soal</strong> dan bagian lainnya di bawahnya.
+                Gunakan template lima tipe soal. Isi mulai baris 12 dan kosongkan sheet yang tidak digunakan.
             </p>
             <button type="button" disabled={downloading || saving} onClick={() => void download()}
-                className="ui-button ui-button-secondary my-4 border">
-                {downloading ? 'Mengunduh…' : 'Unduh Template Excel'}
+                className="ui-button ui-button-secondary my-4 w-full border">
+                <Download size={18} aria-hidden="true" />{downloading ? 'Mengunduh…' : 'Unduh Template Excel'}
             </button>
             <form onSubmit={submit} className="space-y-3">
                 <label className="ui-label block">File Excel (maksimal 5 MB)
@@ -65,10 +71,11 @@ export default function ImportSoal({ examId, onClose, onImport }: {
                 </label>
                 {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <div className="flex justify-end gap-3 border-t pt-3">
-                    <button type="button" disabled={saving} className="ui-button ui-button-secondary border" onClick={onClose}>Batal</button>
-                    <button type="submit" disabled={saving} className={primaryClass}>{saving ? 'Mengimpor…' : 'Impor Soal'}</button>
+                    <button type="button" disabled={saving || downloading} className="ui-button ui-button-secondary border" onClick={onClose}>Batal</button>
+                    <button type="submit" disabled={saving || downloading} className={primaryClass}>{saving ? 'Mengimpor…' : 'Impor Soal'}</button>
                 </div>
             </form>
         </section>
+        </ModalOverlay>
     );
 }

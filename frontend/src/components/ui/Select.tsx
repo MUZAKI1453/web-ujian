@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search } from 'lucide-react';
-import { nextOption, readOptions, type SelectOption } from './selectOptions';
+import { nextOption, optionScrollTop, readOptions, type SelectOption } from './selectOptions';
 
 type Props = {
     children: ReactNode; value?: string | number; defaultValue?: string | number;
@@ -21,12 +21,13 @@ export default function Select({ children, value, defaultValue, onValueChange, c
     const [active, setActive] = useState(-1);
     const [invalid, setInvalid] = useState(false);
     const [label, setLabel] = useState('Pilih opsi');
-    const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
+    const [position, setPosition] = useState<CSSProperties>({ position: 'fixed', visibility: 'hidden', top: 0, left: 0 });
     const root = useRef<HTMLSpanElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const sizer = useRef<HTMLSpanElement>(null);
     const native = useRef<HTMLSelectElement>(null);
     const popup = useRef<HTMLDivElement>(null);
+    const list = useRef<HTMLDivElement>(null);
     const search = useRef<HTMLInputElement>(null);
     const typeahead = useRef({ text: '', time: 0 });
     const listId = useId();
@@ -50,6 +51,7 @@ export default function Select({ children, value, defaultValue, onValueChange, c
 
     function show(direction = 1) {
         if (disabled || trigger.current?.matches(':disabled')) return;
+        setPosition({ position: 'fixed', visibility: 'hidden', top: 0, left: 0 });
         setQuery('');
         const index = options.findIndex(option => option.value === selectedValue && !option.disabled);
         const enabled = options.flatMap((option, i) => option.disabled ? [] : [i]);
@@ -63,7 +65,7 @@ export default function Select({ children, value, defaultValue, onValueChange, c
         setInvalid(false);
         onValueChange?.(option.value);
         setOpen(false);
-        trigger.current?.focus();
+        trigger.current?.focus({ preventScroll: true });
     }
 
     useEffect(() => {
@@ -112,7 +114,7 @@ export default function Select({ children, value, defaultValue, onValueChange, c
 
     useEffect(() => {
         if (!open) return;
-        if (searchable) search.current?.focus();
+        if (searchable) search.current?.focus({ preventScroll: true });
         const outside = (event: Event) => {
             if (!root.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) setOpen(false);
         };
@@ -121,13 +123,17 @@ export default function Select({ children, value, defaultValue, onValueChange, c
         return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('focusin', outside); };
     }, [open, searchable]);
 
-    useEffect(() => {
-        if (open && active >= 0) document.getElementById(listId + '-' + active)?.scrollIntoView({ block: 'nearest' });
-    }, [active, open, listId]);
+    useLayoutEffect(() => {
+        if (!open || active < 0 || !list.current) return;
+        const option = document.getElementById(listId + '-' + active);
+        if (!option || position.visibility === 'hidden') return;
+        const container = list.current;
+        container.scrollTop = optionScrollTop(container.scrollTop, container.getBoundingClientRect(), option.getBoundingClientRect());
+    }, [active, open, listId, position]);
 
     function keydown(event: KeyboardEvent<HTMLElement>) {
         if (event.key === 'Escape' && open) {
-            event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus(); return;
+            event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus({ preventScroll: true }); return;
         }
         if (event.key === 'Tab' && open) {
             setOpen(false);
@@ -194,7 +200,7 @@ export default function Select({ children, value, defaultValue, onValueChange, c
                     className="ui-input w-full pl-9" placeholder="Cari pilihan…" value={query}
                     onChange={event => { setQuery(event.target.value); setActive(-1); }} />
             </div>}
-            <div id={listId} role="listbox" aria-label={accessibleLabel} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+            <div ref={list} id={listId} role="listbox" aria-label={accessibleLabel} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
                 {!filtered.length && <p role="status" className="px-3 py-5 text-center text-sm text-slate-500">Pilihan tidak ditemukan.</p>}
                 {filtered.map((option, index) => <div key={option.value} id={listId + '-' + index} role="option"
                     aria-selected={option.value === selectedValue} aria-disabled={option.disabled || undefined}

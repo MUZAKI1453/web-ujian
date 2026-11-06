@@ -3,7 +3,7 @@ import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../../services/api';
 import AccountToolbar from '../../components/AccountToolbar';
 import AccountImportDialog from '../../components/AccountImportDialog';
@@ -37,6 +37,8 @@ export default function DataSiswa() {
     const [username, setUsername] = useState('');
     const [nama, setNama] = useState('');
     const [kelasId, setKelasId] = useState('');
+    const [saving, setSaving] = useState(false);
+    const submitPending = useRef(false);
 
     // State Modal Import
     const [showImportModal, setShowImportModal] = useState(false);
@@ -87,8 +89,9 @@ export default function DataSiswa() {
         setShowModal(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (submitPending.current) return;
 
         if (!kelasId) {
             setErrorMessage('Kelas siswa wajib dipilih!');
@@ -101,22 +104,22 @@ export default function DataSiswa() {
             kelasId: Number(kelasId)
         };
 
-        if (isEdit && selectedId !== null) {
-            api.put(`/admin/siswa/${selectedId}`, payload)
-                .then(() => {
-                    setShowModal(false);
-                    fetchData();
-                    setSuccessMessage('Data siswa berhasil diperbarui.');
-                })
-                .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal memperbarui siswa'));
-        } else {
-            api.post('/admin/siswa', payload)
-                .then(() => {
-                    setShowModal(false);
-                    fetchData();
-                    setSuccessMessage('Data siswa baru berhasil ditambahkan.');
-                })
-                .catch((err) => setErrorMessage(err.response?.data?.message || 'Gagal menambah siswa'));
+        submitPending.current = true;
+        setSaving(true);
+        try {
+            if (isEdit && selectedId !== null) {
+                await api.put(`/admin/siswa/${selectedId}`, payload);
+            } else {
+                await api.post('/admin/siswa', payload);
+            }
+            setShowModal(false);
+            fetchData();
+            setSuccessMessage(isEdit ? 'Data siswa berhasil diperbarui.' : 'Data siswa baru berhasil ditambahkan.');
+        } catch (err: any) {
+            setErrorMessage(err.response?.data?.message || (isEdit ? 'Gagal memperbarui siswa' : 'Gagal menambah siswa'));
+        } finally {
+            submitPending.current = false;
+            setSaving(false);
         }
     };
 
@@ -337,6 +340,7 @@ export default function DataSiswa() {
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
+                                    disabled={saving}
                                     onClick={() => setShowModal(false)}
                                     className="ui-button ui-button-secondary"
                                 >
@@ -344,9 +348,10 @@ export default function DataSiswa() {
                                 </button>
                                 <button
                                     type="submit"
+                                    disabled={saving}
                                     className="ui-button ui-button-primary"
                                 >
-                                    {isEdit ? 'Simpan Perubahan' : 'Simpan Siswa'}
+                                    {saving ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Simpan Siswa'}
                                 </button>
                             </div>
                         </form>

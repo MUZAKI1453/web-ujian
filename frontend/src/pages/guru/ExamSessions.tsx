@@ -1,8 +1,12 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { CalendarDays, ChevronDown, LockKeyhole, Monitor, Plus, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Square, UnlockKeyhole, X } from 'lucide-react';
+import Select from '../../components/ui/Select';
+import ModalOverlay from '../../components/ModalOverlay';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import { violationLabels } from '../siswa/useExamSecurity';
+import { participantStatus, sessionExpanded } from './sessionStatus';
 
 type Student = { id: number; nama: string | null; username: string };
 type Window = { token: string | null; masukBuka: boolean; waktuMulai: string; waktuSelesai: string };
@@ -14,19 +18,30 @@ type Sessions = Window & { kelas: { users: Student[] }; susulan: Makeup[]; penge
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 const formatted = (value: string) => date.format(new Date(value));
+const stateColors: Record<string, string> = {
+    Terjadwal: 'bg-slate-100 text-slate-600', Berlangsung: 'bg-blue-50 text-blue-700', Selesai: 'bg-emerald-50 text-emerald-700',
+    'Belum mulai': 'bg-slate-100 text-slate-600', Mengerjakan: 'bg-blue-50 text-blue-700',
+    'Sudah mengirim': 'bg-emerald-50 text-emerald-700', 'Waktu habis': 'bg-amber-50 text-amber-800'
+};
+const badge = (state: string) => <span className={'inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ' + stateColors[state]}>{state}</span>;
 
-export default function ExamSessions({ examId }: { examId: number }) {
+export default function ExamSessions({ examId, renderHeader }: { examId: number; renderHeader: (action?: ReactNode) => ReactNode }) {
     const [data, setData] = useState<Sessions | null>(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [making, setMaking] = useState(false);
     const [projection, setProjection] = useState<string | null>(null);
+    const [expanded, setExpanded] = useState<Record<string, { status: string; open: boolean }>>({});
+    const [searches, setSearches] = useState<Record<string, string>>({});
+    const [filters, setFilters] = useState<Record<string, string>>({});
+    const [now, setNow] = useState(Date.now);
+    const [makeupSearch, setMakeupSearch] = useState('');
+    const [chosen, setChosen] = useState<number[]>([]);
     const url = '/guru/ujian/' + examId;
     const refresh = useCallback(async (signal?: AbortSignal) => {
         const response = await api.get<Sessions>(url + '/sesi', { signal, timeout: 10000 });
-        if (!signal?.aborted) setData(response.data);
+        if (!signal?.aborted) { setData(response.data); setNow(Date.now()); }
     }, [url]);
-
     useEffect(() => {
         const controller = new AbortController();
         let next: ReturnType<typeof setTimeout>;
@@ -38,30 +53,35 @@ export default function ExamSessions({ examId }: { examId: number }) {
         void poll();
         return () => { controller.abort(); clearTimeout(next); };
     }, [refresh]);
-
+    useEffect(() => {
+        if (!data) return;
+        const current = Date.now();
+        const boundaries = [data, ...data.susulan].flatMap(session => [+new Date(session.waktuMulai), +new Date(session.waktuSelesai)]).filter(time => time > current);
+        if (!boundaries.length) return;
+        const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.min(...boundaries) - current + 10, 2147483647));
+        return () => clearTimeout(timer);
+    }, [data, now]);
     async function perform(action: () => Promise<unknown>) {
-        setBusy(true);
-        setError('');
+        setBusy(true); setError('');
         try { await action(); await refresh(); }
         catch (err) { setError(errorMessage(err)); }
         finally { setBusy(false); }
     }
-
     function makeup(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (busy) return;
         const form = new FormData(event.currentTarget);
+        const start = new Date(String(form.get('mulai')));
+        const end = new Date(String(form.get('selesai')));
+        if (!Number.isFinite(+start) || !Number.isFinite(+end) || +end <= +start) { setError('Waktu selesai harus setelah waktu mulai.'); return; }
+        const participants = form.getAll('peserta').map(Number);
+        if (!participants.length) { setError('Pilih minimal satu peserta.'); return; }
         void perform(async () => {
-            await api.post(url + '/susulan', {
-                waktuMulai: new Date(String(form.get('mulai'))).toISOString(),
-                waktuSelesai: new Date(String(form.get('selesai'))).toISOString(),
-                peserta: form.getAll('peserta').map(Number)
-            });
-            setMaking(false);
+            await api.post(url + '/susulan', { waktuMulai: start.toISOString(), waktuSelesai: end.toISOString(), peserta: participants });
+            setMaking(false); setChosen([]);
         });
     }
-
-    if (!data) return <p role={error ? 'alert' : 'status'}>{error || 'Memuat sesi ujian…'}</p>;
-    const now = Date.now();
+    if (!data) return <section className="space-y-4">{renderHeader()}<p role={error ? 'alert' : 'status'}>{error || 'Memuat sesi ujian…'}</p></section>;
     const attempts = new Map(data.pengerjaan.map(item => [item.siswaId, item]));
     const answers = new Map(data.jawaban.map(item => [item.siswaId, item]));
     const assigned = new Set(data.susulan.flatMap(item => item.peserta.map(p => p.siswaId)));
@@ -70,77 +90,105 @@ export default function ExamSessions({ examId }: { examId: number }) {
     data.jawaban.filter(item => attempts.get(item.siswaId)?.sesiSusulanId == null).forEach(item => regular.set(item.siswaId, item.siswa));
     const eligible = data.kelas.users.filter(item => !assigned.has(item.id) && !attempts.has(item.id) && !answers.has(item.id));
     const sessions = [
-        { ...data, key: 'reguler', title: 'Sesi reguler', id: null, students: [...regular.values()] },
-        ...data.susulan.map((item, index) => ({ ...item, key: String(item.id), title: 'Sesi susulan ' + (index + 1), students: item.peserta.map(p => p.siswa) }))
+        { ...data, key: 'reguler', title: 'Sesi Reguler', id: null, students: [...regular.values()] },
+        ...data.susulan.map((item, index) => ({ ...item, key: String(item.id), title: 'Sesi Susulan ' + (index + 1), students: item.peserta.map(p => p.siswa) }))
     ];
-
-    const projected = sessions.find(session => session.key === projection);
-    return <section className="space-y-4 rounded-xl border p-4">
-        {projected && <dialog ref={element => { if (element && !element.open) element.showModal(); }}
-            onCancel={event => { event.preventDefault(); setProjection(null); }}
-            className="w-[min(95vw,50rem)] rounded-2xl p-8 text-center backdrop:bg-slate-900/25" aria-label="Token ujian">
-            <p className="font-semibold">{projected.title}</p>
-            <p className="my-6 font-mono text-[clamp(2rem,12vw,7rem)] font-bold tracking-wider">{projected.token}</p>
-            <button type="button" className={primaryClass} onClick={() => setProjection(null)}>Tutup</button>
-        </dialog>}
-        <h2 className="font-semibold">Sesi dan pengerjaan</h2>
-        {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
+    const projected = sessions.find(item => item.key === projection);
+    return <section className="space-y-4">
+        {error && !making && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
+        {renderHeader(<button type="button" disabled={busy || !eligible.length} title={eligible.length ? 'Tambah sesi susulan' : 'Tidak ada peserta yang dapat ditambahkan ke sesi susulan'} className={primaryClass} onClick={() => { setError(''); setChosen([]); setMakeupSearch(''); setMaking(true); }}><Plus size={17} aria-hidden="true" />Sesi Susulan</button>)}
         {sessions.map(session => {
             const ongoing = +new Date(session.waktuSelesai) > now;
             const status = !ongoing ? 'Selesai' : +new Date(session.waktuMulai) > now ? 'Terjadwal' : 'Berlangsung';
-            const controls = (aksi: string, ask?: string) => {
+            const open = sessionExpanded(status, expanded[session.key]);
+            const search = searches[session.key] ?? '';
+            const filter = filters[session.key] ?? 'all';
+            const participants = session.students.map(student => {
+                const attempt = attempts.get(student.id);
+                const attemptHere = attempt?.sesiSusulanId === session.id ? attempt : undefined;
+                const answer = (attempt?.sesiSusulanId ?? null) === session.id ? answers.get(student.id) : undefined;
+                return { student, attempt: attemptHere, answer, state: participantStatus(attemptHere, !!answer, session.waktuSelesai, now),
+                    violations: (data.keamanan ?? []).filter(item => item.attemptId === attemptHere?.id) };
+            });
+            const keyword = search.trim().toLowerCase();
+            const visible = participants.filter(({ student, state }) => (filter === 'all' || state === filter) && ((student.nama ?? '') + ' ' + student.username).toLowerCase().includes(keyword));
+            function controls(action: string, ask?: string) {
                 if (ask && !confirm(ask)) return;
-                void perform(() => api.patch(url + '/sesi/' + session.key, { aksi }));
-            };
-            return <div key={session.key} className="space-y-2 rounded-xl bg-slate-50 p-4">
-                <h3 className="font-semibold">{session.title} · {status}</h3>
-                <p className="text-sm">{formatted(session.waktuMulai)} s.d. {formatted(session.waktuSelesai)}</p>
-                <p className="text-sm">Token <strong className="ml-1 font-mono text-xl tracking-widest">{session.token || '—'}</strong> · {session.masukBuka && ongoing ? 'Masuk dibuka' : 'Masuk ditutup'}</p>
-                {ongoing && <div className="flex flex-wrap gap-2 text-sm text-blue-700">
-                    {session.token && <button type="button" onClick={() => setProjection(session.key)}>Proyeksikan token</button>}
-                    <button type="button" disabled={busy} onClick={() => controls('ganti-token')}>Ganti token</button>
-                    <button type="button" disabled={busy} onClick={() => controls(session.masukBuka ? 'tutup' : 'buka')}>{session.masukBuka ? 'Tutup akses masuk' : 'Buka akses masuk'}</button>
-                    {status === 'Berlangsung' && <button type="button" disabled={busy} className="text-red-700"
-                        onClick={() => controls('akhiri', 'Akhiri sesi ini sekarang?')}>Akhiri sesi</button>}
+                void perform(() => api.patch(url + '/sesi/' + session.key, { aksi: action }));
+            }
+            return <details key={session.key} open={open} onToggle={event => {
+                const nextOpen = event.currentTarget.open;
+                setExpanded(current => current[session.key]?.status === status && current[session.key]?.open === nextOpen ? current : { ...current, [session.key]: { status, open: nextOpen } });
+            }} className="ui-card overflow-hidden bg-white">
+            <summary className="monitor-session-summary flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-5">
+                <div><h3 className="text-base font-semibold text-slate-900">{session.title}</h3><p className="mt-1 flex items-center gap-2 text-xs leading-relaxed text-slate-500"><CalendarDays size={15} className="shrink-0" aria-hidden="true" />{formatted(session.waktuMulai)} – {formatted(session.waktuSelesai)}</p></div>
+                <div className="flex flex-wrap gap-2">{badge(status)}<span className={'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ' + (session.masukBuka && ongoing ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500')}>
+                    {session.masukBuka && ongoing ? <UnlockKeyhole size={13} aria-hidden="true" /> : <LockKeyhole size={13} aria-hidden="true" />}{session.masukBuka && ongoing ? 'Akses terbuka' : 'Akses tertutup'}
+                </span><ChevronDown size={19} className={'self-center text-slate-500 transition-transform ' + (open ? 'rotate-180' : '')} aria-hidden="true" /></div>
+            </summary>
+            <div className="space-y-4 border-t border-slate-200 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div><p className="text-xs font-medium text-slate-500">Token ujian</p><strong className="mt-1 block font-mono text-3xl tracking-widest text-slate-900">{session.token || '—'}</strong></div>
+                {ongoing && <div className="flex flex-wrap gap-2">
+                    {session.token && <button type="button" className="ui-button ui-button-secondary bg-white" onClick={() => setProjection(session.key)}><Monitor size={16} aria-hidden="true" />Tampilkan Token</button>}
+                    <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={() => controls('ganti-token')}><RefreshCw size={16} aria-hidden="true" />Ganti Token</button>
+                    <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={() => controls(session.masukBuka ? 'tutup' : 'buka')}>
+                        {session.masukBuka ? <LockKeyhole size={16} aria-hidden="true" /> : <UnlockKeyhole size={16} aria-hidden="true" />}{session.masukBuka ? 'Tutup Akses' : 'Buka Akses'}
+                    </button>
+                    {status === 'Berlangsung' && <button type="button" disabled={busy} className="ui-button border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => controls('akhiri', 'Akhiri sesi ini sekarang?')}><Square size={15} aria-hidden="true" />Akhiri Sesi</button>}
                 </div>}
-                <details>
-                    <summary className="cursor-pointer text-sm font-semibold">{session.students.length} peserta</summary>
-                    <div className="overflow-x-auto">
-                        <table className="ui-table mt-2 w-full text-left text-sm">
-                            <thead><tr>{['Siswa', 'Status', 'Keamanan', 'Nilai tercatat', 'Aksi'].map(label => <th scope="col" className="p-2" key={label}>{label}</th>)}</tr></thead>
-                            <tbody>{session.students.map(student => {
-                                const attempt = attempts.get(student.id);
-                                const attemptHere = attempt?.sesiSusulanId === session.id ? attempt : undefined;
-                                const violations = (data.keamanan ?? []).filter(row => row.attemptId === attemptHere?.id);
-                                const answer = (attempt?.sesiSusulanId ?? null) === session.id ? answers.get(student.id) : undefined;
-                                const state = attemptHere?.waktuKirim || answer ? 'Sudah mengirim' : attemptHere
-                                    ? Math.min(+new Date(attemptHere.batasWaktu), +new Date(session.waktuSelesai)) <= now ? 'Waktu habis' : 'Mengerjakan'
-                                    : 'Belum mulai';
-                                return <tr key={student.id} className="border-t">
-                                    <td className="p-2">{student.nama || student.username}</td><td className="p-2">{state}</td>
-                                    <td className="p-2">{violations.length ? <details className="min-w-40 text-amber-800"><summary className="cursor-pointer font-semibold">{violations.length}/3 pelanggaran</summary><ul className="mt-2 space-y-2 text-xs">{violations.map(row => <li key={row.id}>{violationLabels[row.reason] || row.reason}<span className="block text-slate-500">{formatted(row.waktu)}</span></li>)}</ul></details> : <span className="text-slate-500">{attemptHere ? '0/3' : '—'}</span>}</td>
-                                    <td className="p-2">{answer?.totalNilai ?? '—'}</td>
-                                    <td className="p-2">{(attemptHere || answer) && <button type="button" disabled={busy} className="text-red-700"
-                                        onClick={() => { if (confirm('Reset pengerjaan dan hapus jawaban peserta ini?')) void perform(() => api.delete(url + '/pengerjaan/' + student.id)); }}>Reset</button>}</td>
-                                </tr>;
-                            })}</tbody>
-                        </table>
-                    </div>
-                </details>
-            </div>;
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {[['Peserta', participants.length], ['Mengerjakan', participants.filter(item => item.state === 'Mengerjakan').length], ['Sudah mengirim', participants.filter(item => item.state === 'Sudah mengirim').length], ['Belum mulai', participants.filter(item => item.state === 'Belum mulai').length]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 p-3"><p className="text-xs text-slate-500">{label}</p><strong className="mt-1 block text-xl text-slate-900">{value}</strong></div>)}
+            </div>
+        <section className="ui-card overflow-hidden bg-white" aria-label="Daftar peserta sesi">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-slate-900">Daftar Peserta <span className="ml-1 text-xs font-normal text-slate-500">{visible.length}/{participants.length}</span></h3>
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                    <div className="relative min-w-0 flex-1 sm:w-60"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input type="search" value={search} aria-label={'Cari peserta ' + session.title} placeholder="Cari nama atau NIS…" onChange={event => setSearches(current => ({ ...current, [session.key]: event.target.value }))} className="ui-input w-full pl-9" /></div>
+                    <Select aria-label={'Filter status peserta ' + session.title} value={filter} onValueChange={value => setFilters(current => ({ ...current, [session.key]: value }))}><option value="all">Semua status</option>{['Belum mulai', 'Mengerjakan', 'Sudah mengirim', 'Waktu habis'].map(state => <option key={state}>{state}</option>)}</Select>
+                </div>
+            </div>
+            {!visible.length ? <p className="p-8 text-center text-sm text-slate-500">{participants.length ? 'Tidak ada peserta yang cocok.' : 'Belum ada peserta di sesi ini.'}</p> : <div className="overflow-x-auto">
+                <table className="ui-table"><thead><tr>{['Siswa', 'Status', 'Keamanan', 'Nilai', 'Aksi'].map(label => <th key={label} scope="col" className="whitespace-nowrap">{label}</th>)}</tr></thead>
+                    <tbody>{visible.map(({ student, attempt, answer, state, violations }) => <tr key={student.id}>
+                        <td><span className="block font-semibold text-slate-800">{student.nama || student.username}</span><span className="text-xs text-slate-500">NIS {student.username}</span></td><td>{badge(state)}</td>
+                        <td>{violations.length ? <details className="group min-w-36">
+                            <summary className="monitor-session-summary flex min-h-10 cursor-pointer list-none items-center gap-2 text-amber-800"><ShieldAlert size={16} aria-hidden="true" /><span className="text-xs font-semibold">{violations.length}/3 pelanggaran</span><ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
+                            <ul className="mt-2 space-y-2 rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs">{violations.map(item => <li key={item.id}>{violationLabels[item.reason] || item.reason}<span className="mt-1 block text-slate-500">{formatted(item.waktu)}</span></li>)}</ul>
+                        </details> : <span className="text-xs text-slate-500">{attempt ? '0/3 pelanggaran' : '—'}</span>}</td>
+                        <td className="font-semibold tabular-nums">{answer ? Number(answer.totalNilai) : '—'}</td>
+                        <td>{(attempt || answer) && <button type="button" disabled={busy} title="Reset pengerjaan" aria-label={'Reset pengerjaan ' + (student.nama || student.username)} className="grid size-10 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40" onClick={() => {
+                            if (confirm('Reset pengerjaan dan hapus jawaban peserta ini?')) void perform(() => api.delete(url + '/pengerjaan/' + student.id));
+                        }}><RotateCcw size={17} aria-hidden="true" /></button>}</td>
+                    </tr>)}</tbody>
+                </table>
+            </div>}
+        </section>
+            </div>
+        </details>;
         })}
-        <button type="button" disabled={busy || !eligible.length} className={primaryClass} onClick={() => setMaking(value => !value)}>{making ? 'Tutup Form Susulan' : 'Tambah Sesi Susulan'}</button>
-        {!eligible.length && <p className="text-sm text-slate-600">Belum ada peserta yang bisa ditambahkan ke sesi susulan.</p>}
-        {making && <form onSubmit={makeup} className="space-y-3 rounded-xl border p-4">
-            <label className="ui-label block">Mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label>
-            <label className="ui-label block">Selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label>
-            <fieldset className="max-h-40 space-y-1 overflow-auto">
-                <legend className="text-sm font-semibold">Pilih peserta</legend>
-                {eligible.map(student => <label key={student.id} className="ui-label block">
-                    <input type="checkbox" name="peserta" value={student.id} /> {student.nama || student.username} · {student.username}
-                </label>)}
-            </fieldset>
-            <button type="submit" disabled={busy} className={primaryClass}>Simpan Sesi Susulan</button>
-        </form>}
+        {projected && <dialog ref={element => { if (element && !element.open) element.showModal(); }} onCancel={event => { event.preventDefault(); setProjection(null); }} className="w-[min(95vw,50rem)] rounded-2xl p-6 text-center text-slate-800 backdrop:bg-slate-900/50 sm:p-8" aria-label="Token ujian">
+            <div className="flex items-center justify-between gap-3"><p className="font-semibold">{projected.title}</p><button type="button" onClick={() => setProjection(null)} className="grid size-10 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup token"><X size={20} aria-hidden="true" /></button></div>
+            <p className="my-8 break-all font-mono text-[clamp(2rem,12vw,7rem)] font-bold tracking-wider text-blue-800">{projected.token}</p>
+        </dialog>}
+        {making && <ModalOverlay label="Tambah Sesi Susulan" onClose={() => { if (!busy) setMaking(false); }}>
+            <section className="ui-dialog-panel max-w-2xl space-y-5">
+                <div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 text-lg font-bold"><CalendarDays size={20} className="text-blue-700" aria-hidden="true" />Sesi Susulan</h3><button type="button" disabled={busy} onClick={() => setMaking(false)} className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup form sesi susulan"><X size={18} aria-hidden="true" /></button></div>
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
+                <form onSubmit={makeup} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2"><label className="ui-label">Mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label><label className="ui-label">Selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label></div>
+                    <fieldset className="space-y-3"><legend className="mb-2 text-sm font-semibold">Peserta <span className="font-normal text-slate-500">· {chosen.filter(id => eligible.some(student => student.id === id)).length} dipilih</span></legend>
+                        <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input type="search" value={makeupSearch} onChange={event => setMakeupSearch(event.target.value)} className="ui-input w-full pl-9" aria-label="Cari peserta susulan" placeholder="Cari nama atau NIS…" /></div>
+                        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">{eligible.map(student => <label key={student.id} className={(((student.nama ?? '') + ' ' + student.username).toLowerCase().includes(makeupSearch.trim().toLowerCase()) ? 'flex ' : 'hidden ') + 'cursor-pointer items-center gap-3 rounded-xl border p-3 ' + (chosen.includes(student.id) ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+                            <input type="checkbox" name="peserta" value={student.id} checked={chosen.includes(student.id)} className="size-5 accent-blue-600" onChange={event => setChosen(current => event.target.checked ? [...current, student.id] : current.filter(id => id !== student.id))} />
+                            <span className="min-w-0"><span className="block text-sm font-semibold">{student.nama || student.username}</span><span className="text-xs text-slate-500">NIS {student.username}</span></span>
+                        </label>)}
+                        {!eligible.some(student => ((student.nama ?? '') + ' ' + student.username).toLowerCase().includes(makeupSearch.trim().toLowerCase())) && <p className="py-5 text-center text-sm text-slate-500">Tidak ada peserta yang cocok.</p>}</div>
+                    </fieldset>
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" className="ui-button ui-button-secondary" onClick={() => setMaking(false)}>Batal</button><button type="submit" disabled={!eligible.some(student => chosen.includes(student.id))} className={primaryClass}><Save size={17} aria-hidden="true" />{busy ? 'Menyimpan…' : 'Simpan Sesi'}</button></div>
+                </fieldset></form>
+            </section>
+        </ModalOverlay>}
     </section>;
 }

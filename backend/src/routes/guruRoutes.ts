@@ -5,7 +5,8 @@ import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { requireUser } from '../middleware/auth';
 import { uploadExcel } from '../middleware/upload';
-import { questionTemplate, readQuestionWorkbook } from './questionWorkbook';
+import { questionTemplate, questionTypeLabels, readQuestionWorkbook } from './questionWorkbook';
+import { readNavbarSettings } from '../controllers/navbarController';
 import { calculatePoints } from './examPoints';
 import { essayLimit, grade, object, revise } from './examGrading';
 import { examClassIds, parseClassIds } from './examClasses';
@@ -176,7 +177,8 @@ function parseQuestion(input: unknown) {
 }
 
 router.get('/soal/template', handle(async (_req, res) => {
-    res.attachment('template-soal.xlsx').send(await questionTemplate());
+    const settings = await readNavbarSettings();
+    res.attachment('template-soal.xlsx').send(await questionTemplate(settings?.logo));
 }));
 
 router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
@@ -257,10 +259,10 @@ router.post('/ujian/:id/soal/import', (req, res, next) => {
         return res.status(400).json({ message: error instanceof Error ? error.message : 'Format Excel tidak valid.' });
     }
     const records: Prisma.SoalCreateManyInput[] = [];
-    for (const { row, question } of rows) {
+    for (const { row, sheet, question } of rows) {
         const data = parseQuestion(question);
         if (!data) {
-            return res.status(400).json({ message: 'Blok mulai baris ' + row + ' (' + question.tipeSoal + ') belum lengkap. Periksa soal, opsi, kunci, jawaban, atau poin.' });
+            return res.status(400).json({ message: (sheet ? 'Sheet ' + sheet + ', baris ' : 'Blok mulai baris ') + row + ' (' + questionTypeLabels[question.tipeSoal] + ') belum lengkap. Periksa soal, opsi, kunci, jawaban, atau poin.' });
         }
         records.push({ ujianId: id, ...data });
     }
@@ -342,7 +344,11 @@ router.post('/ujian/:id/terbit', handle(async (req, res, actor) => {
             return { status: 409, message: 'Soal atau poin berubah. Buat pratinjau poin lagi.' };
         }
         for (const row of plan.rows) {
-            await tx.soal.update({ where: { id: row.id }, data: { bobot: row.poin } });
+            const original = exam.soal.find(question => question.id === row.id)!;
+            await tx.soal.update({ where: { id: row.id }, data: {
+                bobot: row.poin,
+                ...(original.tipeSoal === 'ESSAY' ? { isi: { ...object(original.isi), poinEssay: essayLimit(original) } as Prisma.InputJsonObject } : {})
+            } });
         }
         const updated = await tx.ujian.update({
             where: { id }, data: { draf: false, token: makeToken(), poinKhusus: plan.special },
@@ -566,7 +572,7 @@ router.get('/ujian/:id/rekap', handle(async (req, res, actor) => {
         rows: exam.jawaban.map(row => {
             const result = grade(exam.soal, row.detailJawaban, row.koreksiEssay);
             return {
-                id: row.id, siswa: row.siswa, nilai: result.values.totalNilai, pending: result.pending, rincian: result.rincian, jawaban: object(row.detailJawaban),
+                id: row.id, siswa: row.siswa, nilai: result.values.totalNilai, pending: result.pending, rincian: result.rincian, penilaian: result.penilaian, jawaban: object(row.detailJawaban),
                 essay: exam.soal.filter(q => q.tipeSoal === 'ESSAY' && !q.dibatalkan).map(q => ({
                     id: q.id, soal: q.pertanyaan, pedoman: object(q.isi).pedoman, maksimum: essayLimit(q),
                     jawaban: object(row.detailJawaban)[q.id] ?? '', nilai: object(row.koreksiEssay)[q.id] ?? null,

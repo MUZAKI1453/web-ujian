@@ -24,13 +24,26 @@ export function calculatePoints(
         const points = source === 'Essay' ? units(question.bobot) : value === undefined ? 0 : units(value);
         return { id: question.id, tipeSoal: question.tipeSoal, source, units: points };
     });
-    const distributed = rows.filter(row => row.source === 'Bagi rata');
-    const remaining = 1000000 - rows.reduce((sum, row) => sum + row.units, 0);
-    if (distributed.length ? remaining < distributed.length : remaining !== 0) {
-        throw new Error(distributed.length ? 'Sisakan poin positif untuk setiap soal bagi rata.' : 'Total poin terkunci harus tepat 100.');
+    if (questions.every(question => question.tipeSoal === 'ESSAY')) {
+        if (rows.some(row => !Number.isSafeInteger(row.units) || row.units <= 0)) throw new Error('Poin maksimum esai harus lebih dari 0.');
+        const total = rows.reduce((sum, row) => sum + row.units, 0);
+        const shares = rows.map((row, index) => {
+            const exact = row.units * 1000000 / total;
+            const allocated = Math.floor(exact);
+            return { row, index, allocated, remainder: exact - allocated };
+        });
+        const remaining = 1000000 - shares.reduce((sum, share) => sum + share.allocated, 0);
+        shares.sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+        shares.forEach((share, index) => { share.row.units = share.allocated + (index < remaining ? 1 : 0); });
+    } else {
+        const distributed = rows.filter(row => row.source === 'Bagi rata');
+        const remaining = 1000000 - rows.reduce((sum, row) => sum + row.units, 0);
+        if (distributed.length ? remaining < distributed.length : remaining !== 0) {
+            throw new Error(distributed.length ? 'Sisakan poin positif untuk setiap soal bagi rata.' : 'Total poin terkunci harus tepat 100.');
+        }
+        distributed.forEach((row, index) => {
+            row.units = Math.floor(remaining / distributed.length) + (index < remaining % distributed.length ? 1 : 0);
+        });
     }
-    distributed.forEach((row, index) => {
-        row.units = Math.floor(remaining / distributed.length) + (index < remaining % distributed.length ? 1 : 0);
-    });
     return { special, rows: rows.map(row => ({ id: row.id, tipeSoal: row.tipeSoal, source: row.source, poin: (row.units / 10000).toFixed(4) })) };
 }
