@@ -19,6 +19,11 @@ type Question = {
 };
 
 const optionHeaders = ['Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban'];
+const optionKeys = ['A', 'B', 'C', 'D', 'E'];
+const multipleKeys = Array.from({ length: 31 }, (_, index) => optionKeys.filter((_, bit) => (index + 1) & (1 << bit)))
+    .filter(keys => keys.length >= 2)
+    .map(keys => keys.join(','))
+    .sort((a, b) => a.length - b.length || a.localeCompare(b));
 const formats: Record<Kind, { columns: string[]; example: (string | number)[]; guide: string }> = {
     PG: { columns: optionHeaders, example: ['Berapakah hasil 2 + 3?', '5', '6', '7', '8', '', 'A'], guide: 'Isi minimal dua opsi dan satu huruf kunci, contoh: A. Opsi yang tidak digunakan boleh kosong.' },
     PM: { columns: optionHeaders, example: ['Pilih semua bilangan genap.', '2', '3', '4', '5', '', 'A,C'], guide: 'Isi minimal dua kunci, dipisahkan koma, contoh: A,C. Opsi yang tidak digunakan boleh kosong.' },
@@ -36,7 +41,7 @@ export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
         const format = formats[type];
         const columns = ['No', 'Pertanyaan', ...format.columns];
         const sheet = workbook.addWorksheet(questionTypeLabels[type], {
-            views: [{ state: 'frozen', xSplit: 3, ySplit: 11, showGridLines: false }],
+            views: [{ state: 'normal', showGridLines: false }],
             pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
         });
         const last = columns.length + 1;
@@ -61,7 +66,7 @@ export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
         if (image !== undefined) sheet.addImage(image, { tl: { col: 1.1, row: 0.1 }, ext: { width: 80, height: 80 } });
         banner(6, 'PETUNJUK PENGISIAN', 10, 'C00000');
         const guides = [
-            '1. Satu soal per baris, mulai baris 12. Ganti atau hapus contoh; kosongkan sheet yang tidak digunakan.',
+            '1. Satu soal per baris, mulai baris 12. Nomor boleh kosong. Isi hanya sheet yang digunakan.',
             '2. ' + format.guide,
             '3. Pertahankan nama sheet dan judul kolom pada baris 11. Semua sheet yang berisi soal akan diimpor.'
         ];
@@ -71,11 +76,18 @@ export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
             sheet.getCell(7 + i, 2).font = { name: 'Arial', size: 10, italic: true, color: { argb: '444444' } };
             sheet.getRow(7 + i).height = 30;
         });
+        const example = ['Pertanyaan', ...format.columns].flatMap((label, i) => {
+            const value = format.example[i];
+            return value === undefined || value === '' ? [] : [`${label}: ${value}`];
+        });
+        banner(10, 'Contoh: ' + example.join('  |  '), 10, '1F4E78');
+        sheet.getCell('B10').alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        sheet.getRow(10).height = 36;
         sheet.addTable({ name: 'Soal_' + type, ref: 'B11', headerRow: true, style: { theme: 'TableStyleMedium2', showRowStripes: true },
-            columns: columns.map(name => ({ name, filterButton: true })), rows: [[1, ...format.example, ...Array(columns.length - format.example.length - 1).fill('')]] });
+            columns: columns.map(name => ({ name, filterButton: false })), rows: Array.from({ length: 20 }, () => columns.map(() => null)) });
         sheet.getRow(11).height = 32;
         for (let row = 11; row <= 12; row++) {
-            sheet.getRow(row).height = row === 11 ? 32 : 64;
+            sheet.getRow(row).height = 32;
             for (let col = 2; col <= last; col++) {
                 const cell = sheet.getCell(row, col);
                 cell.font = { name: 'Arial', size: 10, bold: row === 11, color: { argb: row === 11 ? 'FFFFFF' : '000000' } };
@@ -84,6 +96,34 @@ export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
                 if (row === 11) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primary } };
             }
         }
+        const dropdown = (choices: string[], prompt: string): ExcelJS.DataValidation => ({
+            type: 'list', formulae: [`"${choices.join(',')}"`], allowBlank: true,
+            showInputMessage: true, promptTitle: 'Pilihan yang tersedia', prompt,
+            showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Pilihan tidak valid', error: 'Pilih salah satu nilai dari daftar.'
+        });
+        const validation = (label: string): ExcelJS.DataValidation | undefined => {
+            if (label === 'Kunci Jawaban' && type === 'PG') return dropdown(optionKeys, 'Pilih satu huruf dari opsi yang terisi.');
+            // Excel uses commas to separate list entries, so combinations are stored in cells.
+            if (label === 'Kunci Jawaban' && type === 'PM') return {
+                ...dropdown([], 'Pilih kombinasi minimal dua opsi yang terisi.'), formulae: [`$${sheet.getColumn(last + 1).letter}$1:$${sheet.getColumn(last + 1).letter}$${multipleKeys.length}`]
+            };
+            if (type === 'BS' && label.startsWith('Kunci ')) return dropdown(['Benar', 'Salah'], 'Pilih kunci untuk pernyataan di sebelah kiri.');
+            if (label === 'Isian Angka') return dropdown(['Ya', 'Tidak'], 'Pilih Ya jika jawaban dinilai sebagai angka.');
+            if (label === 'Poin Maksimum') return {
+                type: 'whole', operator: 'between', formulae: [1, 100], allowBlank: true,
+                showInputMessage: true, promptTitle: 'Poin maksimum', prompt: 'Masukkan bilangan bulat 1–100.',
+                showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Poin tidak valid', error: 'Masukkan bilangan bulat 1–100.'
+            };
+        };
+        if (type === 'PM') {
+            sheet.getColumn(last + 1).hidden = true;
+            multipleKeys.forEach((key, index) => { sheet.getCell(index + 1, last + 1).value = key; });
+        }
+        columns.forEach((label, index) => {
+            const rule = validation(label);
+            if (!rule) return;
+            for (let row = 12; row <= 511; row++) sheet.getCell(row, index + 2).dataValidation = rule;
+        });
         sheet.pageSetup.printTitlesRow = '1:11';
     }
     return Buffer.from(await workbook.xlsx.writeBuffer());
@@ -98,6 +138,10 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
         const range = { s: { r: 0, c: 0 }, e: XLSX.utils.decode_range(sheet['!ref'] ?? 'A1').e };
         const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, range, raw: false, blankrows: true, defval: '' });
         const expected = ['No', 'Pertanyaan', ...formats[type].columns];
+        // The optional helper column contains only the dropdown choices for Pilihan Majemuk.
+        if (type === 'PM' && multipleKeys.every((key, i) => rows[i]?.[expected.length + 1] === key)) {
+            multipleKeys.forEach((_, i) => { rows[i][expected.length + 1] = ''; });
+        }
         const headers = (rows[10] ?? []).slice(1).map(value => value.trim());
         if (expected.some((value, i) => headers[i] !== value) || headers.slice(expected.length).some(Boolean)) {
             throw new Error('Sheet ' + name + ': pertahankan judul kolom pada baris 11 sesuai template.');

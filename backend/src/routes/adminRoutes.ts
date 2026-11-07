@@ -36,9 +36,11 @@ import { requireAdmin, requireUser } from '../middleware/auth';
 import { downloadTemplate, importUsers } from '../controllers/adminImportController';
 import { monitorUjian } from '../controllers/monitoringController';
 import { updateNavbar } from '../controllers/navbarController';
+import jenisUjianRoutes from './jenisUjianRoutes';
 
 const router = Router();
 router.use(requireUser, requireAdmin);
+router.use('/jenis-ujian', jenisUjianRoutes);
 router.get('/ujian', monitorUjian);
 
 // Dashboard

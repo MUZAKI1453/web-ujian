@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Download, UploadCloud } from 'lucide-react';
 import ModalOverlay from './ModalOverlay';
 import { downloadImportTemplate } from '../services/downloadImportTemplate';
@@ -8,6 +8,16 @@ export default function AccountImportDialog({ role, onClose, onSubmit, onFileCha
     onSubmit: (event: FormEvent<HTMLFormElement>) => void; onFileChange: (file: File | null) => void;
 }) {
     const label = role === 'siswa' ? 'Siswa' : 'Guru';
+    const [downloadError, setDownloadError] = useState('');
+    const [downloading, setDownloading] = useState(false);
+
+    async function download() {
+        setDownloadError('');
+        setDownloading(true);
+        try { await downloadImportTemplate(role); }
+        catch { setDownloadError('Gagal mengunduh template. Coba lagi.'); }
+        finally { setDownloading(false); }
+    }
     return <ModalOverlay label={'Import Data ' + label} onClose={onClose}>
         <section className="ui-dialog-panel max-w-lg space-y-5" aria-labelledby={'import-' + role + '-title'}>
             <h2 id={'import-' + role + '-title'} className="flex items-center gap-2 text-lg font-bold">
@@ -21,9 +31,10 @@ export default function AccountImportDialog({ role, onClose, onSubmit, onFileCha
                     <li>Tulis {role === 'siswa' ? 'NIS' : 'NIP'} sebagai teks agar nol di depan tetap tersimpan.{role === 'siswa' ? ' Gunakan nama kelas yang sudah terdaftar.' : ''}</li>
                 </ul>
             </div>
-            <button type="button" onClick={() => void downloadImportTemplate(role)} className="ui-button ui-button-secondary w-full">
-                <Download size={18} aria-hidden="true" />Unduh Template {label}
+            <button type="button" disabled={downloading} onClick={() => void download()} className="ui-button ui-button-secondary w-full">
+                <Download size={18} aria-hidden="true" />{downloading ? 'Mengunduh…' : `Unduh Template ${label}`}
             </button>
+            {downloadError && <p role="alert" className="ui-notice ui-notice-error">{downloadError}</p>}
             <form onSubmit={onSubmit} className="space-y-4 border-t border-slate-100 pt-4">
                 <label className="ui-label">Pilih file yang sudah diisi (.xlsx / .xls)
                     <input type="file" accept=".xlsx,.xls" required onChange={event => onFileChange(event.target.files?.[0] ?? null)}

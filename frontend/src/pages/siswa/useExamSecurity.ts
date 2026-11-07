@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { LocalAttempt, SecurityEvent } from './attemptStore';
 
 export const violationLabels: Record<SecurityEvent['reason'], string> = {
-    'tab-hidden': 'Meninggalkan tab atau menyembunyikan halaman ujian',
+    'tab-hidden': 'Tab ujian ditinggalkan',
     'window-blur': 'Berpindah aplikasi atau jendela',
-    'fullscreen-exit': 'Keluar dari mode layar penuh',
-    'split-screen': 'Ukuran layar menunjukkan mode jendela atau split screen'
+    'fullscreen-exit': 'Keluar dari layar penuh',
+    'split-screen': 'Terdeteksi mode jendela atau split screen'
 };
 
 export default function useExamSecurity(current: MutableRefObject<LocalAttempt>, update: (attempt: LocalAttempt) => void, finished: boolean, prepared = false) {

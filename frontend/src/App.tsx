@@ -6,10 +6,12 @@ import DataKelas from './pages/admin/DataKelas';
 import DataSiswa from './pages/admin/DataSiswa';
 import DataGuru from './pages/admin/DataGuru';
 import DataMapel from './pages/admin/DataMapel';
+import DataJenisUjian from './pages/admin/DataJenisUjian';
 import MonitoringUjian from './pages/admin/MonitoringUjian';
 import { defaultNavbar, navbarLogos, type NavbarSettings } from './pages/admin/PengaturanNavbar';
 import api from './services/api';
 import Pengaturan from './pages/Pengaturan';
+import AnalitikUjian from './pages/guru/AnalitikUjian';
 import UjianGuru from './pages/guru/UjianGuru';
 import BerandaSiswa from './pages/siswa/BerandaSiswa';
 import type { ViewRole } from './components/NavbarLayout';
@@ -18,6 +20,7 @@ interface User {
     username: string;
     nama: string;
     role: string;
+    kelas?: string | null;
 }
 
 export default function App() {
@@ -62,7 +65,7 @@ export default function App() {
         setPage('dashboard');
     };
     const navigate = (nextPage: string) => {
-        if (['kelas', 'siswa', 'guru', 'mapel', 'monitoring'].includes(nextPage)) setPreviewRole('admin');
+        if (['kelas', 'siswa', 'guru', 'mapel', 'jenis-ujian', 'monitoring'].includes(nextPage)) setPreviewRole('admin');
         setPage(nextPage);
         setTeacherNavigationKey(current => current + 1);
     };
@@ -73,6 +76,7 @@ export default function App() {
         siswa: <DataSiswa />,
         guru: <DataGuru />,
         mapel: <DataMapel />,
+        'jenis-ujian': <DataJenisUjian />,
         monitoring: <MonitoringUjian />,
     };
 
@@ -87,11 +91,12 @@ export default function App() {
             activePage={page}
             onNavigate={navigate}
         >
-            {page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
-                <UjianGuru key={teacherNavigationKey} name={user.nama || user.username} view={page === 'guru-ujian' ? 'ujian' : page === 'guru-mapel' ? 'mapel' : 'dashboard'} onNavigate={navigate} />
-            ) : viewRole === 'siswa' && ['dashboard', 'siswa-ujian', 'siswa-riwayat'].includes(page) ? (
-                <BerandaSiswa name={user.nama || user.username} username={user.username} adminMode={user.role === 'admin'}
-                    view={page === 'siswa-ujian' ? 'ujian' : page === 'siswa-riwayat' ? 'riwayat' : 'dashboard'}
+            {page === 'guru-analitik' && viewRole === 'guru' ? <AnalitikUjian />
+                : page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
+                <UjianGuru key={teacherNavigationKey} view={page === 'guru-ujian' ? 'ujian' : page === 'guru-mapel' ? 'mapel' : 'dashboard'} onNavigate={navigate} />
+            ) : viewRole === 'siswa' && ['dashboard', 'siswa-ujian', 'siswa-hasil'].includes(page) ? (
+                <BerandaSiswa username={user.username} adminMode={user.role === 'admin'}
+                    view={page === 'siswa-hasil' ? 'hasil' : page === 'siswa-ujian' ? 'ujian' : 'dashboard'}
                     navigationKey={teacherNavigationKey} onNavigate={navigate} />
             ) : (
                 <div className="ui-card bg-white p-6">

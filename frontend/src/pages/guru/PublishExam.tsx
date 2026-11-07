@@ -1,3 +1,4 @@
+import { useConfirmation } from '../../components/ConfirmationProvider';
 import { primaryClass } from '../../components/ui/styles';
 import { useState } from 'react';
 import api from '../../services/api';
@@ -15,6 +16,7 @@ export default function PublishExam({ examId, settings, questions, onSettingsCha
     examId: number; settings: PointSettings; questions: Question[];
     onSettingsChange: (settings: PointSettings) => void; onPublish: (questions: Question[]) => void;
 }) {
+    const askConfirmation = useConfirmation();
     const [rows, setRows] = useState<PointRow[]>([]);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ export default function PublishExam({ examId, settings, questions, onSettingsCha
         setError('');
     }
     async function calculate(publish: boolean) {
-        if (publish && !confirm('Terbitkan ujian dan bekukan daftar soal serta poin?')) return;
+        if (publish && !await askConfirmation({ title: 'Terbitkan ujian?', message: 'Daftar soal dan poin akan dikunci setelah ujian terbit.', confirmLabel: 'Terbitkan', tone: 'warning' })) return;
         setError('');
         setBusy(true);
         const poinKhusus = Object.fromEntries(Object.entries(settings).filter(([, value]) => value !== undefined).map(([key, value]) => [key, Number(value)]));
@@ -67,7 +69,7 @@ export default function PublishExam({ examId, settings, questions, onSettingsCha
             {previewOpen && <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold text-slate-900">Pembagian poin</h3>
-                    <button type="button" disabled={busy} aria-label="Tutup pratinjau poin" title="Tutup pratinjau"
+                    <button type="button" disabled={busy} aria-label="Tutup preview poin" title="Tutup preview"
                         className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-200" onClick={() => setPreviewOpen(false)}><X size={18} aria-hidden="true" /></button>
                 </div>
                 {questions.length > 0 && questions.every(question => question.tipeSoal === 'ESSAY') && <p className="text-xs text-slate-500">Bobot esai disesuaikan ke total 100. Batas nilai koreksi mengikuti poin maksimum tiap soal.</p>}
@@ -101,7 +103,7 @@ export default function PublishExam({ examId, settings, questions, onSettingsCha
                         </tr></tfoot>
                     </table>
                 </div>}
-                {!busy && !rows.length && !error && <p role="status" className="text-sm text-slate-500">Hitung poin untuk memperbarui pratinjau.</p>}
+                {!busy && !rows.length && !error && <p role="status" className="text-sm text-slate-500">Hitung poin untuk memperbarui preview.</p>}
             </div>}
         </section>
     );

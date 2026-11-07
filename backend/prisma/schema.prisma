@@ -33,6 +33,7 @@ model User {
   ujianDibuat Ujian[]
   notifikasi NotifikasiUjian[]
   pesertaSusulan PesertaSusulan[]
+  pesertaRemedial Ujian[] @relation("PesertaRemedial")
   pengerjaan PengerjaanUjian[]
 
   @@map("users")
@@ -60,9 +61,19 @@ model GuruMapelKelas {
   @@map("guru_mapel_kelas")
 }
 
+model JenisUjian {
+  id   Int    @id @default(autoincrement())
+  nama String @unique @db.VarChar(150)
+  ujian Ujian[]
+
+  @@map("jenis_ujian")
+}
+
 model Ujian {
   id           Int      @id @default(autoincrement())
   judul        String   @db.VarChar(150)
+  jenisUjianId Int?     @map("jenis_ujian_id")
+  jenisUjian   JenisUjian? @relation(fields: [jenisUjianId], references: [id], onDelete: Restrict)
   mapelId      Int      @map("mapel_id")
   kelasId      Int      @map("kelas_id")
   waktuMulai   DateTime @map("waktu_mulai")
@@ -70,6 +81,12 @@ model Ujian {
   durasiMenit  Int      @default(60) @map("durasi_menit")
   guruId       Int?     @map("guru_id")
   draf         Boolean  @default(false)
+  diarsipkanPada DateTime? @map("diarsipkan_pada")
+  kkm          Decimal? @db.Decimal(5, 2)
+  ujianAsalId  Int? @unique @map("ujian_asal_id")
+  ujianAsal    Ujian? @relation("UjianRemedial", fields: [ujianAsalId], references: [id], onDelete: Cascade)
+  remedial     Ujian? @relation("UjianRemedial")
+  pesertaRemedial User[] @relation("PesertaRemedial")
   token        String?  @db.VarChar(6)
   masukBuka    Boolean  @default(true) @map("masuk_buka")
   poinKhusus   Json?    @map("poin_khusus")

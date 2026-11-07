@@ -4,6 +4,18 @@ import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import { questionTemplate, readQuestionWorkbook } from '../src/routes/questionWorkbook';
 
+const examples: Record<string, (string | number)[]> = {
+    'Pilihan Ganda': [1, 'Berapakah 2 + 3?', '5', '6', '7', '8', '', 'A'],
+    'Pilihan Majemuk': [1, 'Pilih bilangan genap.', '2', '3', '4', '5', '', 'A,C'],
+    'Benar atau Salah': [1, 'Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 ganjil.', 'Salah'],
+    'Isian Singkat': [1, 'Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'],
+    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6, 'Beri poin untuk penjelasan dan contoh.']
+};
+
+function fillExample(book: XLSX.WorkBook, name: string) {
+    XLSX.utils.sheet_add_aoa(book.Sheets[name], [examples[name]], { origin: 'B12' });
+}
+
 async function editedTemplate(edit: (book: XLSX.WorkBook) => void) {
     const book = XLSX.read(await questionTemplate(), { type: 'buffer' });
     edit(book);
@@ -19,9 +31,23 @@ test('horizontal template has five named tables and imports all five question ty
         assert.equal(sheet.pageSetup.orientation, 'landscape');
         assert.equal(sheet.getCell('C11').value, 'Pertanyaan');
         assert.equal(sheet.getTables().length, 1);
-        assert.equal(sheet.views[0].state, 'frozen');
+        assert.equal(sheet.views[0].state, 'normal');
     }
-    const rows = readQuestionWorkbook(buffer);
+    assert.throws(() => readQuestionWorkbook(buffer), /minimal satu soal/);
+    const [pg, pm, bs, isian, essay] = book.worksheets;
+    assert.equal(pg.getCell('I511').dataValidation.formulae[0], '"A,B,C,D,E"');
+    assert.equal(pm.getCell('I12').dataValidation.formulae[0], '$J$1:$J$26');
+    assert.equal(pm.getColumn('J').hidden, true);
+    assert.equal(pm.getCell('J1').value, 'A,B');
+    for (const address of ['E12', 'G12', 'I12', 'K12', 'M12']) {
+        assert.equal(bs.getCell(address).dataValidation.formulae[0], '"Benar,Salah"');
+    }
+    assert.equal(isian.getCell('G12').dataValidation.formulae[0], '"Ya,Tidak"');
+    assert.equal(essay.getCell('D12').dataValidation.type, 'whole');
+    assert.deepEqual(essay.getCell('D12').dataValidation.formulae, [1, 100]);
+
+    const edited = await editedTemplate(file => file.SheetNames.forEach(name => fillExample(file, name)));
+    const rows = readQuestionWorkbook(edited);
     assert.deepEqual(rows.map(row => row.question.tipeSoal), ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY']);
     assert.ok(rows.every(row => row.row === 12 && row.sheet));
     assert.deepEqual(rows[0].question.items.map(item => item.benar), [true, false, false, false]);
@@ -32,12 +58,8 @@ test('horizontal template has five named tables and imports all five question ty
     assert.equal(rows[4].question.poin, 6);
 });
 
-test('empty sheets are skipped, rows after the example are imported, and keys survive unused options', async () => {
+test('empty sheets are skipped, later rows are imported, and keys survive unused options', async () => {
     const buffer = await editedTemplate(book => {
-        for (const name of book.SheetNames) {
-            const sheet = book.Sheets[name];
-            for (const cell of Object.keys(sheet)) if (/^[A-Z]+12$/.test(cell) && !cell.startsWith('B')) delete sheet[cell];
-        }
         XLSX.utils.sheet_add_aoa(book.Sheets['Pilihan Ganda'], [[2, 'Pilih angka dua.', '1', '', '2', '', '', 'C']], { origin: 'B13' });
     });
     const rows = readQuestionWorkbook(buffer);
@@ -60,6 +82,7 @@ test('invalid answers report the sheet and row', async () => {
     ];
     for (const [sheet, address, value, message] of cases) {
         const buffer = await editedTemplate(book => {
+            fillExample(book, sheet);
             book.Sheets[sheet][address] = { t: typeof value === 'number' ? 'n' : 's', v: value };
         });
         assert.throws(() => readQuestionWorkbook(buffer), error => error instanceof Error && error.message.includes('Sheet ' + sheet + ', baris 12:') && message.test(error.message));
@@ -67,9 +90,7 @@ test('invalid answers report the sheet and row', async () => {
 });
 
 test('empty workbooks and changed headers are rejected', async () => {
-    const empty = await editedTemplate(book => {
-        for (const name of book.SheetNames) for (const cell of Object.keys(book.Sheets[name])) if (/^[A-Z]+12$/.test(cell)) delete book.Sheets[name][cell];
-    });
+    const empty = await questionTemplate();
     assert.throws(() => readQuestionWorkbook(empty), /minimal satu soal/);
     const badHeader = await editedTemplate(book => { book.Sheets['Esai'].C11.v = 'Teks'; });
     assert.throws(() => readQuestionWorkbook(badHeader), /Sheet Esai.*baris 11/);

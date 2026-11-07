@@ -2,6 +2,7 @@ import Select from '../../components/ui/Select';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, ChevronDown, Clock3, MonitorCheck, RefreshCw, Search, Users } from 'lucide-react';
 import api from '../../services/api';
+import ExamTypeBadge from '../../components/ExamTypeBadge';
 
 interface Participant {
     id: number;
@@ -60,10 +61,11 @@ function SessionCard({ session }: { session: Session }) {
             <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="break-words text-base font-semibold leading-snug text-slate-800">{session.judul}</h2>
+                        <h2 className="break-words text-base font-semibold leading-snug text-slate-800">{session.mapel}</h2>
+                        <ExamTypeBadge label={session.judul} />
                         <span className={'ui-badge ' + (statusStyles[session.status] ?? statusStyles.Selesai)}>{session.status}</span>
                     </div>
-                    <p className="mt-1 break-words text-sm text-slate-500">{session.mapel} · {session.kelas} · {session.jenis}{session.nomorSusulan ? ' ' + session.nomorSusulan : ''}</p>
+                    <p className="mt-1 break-words text-sm text-slate-500">{session.kelas} · {session.jenis}{session.nomorSusulan ? ' ' + session.nomorSusulan : ''}</p>
                 </div>
                 <ChevronDown size={18} aria-hidden="true" className="mt-1 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
             </div>
@@ -75,7 +77,7 @@ function SessionCard({ session }: { session: Session }) {
                     <span className="font-semibold text-slate-700">{session.mengirim}/{total} terkumpul</span>
                 </span>
             </div>
-            <div role="progressbar" aria-label={'Pengumpulan ' + session.judul} aria-valuemin={0} aria-valuemax={total || 1}
+            <div role="progressbar" aria-label={'Pengumpulan ' + session.mapel + ' · ' + session.judul + ' · ' + session.kelas} aria-valuemin={0} aria-valuemax={total || 1}
                 aria-valuenow={session.mengirim} aria-valuetext={session.mengirim + ' dari ' + total + ' peserta sudah mengumpulkan'}
                 className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: progress + '%' }} />
@@ -91,7 +93,7 @@ function SessionCard({ session }: { session: Session }) {
                 </div>
                 {total > 0 && <div className="relative w-full sm:w-64">
                     <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="search" className="ui-input w-full pl-9" aria-label={'Cari peserta ' + session.judul}
+                    <input type="search" className="ui-input w-full pl-9" aria-label={'Cari peserta ' + session.mapel + ' · ' + session.judul}
                         placeholder="Cari nama atau NIS…" value={query} onChange={event => setQuery(event.target.value)} />
                 </div>}
             </div>

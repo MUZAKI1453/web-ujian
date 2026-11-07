@@ -4,7 +4,7 @@ import prisma from '../config/db';
 import { jwtSecret, requireUser } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { grade, object } from './examGrading';
-import { studentClassScope } from './examClasses';
+import { remedialAccess, studentClassScope } from './examClasses';
 import { MAX_VIOLATIONS, parseSecurityEvents, recordSecurity } from './examSecurity';
 import { studentReceipt } from './studentReceipt';
 
@@ -62,14 +62,15 @@ router.get('/ujian', respond(async (_req, res, user) => {
     const student = admin ? null : await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { kelasId: true } });
     const now = Date.now();
     const exams = await prisma.ujian.findMany({
-        where: student ? { draf: false, OR: [
+        where: student ? { draf: false, AND: [remedialAccess(user.id)], OR: [
             ...(student.kelasId ? [studentClassScope(student.kelasId)] : []),
+            { pesertaRemedial: { some: { id: user.id } } },
             { susulan: { some: { peserta: { some: { siswaId: user.id } } } } },
             { pengerjaan: { some: { siswaId: user.id } } }, { jawaban: { some: { siswaId: user.id } } }
         ] } : { draf: false, waktuMulai: { lte: new Date(now) }, waktuSelesai: { gte: new Date(now - 30 * 60000) } },
         include: {
             ...examData, soal: { where: { tipeSoal: 'ESSAY', dibatalkan: false }, select: { id: true } },
-            pengerjaan: { where: { siswaId: user.id } }, jawaban: { where: { siswaId: user.id }, orderBy: { waktuSubmit: 'desc' }, take: 1, select: { siswaId: true, koreksiEssay: true } },
+            pengerjaan: { where: { siswaId: user.id } }, jawaban: { where: { siswaId: user.id }, orderBy: { waktuSubmit: 'desc' }, take: 1, select: { siswaId: true, koreksiEssay: true, totalNilai: true } },
         },
         orderBy: { waktuMulai: 'asc' }
     });
@@ -77,16 +78,19 @@ router.get('/ujian', respond(async (_req, res, user) => {
         const exam = { ...item, soal: [] };
         const { session, sessionId, attempt } = sessionFor(exam, user.id);
         const ends = attempt ? deadline(attempt, session) : +session.waktuSelesai;
-        const submitted = Boolean(attempt?.waktuKirim || exam.jawaban.length);
+        const answer = item.jawaban[0];
+        const submitted = Boolean(attempt?.waktuKirim || answer);
+        const offline = item.pengerjaan.some(entry => Boolean(entry.diterimaOffline));
+        const menungguKoreksi = Boolean(answer && item.soal.some(q => typeof object(answer.koreksiEssay)[q.id] !== 'number'));
+        const hasil = exam.hasilRilis && Boolean(answer) && !offline && !menungguKoreksi;
         return {
             id: exam.id, judul: exam.judul, mapel: exam.mapel.nama, durasi: exam.durasiMenit,
             mulai: session.waktuMulai, selesai: session.waktuSelesai, susulan: sessionId !== null,
             status: exam.draf ? 'Draf' : submitted || ends <= now ? 'Selesai' : +session.waktuMulai > now ? 'Terjadwal' : 'Berlangsung',
             masukBuka: admin || (session.masukBuka && Boolean(session.token)), attempt: attempt?.id ?? null, submitted,
-            hasil: exam.hasilRilis && exam.jawaban.length > 0 && !attempt?.diterimaOffline && item.soal.every(q => typeof object(exam.jawaban[0]?.koreksiEssay)[q.id] === 'number'),
-            menungguKoreksi: exam.jawaban.length > 0 && item.soal.some(q => typeof object(exam.jawaban[0]?.koreksiEssay)[q.id] !== 'number'),
+            hasil, nilai: hasil ? answer.totalNilai.toFixed(2) : null, menungguKoreksi,
             pembahasan: exam.bahasanRilis && exam.jawaban.length > 0,
-            offline: Boolean(attempt?.diterimaOffline)
+            offline
         };
     }) });
 }));
@@ -104,8 +108,9 @@ async function locked<T>(id: number, user: ExamUser, callback: (
         }
         const student = await tx.user.findFirst({ where: { id: userId, role: user.role, sesiLogin: user.role === 'siswa' ? user.sesiLogin ?? null : undefined }, select: { kelasId: true } });
         if (!student) return null;
-        const exam = await tx.ujian.findFirst({ where: { id, draf: false, OR: user.role === 'admin' ? undefined : [
+        const exam = await tx.ujian.findFirst({ where: { id, draf: false, AND: user.role === 'admin' ? undefined : [remedialAccess(userId)], OR: user.role === 'admin' ? undefined : [
             ...(student.kelasId ? [studentClassScope(student.kelasId)] : []),
+            { pesertaRemedial: { some: { id: userId } } },
             { susulan: { some: { peserta: { some: { siswaId: userId } } } } },
             { pengerjaan: { some: { siswaId: userId } } }
         ] }, include: {

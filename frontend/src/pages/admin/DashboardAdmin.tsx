@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Users, GraduationCap, BookOpen, Layers } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, Layers, ArrowUpRight, MonitorCheck } from 'lucide-react';
 import { PortalHeader, PortalStat } from '../../components/PortalHeader';
 
 export default function DashboardAdmin({ onNavigate }: { onNavigate: (page: string) => void }) {
@@ -22,7 +22,10 @@ export default function DashboardAdmin({ onNavigate }: { onNavigate: (page: stri
         { page: 'mapel', label: 'Mata Pelajaran', value: stats.totalMapel, icon: BookOpen }
     ];
     return <section className="cbt-portal">
-        <PortalHeader name="Admin" subtitle="Kelola data akademik, penugasan guru, dan pantau pelaksanaan ujian sekolah." icon={Layers} />
+        <PortalHeader title="Dashboard Admin" label="Administrasi sekolah" subtitle="Data akademik dan pelaksanaan ujian dalam satu ruang kerja." icon={Layers}>
+            <button type="button" className="ui-button ui-button-primary" onClick={() => onNavigate('monitoring')}><MonitorCheck size={17} aria-hidden="true" />Pantau Ujian<ArrowUpRight size={16} aria-hidden="true" /></button>
+            <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('kelas')}>Kelola Kelas</button>
+        </PortalHeader>
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {loading && <p role="status" className="text-sm text-slate-600">Memuat statistik dashboard…</p>}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

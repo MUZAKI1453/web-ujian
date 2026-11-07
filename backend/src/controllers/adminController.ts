@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import bcrypt from 'bcrypt';
+import { compareNames, sortByName } from './displayOrder';
 
 function validDeleteIds(ids: unknown): ids is number[] {
     return Array.isArray(ids) && ids.length > 0 &&
@@ -32,7 +33,7 @@ export const manageKelas = async (req: Request, res: Response) => {
             include: { _count: { select: { users: true } } },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: kelasList });
+        res.json({ status: 'SUCCESS', data: sortByName(kelasList, item => item.namaKelas) });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
     }
@@ -129,7 +130,7 @@ export const getSiswa = async (req: Request, res: Response) => {
             select: { id: true, username: true, nama: true, kelas: true },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: siswaList });
+        res.json({ status: 'SUCCESS', data: sortByName(siswaList, item => item.nama) });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
     }
@@ -263,7 +264,9 @@ export const getGuru = async (req: Request, res: Response) => {
             },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: guruList });
+        res.json({ status: 'SUCCESS', data: sortByName(guruList, item => item.nama).map(guru => ({ ...guru,
+            pengampu: [...guru.pengampu].sort((a, b) => compareNames(a.mapel.nama, b.mapel.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id)
+        })) });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
     }
@@ -412,7 +415,9 @@ export const getMapel = async (req: Request, res: Response) => {
             },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: mapelList });
+        res.json({ status: 'SUCCESS', data: sortByName(mapelList, item => item.nama).map(mapel => ({ ...mapel,
+            pengampu: [...mapel.pengampu].sort((a, b) => compareNames(a.guru.nama, b.guru.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id)
+        })) });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
     }
@@ -496,7 +501,7 @@ export const getGuruMapelKelas = async (req: Request, res: Response) => {
             },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: list });
+        res.json({ status: 'SUCCESS', data: [...list].sort((a, b) => compareNames(a.guru.nama, b.guru.nama) || compareNames(a.mapel.nama, b.mapel.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id) });
     } catch (error: any) {
         res.status(500).json({ status: 'ERROR', message: error.message });
     }

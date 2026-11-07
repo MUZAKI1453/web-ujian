@@ -2,7 +2,7 @@ import { Plus, Trash2, UploadCloud } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 export default function AccountToolbar({ role, selectedCount, onDelete, onImport, onAdd, filter }: {
-    role: 'siswa' | 'guru' | 'kelas' | 'mapel'; selectedCount: number; onDelete: () => void; onImport?: () => void; onAdd: () => void;
+    role: 'siswa' | 'guru' | 'kelas' | 'mapel' | 'jenis-ujian'; selectedCount: number; onDelete: () => void; onImport?: () => void; onAdd: () => void;
     filter?: ReactNode;
 }) {
     return <div role="group" aria-label={'Tindakan data ' + role} className="ui-data-right flex flex-wrap items-center gap-2 border-b border-slate-200 pl-4 py-4">

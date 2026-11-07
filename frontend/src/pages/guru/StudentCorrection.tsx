@@ -30,15 +30,15 @@ function AutomaticAnswer({ question, value, result }: { question: Question; valu
                     const answer = Array.isArray(value) && typeof value[index] === 'boolean' ? value[index] as boolean : null;
                     return <tr key={index}>
                         <th scope="row" className="px-3 py-3 font-normal"><span className="mb-1 block font-semibold text-slate-600">Pernyataan {index + 1}</span><QuestionContent text={item.teks} image={item.gambar} /></th>
-                        <td className="px-1 py-3 text-center"><span className={'inline-flex rounded-lg px-2 py-1.5 font-medium ' + (answer === null ? 'bg-slate-100 text-slate-500' : answer === item.benar ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>{answer === null ? 'Kosong' : answer ? 'Benar' : 'Salah'}</span></td>
+                        <td className="px-1 py-3 text-center"><span className={'inline-flex rounded-lg px-2 py-1.5 font-medium ' + (answer === null ? 'bg-slate-100 text-slate-500' : answer === item.benar ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>{answer === null ? 'Kosong' : answer ? 'Benar' : 'Salah'}</span></td>
                         <td className="px-1 py-3 text-center font-medium text-slate-700">{item.benar ? 'Benar' : 'Salah'}</td>
                     </tr>;
                 })}</tbody>
             </table>
         </div> : question.tipeSoal === 'ISIAN' ? <>
-            <div className={'space-y-2 rounded-xl border p-3 ' + (result?.benar ? 'border-emerald-200 bg-emerald-50' : answered && result ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white')}>
+            <div className={'space-y-2 rounded-xl border p-3 ' + (result?.benar ? 'border-green-200 bg-green-50' : answered && result ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white')}>
                 <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-slate-500">Jawaban siswa</p>
-                    <span className={'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ' + (result?.benar ? 'bg-emerald-100 text-emerald-800' : answered && result ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500')}>
+                    <span className={'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ' + (result?.benar ? 'bg-green-100 text-green-800' : answered && result ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500')}>
                         {result?.benar ? <Check size={14} aria-hidden="true" /> : answered && result ? <X size={14} aria-hidden="true" /> : null}
                         {result?.benar ? 'Benar' : !answered ? 'Belum dijawab' : result ? 'Salah' : 'Menunggu penilaian'}
                     </span>
@@ -49,10 +49,10 @@ function AutomaticAnswer({ question, value, result }: { question: Question; valu
         </> : <>
             <ol className="grid gap-2 sm:grid-cols-2">{items.map((item, index) => {
                 const picked = selected.includes(String.fromCharCode(65 + index));
-                return <li key={index} className={'flex items-start gap-3 rounded-xl border p-3 text-sm ' + (item.benar ? 'border-emerald-200 bg-emerald-50' : picked ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white')}>
-                    <span className={'grid size-8 shrink-0 place-items-center rounded-lg font-semibold ' + (picked ? item.benar ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500')}>{String.fromCharCode(65 + index)}</span>
+                return <li key={index} className={'flex items-start gap-3 rounded-xl border p-3 text-sm ' + (item.benar ? 'border-green-200 bg-green-50' : picked ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white')}>
+                    <span className={'grid size-8 shrink-0 place-items-center rounded-lg font-semibold ' + (picked ? item.benar ? 'bg-green-700 text-white' : 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500')}>{String.fromCharCode(65 + index)}</span>
                     <div className="min-w-0 flex-1 break-words"><QuestionContent text={item.teks} image={item.gambar} /></div>
-                    {(picked || item.benar) && <span role="img" aria-label={picked ? item.benar ? 'Jawaban benar dipilih' : 'Jawaban salah dipilih' : 'Kunci belum dipilih'} title={picked ? item.benar ? 'Jawaban benar dipilih' : 'Jawaban salah dipilih' : 'Kunci belum dipilih'} className={'shrink-0 ' + (item.benar ? 'text-emerald-700' : 'text-red-600')}>
+                    {(picked || item.benar) && <span role="img" aria-label={picked ? item.benar ? 'Jawaban benar dipilih' : 'Jawaban salah dipilih' : 'Kunci belum dipilih'} title={picked ? item.benar ? 'Jawaban benar dipilih' : 'Jawaban salah dipilih' : 'Kunci belum dipilih'} className={'shrink-0 ' + (item.benar ? 'text-green-700' : 'text-red-600')}>
                         {picked ? item.benar ? <Check size={18} aria-hidden="true" /> : <X size={18} aria-hidden="true" /> : <KeyRound size={17} aria-hidden="true" />}
                     </span>}
                 </li>;
@@ -109,13 +109,13 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
                 if (!visible.includes(question)) return null;
                 const essay = essays.get(question.id);
                 return <article key={question.id + ':' + essay?.nilai + ':' + essay?.catatan} hidden={question.tipeSoal !== activeType} className="ui-card space-y-4 bg-white p-5">
-                    <h3 className="flex flex-wrap items-center gap-3 text-base font-semibold text-slate-900"><span>Soal {index + 1}</span><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (question.tipeSoal === 'ESSAY' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800')}>{questionTypeLabel(question.tipeSoal)}</span></h3>
+                    <h3 className="flex flex-wrap items-center gap-3 text-base font-semibold text-slate-900"><span>Soal {index + 1}</span><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (question.tipeSoal === 'ESSAY' ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-blue-800')}>{questionTypeLabel(question.tipeSoal)}</span></h3>
                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed"><QuestionContent text={question.pertanyaan} image={question.isi?.gambar} /></div>
                     {!essay ? <AutomaticAnswer question={question} value={row.jawaban[question.id]} result={row.penilaian?.[question.id]} /> : <>
                         <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-semibold text-slate-500">Jawaban siswa</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{typeof essay.jawaban === 'string' && essay.jawaban.trim() ? essay.jawaban : 'Belum dijawab'}</p></div>
                         <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                             <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Penilaian</h4><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (essay.nilai === null ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')}>{essay.nilai === null ? 'Belum dinilai' : 'Sudah dinilai'}</span></div>
+                                <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Penilaian</h4><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (essay.nilai === null ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-blue-800')}>{essay.nilai === null ? 'Belum dinilai' : 'Sudah dinilai'}</span></div>
                                 <label className="ml-auto inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
                                     <span className="sr-only">Nilai soal {index + 1}, maksimum {essay.maksimum}</span>
                                     <input name={'nilai-' + essay.id} type="number" min={0} max={essay.maksimum} step={1} defaultValue={essay.nilai ?? ''} disabled={busy} placeholder="Nilai"

@@ -26,6 +26,8 @@ Portal guru dan siswa mengikuti tampilan referensi CBT Sekolah: banner biru, kar
 
 Penugasan guru memakai pilihan beberapa kelas per mata pelajaran. Saat membuat ujian, guru dapat mencentang satu atau beberapa kelas dalam penugasannya; soal, jadwal, dan sesi reguler digunakan bersama oleh semua kelas tujuan. Daftar peserta dan monitoring mencakup seluruh kelas yang dipilih. Jalankan `npm run db:push` setelah memperbarui kode untuk menambahkan relasi kelas tujuan; ujian lama tetap memakai kelas awalnya.
 
+Jenis ujian dikelola admin melalui **Data Master → Jenis Ujian** (tambah, edit, hapus). Guru memilih jenis ujian melalui dropdown saat membuat atau mengedit draf, menggantikan judul bebas. Jalankan `npm run db:generate` dan `npm run db:push` setelah memperbarui kode untuk menambahkan tabel `jenis_ujian` dan relasinya. Admin perlu mengisi daftar jenis ujian sebelum guru membuat draf. Ujian lama tetap dapat dibuka dengan judul sebelumnya; saat mengedit draf lama, guru wajib memilih jenis ujian. Nama jenis disalin ke judul saat draf disimpan agar perubahan nama master tidak mengubah ujian yang sudah terbit. Jenis yang sudah dipakai tidak dapat dihapus.
+
 Pengujian kelas tujuan: `npm test -w backend`. Untuk menyertakan pemeriksaan database lokal, atur `RUN_DATABASE_TESTS=1` sebelum menjalankannya dari folder backend; data pengujian dibuat dalam transaksi yang dibatalkan setelah selesai.
 
 Siswa dapat memverifikasi token, mengerjakan soal dengan timer, menandai ragu, dan memeriksa ringkasan sebelum mengumpulkan. Navigasi nomor soal tampil di samping pada desktop dan melalui tombol Daftar soal pada HP. Jawaban disimpan di perangkat dan disinkronkan ke server; hasil serta pembahasan tersedia setelah dirilis guru.

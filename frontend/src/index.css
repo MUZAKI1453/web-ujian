@@ -39,6 +39,9 @@
     .ui-button-secondary { @apply border border-slate-300 bg-white text-slate-700 enabled:hover:border-slate-400 enabled:hover:bg-slate-50; }
     .ui-button-soft { @apply border border-blue-100 bg-blue-50 text-blue-700 enabled:hover:bg-blue-100; }
     .ui-button-success { @apply border border-emerald-600 bg-emerald-600 text-white enabled:hover:bg-emerald-700; }
+    .ui-button-neutral-soft { @apply border border-slate-200 bg-slate-50 text-slate-700 enabled:hover:bg-slate-100; }
+    .ui-button-success-soft { @apply border border-emerald-100 bg-emerald-50 text-emerald-700 enabled:hover:bg-emerald-100; }
+    .ui-button-edit { @apply border border-yellow-200 bg-yellow-50 text-yellow-800 enabled:hover:bg-yellow-100; }
     .ui-button-danger { @apply border border-red-600 bg-red-600 text-white enabled:hover:bg-red-700; }
     .ui-button-danger-soft { @apply border border-red-100 bg-red-50 text-red-700 enabled:hover:bg-red-100; }
     .ui-button-warning { @apply border border-amber-200 bg-amber-50 text-amber-900 enabled:hover:bg-amber-100; }
@@ -72,11 +75,6 @@
     .ui-badge, .cbt-badge { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold leading-4; }
     .cbt-portal { @apply mx-auto w-full max-w-[1200px] space-y-7 text-slate-800; }
     .cbt-student { @apply w-full; }
-    .cbt-hero { @apply relative flex items-center gap-6 overflow-hidden rounded-2xl px-5 py-6 text-white sm:px-8 sm:py-8; background: var(--ui-brand-gradient); box-shadow: var(--ui-shadow-card); }
-    .cbt-hero::after { content: ''; @apply pointer-events-none absolute -right-12 -top-24 h-72 w-72 rounded-full bg-white/10; }
-    .cbt-hero h1 { @apply text-2xl font-bold leading-tight sm:text-3xl; }
-    .cbt-hero p { @apply mt-2 max-w-2xl text-sm leading-relaxed text-blue-50 sm:text-base; }
-    .cbt-hero-icon { @apply relative z-10 hidden shrink-0 text-white/30 sm:block; }
     .cbt-stat { @apply flex h-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5; box-shadow: var(--ui-shadow-card); }
     .cbt-stat-icon { @apply grid size-[60px] shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600; }
     .cbt-stat-green { @apply bg-emerald-100 text-emerald-700; }
@@ -101,7 +99,8 @@
     .cbt-option:has(input:checked) { @apply border-blue-600 bg-blue-50 text-blue-950 ring-1 ring-blue-600; }
     .cbt-number { @apply min-h-11 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700; }
     .cbt-number[data-state='Terjawab'] { @apply border-emerald-600 bg-emerald-600 text-white; }
-    .cbt-number[data-state='Ragu'], .cbt-number[data-state='Belum lengkap'] { @apply border-amber-400 bg-amber-300 text-amber-950; }
+    .cbt-number[data-state='Ragu-ragu'] { @apply border-yellow-400 bg-yellow-200 text-yellow-950; }
+    .cbt-number[data-state='Belum lengkap'] { @apply border-blue-200 bg-blue-50 text-blue-800; }
     .cbt-number[aria-current='step'] { @apply ring-2 ring-blue-700 ring-offset-2; }
 }
 

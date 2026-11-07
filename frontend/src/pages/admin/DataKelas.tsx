@@ -112,7 +112,7 @@ export default function DataKelas() {
             <div className="ui-card ui-data-right flex flex-col items-start justify-between gap-4 py-5 pl-5 sm:py-8 sm:pl-8 lg:flex-row lg:items-center">
                 <div>
                     <h1 className="ui-page-title flex items-center gap-2.5">
-                        <Layers className="text-blue-600" size={28} /> Kelola Data Kelas
+                        <Layers className="text-blue-600" size={28} /> Daftar Kelas
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         Daftar seluruh nama kelas aktif.
@@ -186,7 +186,7 @@ export default function DataKelas() {
                                         <div className="flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => handleOpenEdit(item)}
-                                                className="ui-button ui-button-soft ui-icon-button"
+                                                className="ui-button ui-button-edit ui-icon-button"
                                                 title="Edit Kelas"
                                             >
                                                 <Edit3 size={16} />
@@ -245,7 +245,7 @@ export default function DataKelas() {
                 <ModalOverlay>
                     <div className="ui-dialog-panel max-w-md space-y-4">
                         <h3 className="text-lg font-bold text-slate-800">
-                            {isEdit ? 'Edit Data Kelas' : 'Tambah Data Kelas Baru'}
+                            {isEdit ? 'Edit Kelas' : 'Tambah Kelas'}
                         </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>

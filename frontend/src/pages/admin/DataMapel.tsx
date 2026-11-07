@@ -191,7 +191,7 @@ export default function DataMapel() {
                                         <div className="flex items-center justify-center gap-2">
                                             <button
                                                 onClick={() => handleOpenEdit(item)}
-                                                className="ui-button ui-button-soft ui-icon-button"
+                                                className="ui-button ui-button-edit ui-icon-button"
                                                 title="Edit Mapel"
                                             >
                                                 <Edit3 size={16} />

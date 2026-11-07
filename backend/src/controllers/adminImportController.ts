@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import prisma from '../config/db';
 import { readNavbarSettings } from './navbarController';
+import { summarizeImportIssues, type ImportIssue } from './importIssueSummary';
 
 const formats = {
     siswa: ['No', 'NIS (Nomor Induk Siswa)', 'Nama Lengkap Siswa', 'Nama Kelas'],
@@ -180,7 +181,8 @@ export function importUsers(role: Role) {
 
             const records = [];
             const seen = new Set<string>();
-            const issues: string[] = [];
+            const issues: ImportIssue[] = [];
+            let missingClass = false;
             const idLabel = role === 'siswa' ? 'NIS' : 'NIP';
             for (const { row, number } of dataRows) {
                 const username = row[idIndex]?.trim() ?? '';
@@ -193,9 +195,12 @@ export function importUsers(role: Role) {
                 else if (seen.has(username)) issue = idLabel + ' berulang dalam file.';
                 else if (role === 'siswa' && !kelas) issue = 'Nama Kelas masih kosong.';
                 else if (role === 'siswa' && kelasId === null) issue = 'Nama kelas "' + kelas + '" cocok dengan lebih dari satu kelas.';
-                else if (role === 'siswa' && kelasId === undefined) issue = 'Kelas "' + kelas + '" belum terdaftar.';
+                else if (role === 'siswa' && kelasId === undefined) {
+                    issue = 'Kelas "' + kelas + '" belum terdaftar.';
+                    missingClass = true;
+                }
                 if (issue) {
-                    issues.push('Baris ' + number + ': ' + issue);
+                    issues.push({ row: number, message: issue });
                     continue;
                 }
 
@@ -206,11 +211,11 @@ export function importUsers(role: Role) {
             const skipped = dataRows.length - count;
             const duplicates = records.length - count;
             const details = [
-                ...issues.slice(0, 5),
-                ...(issues.length > 5 ? [(issues.length - 5) + ' baris lainnya tidak valid.'] : []),
-                ...(duplicates ? [duplicates + ' baris dilewati karena ' + idLabel + ' sudah terdaftar.'] : [])
+                ...summarizeImportIssues(issues),
+                ...(duplicates ? [duplicates + ' baris dilewati karena ' + idLabel + ' sudah terdaftar.'] : []),
+                ...(missingClass ? ['Isi kolom Nama Kelas sesuai daftar kelas yang terdaftar, lalu unggah ulang.'] : [])
             ].join('\n');
-            if (!count) return res.status(400).json({ message: 'Tidak ada data yang berhasil diimpor.\n' + details });
+            if (!count) return res.status(400).json({ message: 'Tidak ada data yang berhasil diimpor (' + skipped + ' baris).\n' + details });
             res.json({ status: 'SUCCESS', message: 'Impor selesai. Berhasil ' + count + ', dilewati ' + skipped + '.' + (details ? '\n' + details : '') });
         } catch {
             res.status(500).json({ message: 'Impor gagal. Coba lagi.' });

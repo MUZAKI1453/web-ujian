@@ -5,6 +5,10 @@ export function studentClassScope(kelasId: number): Prisma.UjianWhereInput {
     return { OR: [{ kelasId }, { kelasTujuan: { some: { id: kelasId } } }] };
 }
 
+export function remedialAccess(siswaId: number): Prisma.UjianWhereInput {
+    return { OR: [{ ujianAsalId: null }, { pesertaRemedial: { some: { id: siswaId } } }] };
+}
+
 export function examClassIds(exam: { kelasId: number; kelasTujuan: { id: number }[] }) {
     return [...new Set([exam.kelasId, ...exam.kelasTujuan.map(item => item.id)])];
 }

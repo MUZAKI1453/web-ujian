@@ -4,6 +4,7 @@ import { answerSummary } from './answerSummary';
 export async function studentReceipt(ujianId: number, siswaId: number) {
     const exam = await prisma.ujian.findFirst({
         where: { id: ujianId, draf: false }, include: {
+            mapel: { select: { nama: true } },
             soal: { where: { dibatalkan: false } },
             pengerjaan: { where: { siswaId } },
             jawaban: { where: { siswaId }, orderBy: { waktuSubmit: 'desc' }, take: 1 }
@@ -17,6 +18,7 @@ export async function studentReceipt(ujianId: number, siswaId: number) {
     return {
         id: `UJ-${ujianId}-${siswaId}-${attempt?.id ?? answer.id}`,
         title: exam.judul,
+        mapel: exam.mapel.nama,
         receivedAt: review ? attempt!.diterimaOffline : attempt?.waktuKirim ?? answer.waktuSubmit,
         state: review ? 'review' : 'submitted',
         ...answerSummary(exam.soal, review ? attempt!.kirimanOffline : answer?.detailJawaban ?? attempt?.jawabanTersimpan)

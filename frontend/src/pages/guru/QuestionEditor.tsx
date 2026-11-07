@@ -74,7 +74,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
                 <QuestionImageUpload fieldLabel={'Pertanyaan soal ' + number} label="Gambar soal" value={image} onChange={setImage} onReadingChange={onReadingChange}
                     heading={<h2 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-base font-semibold text-slate-900">
                         <span>Soal {number}</span>
-                        <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (type === 'ESSAY' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800')}>{typeLabels[type]}</span>
+                        <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (type === 'ESSAY' ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-blue-800')}>{typeLabels[type]}</span>
                     </h2>}
                     headerAction={<button type="button" aria-label={'Hapus soal ' + number} title="Hapus soal"
                         className="grid size-11 shrink-0 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"

@@ -2,21 +2,19 @@ import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { useRef, useState, type FormEvent } from 'react';
 import api from '../../services/api';
 import QuestionEditor, { errorMessage, type Question } from './QuestionEditor';
-import type { ExamDetail } from './UjianGuru';
+import type { ExamDetail, ExamType } from './UjianGuru';
 import { examClassNames } from './UjianGuru';
 import { questionTypeLabels } from './questionTypes';
 import { Plus } from 'lucide-react';
+import ExamTypeBadge from '../../components/ExamTypeBadge';
+import AutoReleaseOption from './AutoReleaseOption';
+import { localDateTime } from './examDateFilter';
 
 type QuestionType = Question['tipeSoal'];
 const questionTypes = Object.keys(questionTypeLabels) as QuestionType[];
 
-function localDateTime(value: string) {
-    const date = new Date(value);
-    return new Date(+date - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
-}
-
-export default function EditUjian({ exam, focusId, onCancel, onSave }: {
-    exam: ExamDetail; focusId?: number; onCancel: () => void; onSave: (exam: ExamDetail) => void;
+export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }: {
+    exam: ExamDetail; examTypes: ExamType[]; focusId?: number; onCancel: () => void; onSave: (exam: ExamDetail) => void;
 }) {
     const nextKey = useRef(-1);
     const formRef = useRef<HTMLFormElement>(null);
@@ -70,7 +68,8 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
             return;
         }
         const payload = JSON.stringify({
-            judul: form.get('judul'),
+            jenisUjianId: Number(form.get('jenisUjianId')),
+            rilisHasilOtomatis: form.has('rilisHasilOtomatis'),
             durasiMenit: Number(form.get('durasi')),
             waktuMulai: start.toISOString(),
             waktuSelesai: end.toISOString(),
@@ -99,8 +98,10 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
                 <header className="ui-card flex flex-wrap items-center justify-between gap-3 border bg-white p-5">
                     <div>
                         <p className="mb-1 text-sm font-semibold text-blue-600">Edit Soal & Ujian</p>
-                        <h1 className="ui-page-title">{exam.judul}</h1>
-                        <p className="text-sm text-slate-600">{exam.mapel.nama} · {examClassNames(exam)}</p>
+                        <h1 className="ui-page-title break-words">{exam.mapel.nama}</h1>
+                        <div className="mt-2 flex flex-wrap items-center gap-2"><ExamTypeBadge label={exam.judul} />
+                            <p className="text-sm text-slate-600">{examClassNames(exam)}</p>
+                        </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <button type="button" className="ui-button ui-button-secondary border" onClick={onCancel}>Batal</button>
@@ -109,8 +110,12 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
                 {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <section className="grid gap-3 rounded-xl border bg-white p-5 sm:grid-cols-2">
                     <h2 className="cbt-section-title sm:col-span-2">Pengaturan Umum</h2>
-                    <label className="ui-label">Judul ujian
-                        <input name="judul" required maxLength={150} defaultValue={exam.judul} className={fieldClass} />
+                    <label className="ui-label">Jenis ujian
+                        <select name="jenisUjianId" required defaultValue={exam.jenisUjianId ?? ''} className={fieldClass}>
+                            <option value="" disabled>Pilih jenis ujian</option>
+                            {examTypes.map(item => <option key={item.id} value={item.id}>{item.nama}</option>)}
+                        </select>
+                        {exam.jenisUjianId === null && <span className="mt-1 block text-xs font-normal text-slate-500">Ujian lama: {exam.judul}. Pilih jenis ujian untuk menyimpan perubahan.</span>}
                     </label>
                     <label className="ui-label">Durasi (menit)
                         <input name="durasi" type="number" required min={1} defaultValue={exam.durasiMenit} className={fieldClass} />
@@ -121,7 +126,9 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
                     <label className="ui-label">Waktu selesai
                         <input name="selesai" type="datetime-local" step="1" required defaultValue={localDateTime(exam.waktuSelesai)} className={fieldClass} />
                     </label>
+                    <div className="sm:col-span-2"><AutoReleaseOption defaultChecked={exam.hasilRilis} /></div>
                 </section>
+                {!examTypes.length && <p role="status" className="ui-notice">Belum ada jenis ujian. Hubungi admin untuk menambahkannya melalui Data Master → Jenis Ujian.</p>}
                 <nav aria-label="Tipe soal" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 lg:grid-cols-5">
                     {questionTypes.map(type => <button key={type} type="button" aria-pressed={activeType === type}
                         className={'flex items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-sm font-semibold transition-colors ' + (activeType === type ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100')}
@@ -143,7 +150,7 @@ export default function EditUjian({ exam, focusId, onCancel, onSave }: {
                     <button type="button" className="ui-button ui-button-secondary border" onClick={addQuestion}>
                         <Plus size={18} aria-hidden="true" /> Tambah Soal
                     </button>
-                    <button type="submit" className={primaryClass}>{saving ? 'Menyimpan…' : 'Simpan Perubahan'}</button>
+                    <button type="submit" disabled={!examTypes.length} className={primaryClass}>{saving ? 'Menyimpan…' : 'Simpan Perubahan'}</button>
                 </div>
             </fieldset>
         </form>

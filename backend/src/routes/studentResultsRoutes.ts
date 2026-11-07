@@ -14,7 +14,7 @@ router.get('/notifikasi', async (_req, res, next) => {
     try {
         const data = await prisma.notifikasiUjian.findMany({
             where: { siswaId: res.locals.user.id }, orderBy: { id: 'desc' }, take: 50,
-            include: { ujian: { select: { judul: true } } }
+            include: { ujian: { select: { judul: true, mapel: { select: { nama: true } } } } }
         });
         res.json({ data });
     } catch (error) { next(error); }

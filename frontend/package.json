@@ -8,6 +8,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@fontsource/poppins": "^5.3.0",
     "axios": "^1.7.0",
     "katex": "^0.19.1",
     "lucide-react": "^0.468.0",
