@@ -12,15 +12,17 @@ import QuestionContent from './QuestionContent';
 import { Check, CircleCheck, ClipboardList, CloudDownload, Download, Eye, EyeOff, FilePenLine, KeyRound, MessageSquare, Search, SlidersHorizontal, SquarePen, Timer, Users } from 'lucide-react';
 import { correctionInput } from './correctionForm';
 import ModalOverlay from '../../components/ModalOverlay';
+import { defaultExamSchedule } from './examDateFilter';
+import OfflineReview from './OfflineReview';
 
 type Student = { nama: string | null; username: string };
-type RemedialRow = { siswa: Student & { id: number }; nilai: string | null; nilaiRemedial?: string | null };
+type RemedialRow = { siswa: Student & { id: number; role: string }; nilai: string | null; nilaiRemedial?: string | null };
 type Report = {
     hasilRilis: boolean; bahasanRilis: boolean;
-    kkm: number | null; ujianAsalId: number | null; durasiMenit: number; remedialReady: boolean;
+    kkm: number | null; ujianAsalId: number | null; durasiMenit: number; remedialBlockers: string[];
     candidates: RemedialRow[]; remedial: { id: number; draf: boolean; rows: RemedialRow[] } | null;
     readiness: { running: number; lastDeadline: number | null; automaticPending: number; offlinePending: number; essayPending: number; studentsPending: number; ongoing: boolean; makeupPending: number };
-    history: { id: number; pelakuId: number; jenis: string; alasan?: string; status: string; waktu: string; data?: { lama?: number; baru?: number } }[];
+    history: { id: number; pelakuId: number; jenis: string; alasan?: string; status: string; waktu: string; data?: { lama?: number; baru?: number; attemptId?: number; terima?: boolean } }[];
     offline: { id: number; siswa: Student; jumlahLokal: number; jumlahServer: number }[];
     rows: ReportRow[];
 };
@@ -44,7 +46,8 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
     const [studentId, setStudentId] = useState<number | null>(null);
     const [filter, setFilter] = useState(false);
     const [search, setSearch] = useState('');
-    const [remedialForm, setRemedialForm] = useState(false);
+    const [remedialForm, setRemedialForm] = useState<ReturnType<typeof defaultExamSchedule> | null>(null);
+    const [reviewId, setReviewId] = useState<number | null>(null);
     const url = '/guru/ujian/' + examId;
     const refresh = useCallback(async (signal?: AbortSignal) => {
         const { data } = await api.get<Report>(url + '/rekap', { signal, timeout: 10000 });
@@ -89,7 +92,14 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
     const canRelease = !blocking && !status.automaticPending && !status.essayPending && !status.offlinePending;
     const available = questions.filter(q => q.tipeSoal !== 'ESSAY' && !q.dibatalkan);
     const question = available.find(q => q.id === selected);
-    const canCreateRemedial = data.remedialReady && !queued && !failed && data.candidates.length > 0;
+    const canCreateRemedial = data.remedialBlockers.length === 0 && data.candidates.length > 0;
+    const offlineHistory = data.history.filter(item => item.jenis === 'tinjauan-offline');
+
+    async function decideOffline(id: number, terima: boolean) {
+        const label = terima ? 'Gunakan jawaban perangkat' : 'Gunakan jawaban server';
+        if (!await askConfirmation({ title: label + '?', message: 'Versi ini akan dipakai untuk penilaian seluruh kiriman siswa.', confirmLabel: label, tone: 'warning' })) return;
+        void perform(() => api.patch(url + '/offline/' + id, { terima }), 'Tinjauan offline disimpan.');
+    }
 
     function saveKkm(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -110,7 +120,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
             const { data: created } = await api.post<{ id: number }>(url + '/remedial', {
                 waktuMulai: start.toISOString(), waktuSelesai: end.toISOString()
             });
-            setRemedialForm(false);
+            setRemedialForm(null);
             await onOpenRemedial(created.id);
         });
     }
@@ -182,11 +192,18 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
         </div>
         {data.offline.map(row => <div key={row.id} className="space-y-2 rounded-lg border p-3 text-sm">
             <p>Kiriman offline · {row.siswa.nama || row.siswa.username} · {row.jumlahLokal} jawaban lokal, {row.jumlahServer} di server</p>
-            <div className="flex gap-3">
-                <button type="button" disabled={busy} className="text-blue-700" onClick={() => void perform(() => api.patch(url + '/offline/' + row.id, { terima: true }))}>Terima kiriman</button>
-                <button type="button" disabled={busy} className="text-blue-700" onClick={() => void perform(() => api.patch(url + '/offline/' + row.id, { terima: false }))}>Gunakan jawaban server</button>
-            </div>
+            <button type="button" className="ui-button ui-button-secondary" aria-expanded={reviewId === row.id}
+                onClick={() => setReviewId(reviewId === row.id ? null : row.id)}>{reviewId === row.id ? 'Tutup perbandingan' : 'Bandingkan jawaban'}</button>
+            {reviewId === row.id && <OfflineReview key={row.id} url={url + '/offline/' + row.id} questions={questions} busy={busy}
+                onDecide={terima => void decideOffline(row.id, terima)} />}
         </div>)}
+        {offlineHistory.length > 0 && <details className="ui-card space-y-2 p-4 text-sm">
+            <summary className="cursor-pointer font-semibold">Riwayat tinjauan offline terbaru</summary>
+            <ul className="space-y-1 text-slate-600">{offlineHistory.map(item => <li key={item.id}>
+                <time dateTime={item.waktu}>{new Date(item.waktu).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB</time>
+                {' · Pengerjaan #' + item.data?.attemptId + ' · Jawaban ' + (item.data?.terima ? 'perangkat' : 'server') + ' digunakan'}
+            </li>)}</ul>
+        </details>}
         <div id="antrean-essay" className="space-y-3 rounded-xl border bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="flex items-center gap-2 font-semibold"><Users size={20} className="text-blue-600" aria-hidden="true" />Rekap Nilai Siswa</h3>
@@ -232,7 +249,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h3 className="font-semibold">KKM &amp; Remedial</h3>
-                    <p className="mt-1 text-sm text-slate-600">{data.kkm === null ? 'Isi KKM untuk memilih peserta otomatis.' : `KKM ${data.kkm} · ${data.remedial?.rows.length ?? data.candidates.length} siswa`}</p>
+                    <p className="mt-1 text-sm text-slate-600">{data.kkm === null ? 'Isi KKM untuk memilih peserta otomatis.' : `KKM ${data.kkm} · ${data.remedial?.rows.length ?? data.candidates.length} peserta`}</p>
                 </div>
                 {data.remedial
                     ? <button type="button" className="ui-button ui-button-soft" disabled={busy} onClick={() => void onOpenRemedial(data.remedial!.id)}>{data.remedial.draf ? 'Buka Draf Remedial' : 'Buka Ujian Remedial'}</button>
@@ -241,30 +258,36 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
                         <button type="submit" disabled={busy} className="ui-button ui-button-edit">Simpan KKM</button>
                     </form>}
             </div>
-            {data.kkm !== null && !data.remedial && <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">{!data.remedialReady || queued || failed ? 'Draf bisa dibuat setelah semua sesi dan penilaian selesai.' : data.candidates.length ? 'Semua siswa dengan nilai final di bawah KKM otomatis dipilih.' : 'Tidak ada siswa dengan nilai final di bawah KKM.'}</p>
-                {canCreateRemedial && <button type="button" className={primaryClass} disabled={busy} onClick={() => { setError(''); setRemedialForm(true); }}>Buat Draf Remedial</button>}
+            {data.kkm !== null && !data.remedial && <div className="flex flex-wrap items-start justify-between gap-3">
+                <div id="remedial-requirements" className="space-y-2 text-sm text-slate-600">
+                    <p>{data.candidates.length ? 'Peserta dengan nilai final di bawah KKM otomatis dipilih.' : 'Belum ada peserta dengan nilai final di bawah KKM.'}</p>
+                    {data.remedialBlockers.length > 0 && <ul className="list-disc space-y-1 pl-5">
+                        {data.remedialBlockers.map(message => <li key={message}>{message}</li>)}
+                    </ul>}
+                </div>
+                <button type="button" className={primaryClass} disabled={busy || !canCreateRemedial} aria-describedby="remedial-requirements"
+                    onClick={() => { setError(''); setRemedialForm(defaultExamSchedule(data.durasiMenit)); }}>Buat Draf Remedial</button>
             </div>}
             {(data.remedial?.rows.length || data.candidates.length) > 0 && <details className="rounded-xl border border-slate-200 p-3" open={data.remedial ? true : undefined}>
                 <summary className="cursor-pointer text-sm font-semibold">{data.remedial ? 'Nilai awal dan remedial' : 'Lihat peserta otomatis'}</summary>
                 <div className="mt-2 overflow-x-auto"><table className="ui-table w-full">
                     <thead><tr><th scope="col">Siswa</th><th scope="col">Nilai awal</th>{data.remedial && <th scope="col">Nilai remedial</th>}</tr></thead>
-                    <tbody>{(data.remedial?.rows ?? data.candidates).map(row => <tr key={row.siswa.id}><td>{row.siswa.nama || row.siswa.username}</td><td>{row.nilai ?? '—'}</td>{data.remedial && <td>{row.nilaiRemedial ?? '—'}</td>}</tr>)}</tbody>
+                    <tbody>{(data.remedial?.rows ?? data.candidates).map(row => <tr key={row.siswa.id}><td>{row.siswa.nama || row.siswa.username}{row.siswa.role === 'admin' && <span className="ml-2 text-xs text-slate-500">Admin uji coba</span>}</td><td>{row.nilai ?? '—'}</td>{data.remedial && <td>{row.nilaiRemedial ?? '—'}</td>}</tr>)}</tbody>
                 </table></div>
             </details>}
         </section>}
-        {remedialForm && <ModalOverlay label="Buat draf remedial" onClose={() => { if (!busy) { setRemedialForm(false); setError(''); } }}>
+        {remedialForm && <ModalOverlay label="Buat draf remedial" onClose={() => { if (!busy) { setRemedialForm(null); setError(''); } }}>
             <section className="ui-dialog-panel max-w-lg space-y-4">
                 <h3 className="text-lg font-bold">Buat Draf Remedial</h3>
                 <p className="text-sm text-slate-600">{data.candidates.length} peserta otomatis · {data.durasiMenit} menit. Soal aktif dari ujian asal disalin ke draf.</p>
                 {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <form onSubmit={createRemedial} className="space-y-4">
                     <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
-                        <label className="ui-label">Waktu mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label>
-                        <label className="ui-label">Waktu selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label>
+                        <label className="ui-label">Waktu mulai<input type="datetime-local" name="mulai" defaultValue={remedialForm.start} required className={fieldClass} /></label>
+                        <label className="ui-label">Waktu selesai<input type="datetime-local" name="selesai" defaultValue={remedialForm.end} required className={fieldClass} /></label>
                     </fieldset>
                     <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className="ui-button ui-button-secondary" disabled={busy} onClick={() => { setRemedialForm(false); setError(''); }}>Batal</button>
+                        <button type="button" className="ui-button ui-button-secondary" disabled={busy} onClick={() => { setRemedialForm(null); setError(''); }}>Batal</button>
                         <button type="submit" className={primaryClass} disabled={busy || !canCreateRemedial}>{busy ? 'Menyimpan…' : 'Buat Draf'}</button>
                     </div>
                 </form>

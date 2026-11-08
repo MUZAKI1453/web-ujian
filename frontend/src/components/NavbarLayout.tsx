@@ -111,9 +111,9 @@ export default function NavbarLayout({ user, brandText, brandLogo, viewRole, onV
             <Icon size={20} className="shrink-0" aria-hidden="true" />{!compact && <span className="min-w-0 break-words">{label}</span>}
         </button>;
         return <>
-            <div className={'flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 ' + (compact ? 'justify-center px-3' : 'px-5')}>
-                <button type="button" onClick={() => navigate('dashboard')} title={brandText} aria-label={brandText + ' — Dashboard'} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg text-left">
-                    <img key={brandLogo} src={brandLogo} alt="" className="size-10 shrink-0 rounded-lg object-contain" />
+            <div className={'flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 ' + (compact ? 'px-3' : 'pl-6 pr-3')}>
+                <button type="button" onClick={() => navigate('dashboard')} title={brandText} aria-label={brandText + ' — Dashboard'} className={'flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg text-left' + (compact ? ' justify-center' : '')}>
+                    <span className="relative size-5 shrink-0"><img key={brandLogo} src={brandLogo} alt="" className="absolute left-1/2 top-1/2 size-10 max-w-none -translate-x-1/2 -translate-y-1/2 rounded-lg object-contain" /></span>
                     {!compact && <span className="line-clamp-2 min-w-0 break-words text-sm font-bold leading-5 text-slate-900">{brandText}</span>}
                 </button>
                 {mobile && <button type="button" onClick={closeMobile} aria-label="Tutup menu" className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-500 hover:bg-slate-100"><X size={20} aria-hidden="true" /></button>}

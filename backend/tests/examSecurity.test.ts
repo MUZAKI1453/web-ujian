@@ -3,14 +3,82 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import dotenv from 'dotenv';
-import { parseSecurityEvents } from '../src/routes/examSecurity';
+import type { Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { defaultSecurityWeights, parseSecurityEvents, parseSecurityWeights, recordSecurity } from '../src/routes/examSecurity';
 
 test('security reports reject invalid data and collapse retries of the same event', () => {
     const event = { id: 'event-123456', reason: 'tab-hidden' };
     assert.deepEqual(parseSecurityEvents([event, event]), [event]);
     assert.deepEqual(parseSecurityEvents(undefined), []);
-    for (const input of [null, {}, [null], [{ ...event, reason: 'unknown' }], [{ ...event, id: 'bad' }], [event, event, event, event]]) {
+    for (const input of [null, {}, [null], [{ ...event, reason: 'unknown' }], [{ ...event, id: 'bad' }], Array(17).fill(event)]) {
         assert.equal(parseSecurityEvents(input), null);
+    }
+});
+
+test('disabled events are acknowledged and passive events add risk without incrementing the interruption count', async () => {
+    const weights = { ...defaultSecurityWeights, 'tab-hidden': 0, copy: 4 };
+    assert.deepEqual(parseSecurityWeights(weights), weights);
+    assert.equal(parseSecurityWeights({ ...weights, copy: 11 }), null);
+    const rows: { alasan: string; data: unknown; waktu: Date }[] = [];
+    const tx = { kegiatanUjian: {
+        findMany: async () => rows,
+        create: async ({ data }: { data: { alasan: string; data: unknown } }) => rows.push({ ...data, waktu: new Date() })
+    } } as unknown as Prisma.TransactionClient;
+    const events = [
+        { id: 'event-tab', reason: 'tab-hidden' },
+        { id: 'event-copy', reason: 'copy' },
+        { id: 'event-focus', reason: 'window-blur' }
+    ] as const;
+    const result = await recordSecurity(tx, 1, 2, 3, [...events], weights);
+    assert.equal(result.securityCount, 1);
+    assert.deepEqual(result.securityAck, events.map(event => event.id));
+    assert.deepEqual(rows.map(row => [row.alasan, (row.data as { weight: number }).weight]), [['copy', 4], ['window-blur', 2]]);
+    assert.equal((await recordSecurity(tx, 1, 2, 3, [...events], weights)).securityCount, 1);
+    assert.equal(rows.length, 2);
+});
+
+test('optional token activation invalidates earlier preparation without bypassing the schedule', async t => {
+    t.mock.method(PrismaClient.prototype, '$connect', async () => {});
+    const [{ default: db }, { default: router }] = await Promise.all([
+        import('../src/config/db'), import('../src/routes/studentExamRoutes')
+    ]);
+    const exam = { profil: 'ulangan-harian', token: null as string | null, masukBuka: true,
+        waktuMulai: new Date(Date.now() - 60_000), waktuSelesai: new Date(Date.now() + 60_000),
+        susulan: [], pengerjaan: [], jawaban: [] };
+    const transaction = db.$transaction;
+    db.$transaction = (async run => run({
+        $queryRaw: async () => [], user: { findFirst: async () => ({ kelasId: 1 }) },
+        ujian: { findFirst: async () => exam }, percobaanToken: { findUnique: async () => null }
+    })) as typeof transaction;
+    const handler = router.stack.find(layer => layer.route?.path === '/ujian/:id/:langkah(siapkan|mulai)')!.route.stack[0].handle;
+    async function request(langkah: string, body: unknown = {}) {
+        let status = 200;
+        let data: { izin?: string } = {};
+        await handler({ params: { id: '1', langkah }, body }, {
+            locals: { user: { id: 1, role: 'siswa', sesiLogin: 'test-session' } },
+            status(code: number) { status = code; return this; }, json(response: typeof data) { data = response; }
+        });
+        return { status, data };
+    }
+    try {
+        const prepared = await request('siapkan');
+        assert.equal(prepared.status, 200);
+        assert.ok(prepared.data.izin);
+        exam.token = 'ABC123';
+        assert.equal((await request('mulai', { izin: prepared.data.izin })).status, 409);
+        assert.equal((await request('siapkan')).status, 400);
+        exam.profil = 'latihan-kuis';
+        assert.equal((await request('siapkan')).status, 200);
+        exam.masukBuka = false;
+        assert.equal((await request('siapkan')).status, 409);
+        exam.masukBuka = true;
+        exam.profil = 'standar';
+        exam.token = null;
+        assert.equal((await request('siapkan')).status, 409);
+    } finally {
+        db.$transaction = transaction;
+        await db.$disconnect();
     }
 });
 
@@ -50,6 +118,10 @@ test('API: no questions before the timer; retries and reload retain count; third
         const prepare = await request('/siapkan', 'POST', { token: 'ABC123' });
         assert.equal(prepare.status, 200);
         assert.equal('soal' in prepare.data, false);
+        const permission = jwt.decode(prepare.data.izin);
+        assert.ok(permission && typeof permission === 'object');
+        assert.equal('gate' in permission, false);
+        assert.equal(Object.values(permission).includes('ABC123'), false);
         assert.equal(await db.pengerjaanUjian.count({ where: { ujianId: fixture.examId } }), 0);
         const start = await request('/mulai', 'POST', { izin: prepare.data.izin });
         assert.equal(start.status, 200);

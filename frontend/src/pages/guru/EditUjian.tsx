@@ -7,7 +7,7 @@ import { examClassNames } from './UjianGuru';
 import { questionTypeLabels } from './questionTypes';
 import { Plus } from 'lucide-react';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
-import AutoReleaseOption from './AutoReleaseOption';
+import DraftExamSettings, { readDraftRules } from './DraftExamSettings';
 import { localDateTime } from './examDateFilter';
 
 type QuestionType = Question['tipeSoal'];
@@ -24,6 +24,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
         return existing;
     });
     const [saving, setSaving] = useState(false);
+    const [typeId, setTypeId] = useState(String(exam.jenisUjianId ?? ''));
     const [error, setError] = useState('');
 
     function addQuestion() {
@@ -69,7 +70,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
         }
         const payload = JSON.stringify({
             jenisUjianId: Number(form.get('jenisUjianId')),
-            rilisHasilOtomatis: form.has('rilisHasilOtomatis'),
+            aturanDraf: readDraftRules(form),
             durasiMenit: Number(form.get('durasi')),
             waktuMulai: start.toISOString(),
             waktuSelesai: end.toISOString(),
@@ -111,7 +112,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
                 <section className="grid gap-3 rounded-xl border bg-white p-5 sm:grid-cols-2">
                     <h2 className="cbt-section-title sm:col-span-2">Pengaturan Umum</h2>
                     <label className="ui-label">Jenis ujian
-                        <select name="jenisUjianId" required defaultValue={exam.jenisUjianId ?? ''} className={fieldClass}>
+                        <select name="jenisUjianId" required value={typeId} onChange={event => setTypeId(event.target.value)} className={fieldClass}>
                             <option value="" disabled>Pilih jenis ujian</option>
                             {examTypes.map(item => <option key={item.id} value={item.id}>{item.nama}</option>)}
                         </select>
@@ -126,7 +127,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
                     <label className="ui-label">Waktu selesai
                         <input name="selesai" type="datetime-local" step="1" required defaultValue={localDateTime(exam.waktuSelesai)} className={fieldClass} />
                     </label>
-                    <div className="sm:col-span-2"><AutoReleaseOption defaultChecked={exam.hasilRilis} /></div>
+                    <div className="sm:col-span-2"><DraftExamSettings exam={exam} /></div>
                 </section>
                 {!examTypes.length && <p role="status" className="ui-notice">Belum ada jenis ujian. Hubungi admin untuk menambahkannya melalui Data Master → Jenis Ujian.</p>}
                 <nav aria-label="Tipe soal" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 lg:grid-cols-5">

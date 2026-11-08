@@ -5,6 +5,16 @@ export function localDateTime(value: string) {
     return new Date(+date - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 }
 
+export function defaultExamSchedule(minimumMinutes = 120) {
+    const minute = 60_000;
+    const start = Math.ceil((Date.now() + minute) / minute) * minute;
+    const end = start + Math.max(120, minimumMinutes) * minute;
+    return {
+        start: localDateTime(new Date(start).toISOString()).slice(0, 16),
+        end: localDateTime(new Date(end).toISOString()).slice(0, 16)
+    };
+}
+
 export function examOnDate(value: string, selected: string) {
     return examDateInRange(value, selected, selected);
 }

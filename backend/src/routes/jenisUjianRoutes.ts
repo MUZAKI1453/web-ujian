@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { sortByName } from '../controllers/displayOrder';
+import { validExamProfile } from './examProfiles';
 
 // Mounted under /admin, after requireUser and requireAdmin.
 const router = Router();
@@ -24,20 +25,24 @@ router.get('/', async (_req, res) => {
 });
 
 router.post('/', async (req, res) => {
+    const profil = req.body?.profil ?? 'standar';
+    if (!validExamProfile(profil)) return res.status(400).json({ message: 'Profil ujian tidak valid.' });
     const nama = typeof req.body?.nama === 'string' ? req.body.nama.trim().replace(/\s+/g, ' ') : '';
     if (!nama || nama.length > 150) return res.status(400).json({ message: 'Nama jenis ujian wajib diisi, maksimal 150 karakter.' });
     try {
-        res.status(201).json(await prisma.jenisUjian.create({ data: { nama } }));
+        res.status(201).json(await prisma.jenisUjian.create({ data: { nama, profil } }));
     } catch (error) { failure(error, res); }
 });
 
 router.put('/:id', async (req, res) => {
     const id = Number(req.params.id);
     const nama = typeof req.body?.nama === 'string' ? req.body.nama.trim().replace(/\s+/g, ' ') : '';
+    const profil = req.body?.profil;
+    if (profil !== undefined && !validExamProfile(profil)) return res.status(400).json({ message: 'Profil ujian tidak valid.' });
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) return res.status(404).json({ message: 'Jenis ujian tidak ditemukan.' });
     if (!nama || nama.length > 150) return res.status(400).json({ message: 'Nama jenis ujian wajib diisi, maksimal 150 karakter.' });
     try {
-        res.json(await prisma.jenisUjian.update({ where: { id }, data: { nama } }));
+        res.json(await prisma.jenisUjian.update({ where: { id }, data: { nama, profil } }));
     } catch (error) { failure(error, res); }
 });
 

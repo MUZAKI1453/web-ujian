@@ -3,11 +3,12 @@ import { KeyRound, PanelsTopLeft, Settings } from 'lucide-react';
 import PengaturanNavbar, { type NavbarSettings } from './admin/PengaturanNavbar';
 import GantiPassword from './GantiPassword';
 
-export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSaved }: {
+export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSaved, initialSection }: {
     isAdmin: boolean; navbar: NavbarSettings; navbarLoaded: boolean;
     onNavbarSaved: (settings: NavbarSettings) => void;
+    initialSection?: 'umum' | 'keamanan';
 }) {
-    const [section, setSection] = useState<'umum' | 'keamanan'>(isAdmin ? 'umum' : 'keamanan');
+    const [section, setSection] = useState<'umum' | 'keamanan'>(initialSection ?? (isAdmin ? 'umum' : 'keamanan'));
     return <section className="mx-auto w-full max-w-3xl space-y-3 sm:space-y-4">
         <header className="space-y-1">
             <h1 className="ui-page-title flex items-center gap-3"><Settings className="shrink-0 text-blue-600" size={28} aria-hidden="true" />Pengaturan</h1>

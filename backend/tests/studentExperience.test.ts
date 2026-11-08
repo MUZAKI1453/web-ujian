@@ -47,16 +47,28 @@ test('student API protects receipts and respects separate result/discussion rele
     const answer = { id: 81, siswaId: 9, waktuSubmit: new Date('2026-11-05T07:30:00Z'), totalNilai: new Prisma.Decimal(7), detailJawaban: { 31: 'Jawaban siswa' }, koreksiEssay: { 31: 7, catatan: { 31: 'Tambahkan contoh.' } } };
     const attempt = { id: 91, waktuKirim: answer.waktuSubmit, diterimaOffline: null as Date | null, kirimanOffline: { 31: 'Kiriman tertunda' } };
     const exam = { id: 17, judul: 'PTS', mapel: { nama: 'IPA' }, hasilRilis: false, bahasanRilis: false, soal: [question], jawaban: [answer], pengerjaan: [attempt] };
-    db.user.findUnique = (async () => ({ id: 9, role: 'siswa', sesiLogin: 'student-session' })) as any;
+    let lastSessionEnd = 0;
+    let role = 'siswa';
+    db.user.findUnique = (async () => ({ id: 9, role, sesiLogin: 'student-session' })) as any;
     db.ujian.findFirst = (async (args: any) => {
         assert.equal(args.where.draf, false);
         assert.equal(args.include.jawaban.where.siswaId, 9);
+        if (args.where.susulan && lastSessionEnd > +args.where.susulan.none.waktuSelesai.gt) return null;
         return args.where.id === 17 ? exam : null;
     }) as any;
     db.pengerjaanUjian.count = (async () => attempt.diterimaOffline ? 1 : 0) as any;
     db.user.findUniqueOrThrow = (async () => ({ kelasId: 1 })) as any;
     db.ujian.findMany = (async (args: any) => {
         assert.equal(args.include.jawaban.where.siswaId, 9);
+        if (role === 'admin') {
+            assert.equal(args.where.draf, false);
+            assert.deepEqual(args.where.OR.slice(0, 4), [
+                { pesertaRemedial: { some: { id: 9 } } },
+                { susulan: { some: { peserta: { some: { siswaId: 9 } } } } },
+                { pengerjaan: { some: { siswaId: 9 } } },
+                { jawaban: { some: { siswaId: 9 } } }
+            ]);
+        }
         return [{ ...exam, susulan: [], waktuMulai: new Date('2026-11-05T07:00:00Z'), waktuSelesai: new Date('2026-11-05T08:00:00Z') }];
     }) as any;
     const app = express();
@@ -92,6 +104,9 @@ test('student API protects receipts and respects separate result/discussion rele
         assert.equal((await get('17/hasil')).status, 404);
         assert.equal((await get('')).data.data[0].nilai, null);
         exam.bahasanRilis = true;
+        lastSessionEnd = Date.now() + 60_000;
+        assert.equal((await get('17/pembahasan')).status, 404);
+        lastSessionEnd = 0;
         const discussion = await get('17/pembahasan');
         assert.equal((await get('')).data.data[0].nilai, null);
         assert.equal(discussion.data.soal[0].jawabanSiswa, 'Jawaban siswa');
@@ -115,6 +130,10 @@ test('student API protects receipts and respects separate result/discussion rele
         const pendingDiscussion = await get('17/pembahasan');
         assert.equal(pendingDiscussion.data.soal[0].penilaian, null);
         assert.equal(pendingDiscussion.data.soal[0].catatan, null);
+        role = 'admin';
+        attempt.diterimaOffline = null;
+        assert.equal((await get('')).data.data[0].nilai, '7.00');
+        assert.equal((await get('17/bukti')).status, 200);
     } finally {
         [db.user.findUnique, db.ujian.findFirst, db.pengerjaanUjian.count, db.user.findUniqueOrThrow, db.ujian.findMany] = originals as any;
         t.mock.restoreAll();

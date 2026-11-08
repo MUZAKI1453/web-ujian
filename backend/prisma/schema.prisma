@@ -64,6 +64,7 @@ model GuruMapelKelas {
 model JenisUjian {
   id   Int    @id @default(autoincrement())
   nama String @unique @db.VarChar(150)
+  profil String @default("standar") @db.VarChar(24)
   ujian Ujian[]
 
   @@map("jenis_ujian")
@@ -81,6 +82,8 @@ model Ujian {
   durasiMenit  Int      @default(60) @map("durasi_menit")
   guruId       Int?     @map("guru_id")
   draf         Boolean  @default(false)
+  profil       String   @default("standar") @db.VarChar(24)
+  tujuanRekap  String   @default("buku-nilai") @map("tujuan_rekap") @db.VarChar(24)
   diarsipkanPada DateTime? @map("diarsipkan_pada")
   kkm          Decimal? @db.Decimal(5, 2)
   ujianAsalId  Int? @unique @map("ujian_asal_id")

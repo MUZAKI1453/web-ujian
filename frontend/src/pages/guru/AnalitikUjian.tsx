@@ -5,10 +5,16 @@ import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import { examClassNames, type ExamRow } from './UjianGuru';
 import { violationLabels } from '../siswa/useExamSecurity';
+import QuestionAnalytics, { type QuestionAnalysis, type Reliability } from './QuestionAnalytics';
 
 type Analytics = {
     rows: { siswa: { id: number; nama: string | null; username: string }; nilai: number | null; status: string }[];
     totalPelanggaran: number;
+    jumlahKiriman: number;
+    menungguTinjauan: number;
+    analisisSoal: QuestionAnalysis[];
+    reliabilitas: Reliability;
+    kkm: number | null;
     pelanggaran: { id: number; siswa: string; alasan: keyof typeof violationLabels | null; waktu: string }[];
 };
 
@@ -44,6 +50,8 @@ function ExamAnalytics({ examId }: { examId: string }) {
 
     const scores = data?.rows.flatMap(row => row.nilai === null ? [] : [row.nilai]) ?? [];
     const average = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null;
+    const kkm = data?.kkm ?? null;
+    const complete = kkm === null ? null : scores.filter(value => value >= kkm).length;
     const stats = [
         { label: 'Selesai dinilai', value: scores.length },
         { label: 'Menunggu penilaian', value: (data?.rows.length ?? 0) - scores.length },
@@ -64,6 +72,10 @@ function ExamAnalytics({ examId }: { examId: string }) {
             </dl>
             <section className="ui-card space-y-3 p-4 sm:p-5" aria-labelledby="score-distribution-title">
                 <h2 id="score-distribution-title" className="font-semibold">Distribusi nilai</h2>
+                {kkm !== null && complete !== null && <p className="text-sm text-slate-600">
+                    KKM {number.format(kkm)} · {complete} dari {scores.length} nilai final tuntas
+                    {scores.length > 0 && ` (${number.format(complete / scores.length * 100)}%)`}
+                </p>}
                 {!scores.length ? <p className="text-sm text-slate-500">Belum ada nilai akhir.</p> : <ul className="space-y-2.5">
                     {bands.map(band => {
                         const count = scores.filter(value => value >= band.min && value < band.max).length;
@@ -77,6 +89,7 @@ function ExamAnalytics({ examId }: { examId: string }) {
                     })}
                 </ul>}
             </section>
+            <QuestionAnalytics examId={examId} questions={data.analisisSoal} submissions={data.jumlahKiriman} underReview={data.menungguTinjauan} reliability={data.reliabilitas} />
             <section className="ui-card overflow-x-auto" aria-labelledby="student-results-title">
                 <h2 id="student-results-title" className="p-4 font-semibold sm:p-5">Hasil per siswa</h2>
                 {data.rows.length ? <table className="ui-table">
@@ -125,7 +138,7 @@ export default function AnalitikUjian() {
     return <section className="cbt-portal">
         <header className="ui-card p-5 sm:p-8">
             <h1 className="ui-page-title flex items-center gap-2"><BarChart3 size={26} className="text-blue-600" aria-hidden="true" />Analitik Ujian</h1>
-            <p className="mt-2 text-sm text-slate-600">Tinjau nilai siswa dan catatan pelanggaran per ujian.</p>
+            <p className="mt-2 text-sm text-slate-600">Tinjau pola jawaban per soal, nilai siswa, dan catatan pelanggaran per ujian.</p>
         </header>
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {loading && <p role="status" className="ui-card p-5 text-sm text-slate-500">Memuat daftar ujian…</p>}

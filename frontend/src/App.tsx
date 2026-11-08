@@ -15,12 +15,14 @@ import AnalitikUjian from './pages/guru/AnalitikUjian';
 import UjianGuru from './pages/guru/UjianGuru';
 import BerandaSiswa from './pages/siswa/BerandaSiswa';
 import type { ViewRole } from './components/NavbarLayout';
+import ActionDialog from './components/ActionDialog';
 
 interface User {
     username: string;
     nama: string;
     role: string;
     kelas?: string | null;
+    passwordBawaan?: boolean;
 }
 
 export default function App() {
@@ -32,6 +34,7 @@ export default function App() {
         }
     });
     const [page, setPage] = useState('dashboard');
+    const [showPasswordWarning, setShowPasswordWarning] = useState(false);
     const [teacherNavigationKey, setTeacherNavigationKey] = useState(0);
     const [previewRole, setPreviewRole] = useState<ViewRole>('admin');
     const [navbar, setNavbar] = useState<NavbarSettings>(defaultNavbar);
@@ -57,7 +60,10 @@ export default function App() {
     };
 
     const brandLogo = navbarLogos[navbar.logo] || navbarLogos.smpip;
-    if (!user) return <Login onLoginSuccess={setUser} brandLogo={brandLogo} />;
+    if (!user) return <Login onLoginSuccess={(account: User) => {
+        setUser(account);
+        setShowPasswordWarning(account.passwordBawaan === true);
+    }} brandLogo={brandLogo} />;
 
     const viewRole = user.role === 'admin' ? previewRole : user.role;
     const changeView = (role: ViewRole) => {
@@ -88,11 +94,11 @@ export default function App() {
             viewRole={viewRole}
             onViewRoleChange={user.role === 'admin' ? changeView : undefined}
             onLogout={logout}
-            activePage={page}
+            activePage={page === 'pengaturan-keamanan' ? 'pengaturan' : page}
             onNavigate={navigate}
         >
             {page === 'guru-analitik' && viewRole === 'guru' ? <AnalitikUjian />
-                : page === 'pengaturan' ? <Pengaturan isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
+                : page === 'pengaturan' || page === 'pengaturan-keamanan' ? <Pengaturan key={page} initialSection={page === 'pengaturan-keamanan' ? 'keamanan' : undefined} isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
                 <UjianGuru key={teacherNavigationKey} view={page === 'guru-ujian' ? 'ujian' : page === 'guru-mapel' ? 'mapel' : 'dashboard'} onNavigate={navigate} />
             ) : viewRole === 'siswa' && ['dashboard', 'siswa-ujian', 'siswa-hasil'].includes(page) ? (
                 <BerandaSiswa username={user.username} adminMode={user.role === 'admin'}
@@ -103,6 +109,19 @@ export default function App() {
                     Halaman ini belum tersedia di repository.
                 </div>
             )}
+            {showPasswordWarning && <ActionDialog
+                title="Keamanan Akun"
+                message="Akun Anda masih memakai password bawaan yang mudah ditebak. Pilih Ganti Password untuk membuat password baru yang hanya Anda ketahui."
+                tone="warning"
+                centered
+                confirmLabel="Ganti Password"
+                cancelLabel="Nanti"
+                onClose={() => setShowPasswordWarning(false)}
+                onConfirm={() => {
+                    setShowPasswordWarning(false);
+                    navigate('pengaturan-keamanan');
+                }}
+            />}
         </NavbarLayout>
     );
 }

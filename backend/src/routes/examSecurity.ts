@@ -2,37 +2,58 @@ import type { Prisma } from '@prisma/client';
 import { object } from './examGrading';
 
 export const MAX_VIOLATIONS = 3;
-export const securityReasons = ['tab-hidden', 'window-blur', 'fullscreen-exit', 'split-screen'] as const;
-export type SecurityEvent = { id: string; reason: typeof securityReasons[number] };
+export const SECURITY_BATCH = 16;
+const interruptionReasons = ['tab-hidden', 'window-blur', 'fullscreen-exit', 'split-screen'];
+export const defaultSecurityWeights = { 'tab-hidden': 2, 'window-blur': 2, 'fullscreen-exit': 2, 'split-screen': 2,
+    copy: 1, paste: 1, 'context-menu': 1, print: 1 };
+export type SecurityWeights = typeof defaultSecurityWeights;
+export type SecurityEvent = { id: string; reason: keyof SecurityWeights };
+
+export function parseSecurityWeights(value: unknown): SecurityWeights | null {
+    const entries = Object.entries(object(value));
+    if (entries.length !== Object.keys(defaultSecurityWeights).length || entries.some(([key, weight]) =>
+        !Object.prototype.hasOwnProperty.call(defaultSecurityWeights, key) || typeof weight !== 'number' ||
+        !Number.isInteger(weight) || weight < 0 || weight > 10)) return null;
+    return Object.fromEntries(entries) as SecurityWeights;
+}
+
+export function interruptsExam(reason: SecurityEvent['reason']) {
+    return interruptionReasons.includes(reason);
+}
 
 export function parseSecurityEvents(input: unknown): SecurityEvent[] | null {
     if (input === undefined) return [];
-    if (!Array.isArray(input) || input.length > MAX_VIOLATIONS) return null;
+    if (!Array.isArray(input) || input.length > SECURITY_BATCH) return null;
     const events: SecurityEvent[] = [];
     for (const raw of input) {
         const event = object(raw);
         if (typeof event.id !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(event.id) ||
-            !securityReasons.includes(event.reason as SecurityEvent['reason'])) return null;
+            typeof event.reason !== 'string' || !Object.prototype.hasOwnProperty.call(defaultSecurityWeights, event.reason)) return null;
         if (!events.some(item => item.id === event.id)) events.push({ id: event.id, reason: event.reason as SecurityEvent['reason'] });
     }
     return events;
 }
 
 // The caller holds the exam/attempt transaction lock; retries must not count twice.
-export async function recordSecurity(tx: Prisma.TransactionClient, ujianId: number, siswaId: number, attemptId: number, events: SecurityEvent[]) {
+export async function recordSecurity(tx: Prisma.TransactionClient, ujianId: number, siswaId: number, attemptId: number, events: SecurityEvent[], weights = defaultSecurityWeights) {
+    const reasons = [...new Set([...interruptionReasons, ...events.map(event => event.reason)])];
     const rows = await tx.kegiatanUjian.findMany({ where: {
-        ujianId, pelakuId: siswaId, jenis: 'pelanggaran-ujian', data: { path: ['attemptId'], equals: attemptId }
-    }, select: { data: true } });
+        ujianId, pelakuId: siswaId, jenis: 'pelanggaran-ujian', alasan: { in: reasons }, data: { path: ['attemptId'], equals: attemptId }
+    }, select: { data: true, alasan: true, waktu: true } });
     const known = new Set(rows.map(row => object(row.data).eventId));
-    let count = rows.length;
+    let count = rows.filter(row => row.alasan && interruptsExam(row.alasan as SecurityEvent['reason'])).length;
+    const recent = new Set(rows.filter(row => Date.now() - +row.waktu < 10_000).map(row => row.alasan));
     for (const event of events) {
-        if (known.has(event.id) || count >= MAX_VIOLATIONS) continue;
+        const interrupt = interruptsExam(event.reason);
+        const weight = weights[event.reason];
+        if (!weight || known.has(event.id) || (interrupt ? count >= MAX_VIOLATIONS : recent.has(event.reason))) continue;
         await tx.kegiatanUjian.create({ data: {
             ujianId, pelakuId: siswaId, jenis: 'pelanggaran-ujian',
-            alasan: event.reason, data: { attemptId, eventId: event.id, reason: event.reason }
+            alasan: event.reason, data: { attemptId, eventId: event.id, reason: event.reason, weight }
         } });
         known.add(event.id);
-        count++;
+        recent.add(event.reason);
+        if (interrupt) count++;
     }
     return { securityCount: count, securityAck: events.map(event => event.id) };
 }

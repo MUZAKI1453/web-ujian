@@ -5,8 +5,13 @@ export const violationLabels: Record<SecurityEvent['reason'], string> = {
     'tab-hidden': 'Tab ujian ditinggalkan',
     'window-blur': 'Berpindah aplikasi atau jendela',
     'fullscreen-exit': 'Keluar dari layar penuh',
-    'split-screen': 'Terdeteksi mode jendela atau split screen'
+    'split-screen': 'Terdeteksi mode jendela atau split screen',
+    copy: 'Upaya menyalin', paste: 'Upaya menempel', 'context-menu': 'Membuka menu klik kanan', print: 'Upaya mencetak'
 };
+
+export function interruptsExam(reason: SecurityEvent['reason']) {
+    return ['tab-hidden', 'window-blur', 'fullscreen-exit', 'split-screen'].includes(reason);
+}
 
 export default function useExamSecurity(current: MutableRefObject<LocalAttempt>, update: (attempt: LocalAttempt) => void, finished: boolean, prepared = false) {
     const [ready, setReady] = useState(false);
@@ -14,6 +19,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
     const [activating, setActivating] = useState(false);
     const armed = useRef(false);
     const incident = useRef(false);
+    const lastPassive = useRef<Partial<Record<SecurityEvent['reason'], number>>>({});
     const audio = useRef<AudioContext>();
     const wakeLock = useRef<WakeLockSentinel | null>(null);
     const cleanupTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -25,16 +31,23 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
 
     function record(reason: SecurityEvent['reason']) {
         const latest = current.current;
-        if (!armed.current || incident.current || finishedRef.current || latest.send || Date.now() + latest.offset >= latest.deadline) return;
-        incident.current = true;
-        armed.current = false;
-        setReady(false);
+        const now = Date.now();
+        if (!armed.current || incident.current || finishedRef.current || latest.send || now + latest.offset >= latest.deadline || latest.securityWeights?.[reason] === 0) return;
         const security = latest.security ?? { count: 0, pending: [] };
-        const count = Math.min(3, security.count + 1);
+        const interrupt = interruptsExam(reason);
+        if (!interrupt && (security.pending.length >= 13 || now - (lastPassive.current[reason] ?? 0) < 10_000)) return;
+        lastPassive.current[reason] = now;
+        const count = interrupt ? Math.min(3, security.count + 1) : security.count;
         const event: SecurityEvent = { id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), reason };
+        if (interrupt) {
+            incident.current = true;
+            armed.current = false;
+            setReady(false);
+        }
         callback.current({ ...latest, send: count >= 3 || latest.send, versi: count >= 3 ? latest.versi + 1 : latest.versi,
-            security: { count, pending: [...security.pending, event].slice(-3), warning: violationLabels[reason] } });
+            security: { count, pending: [...security.pending, event], warning: interrupt ? violationLabels[reason] : security.warning } });
         window.dispatchEvent(new Event('cbt-security-report'));
+        if (!interrupt) return;
         try {
             const context = audio.current;
             if (context && context.state === 'running') {
@@ -99,17 +112,24 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
                 if (window.screen.width >= 600 && window.innerWidth < window.screen.width * 0.8) record('split-screen');
             }, 800);
         };
-        const contextMenu = (event: Event) => { if (armed.current) event.preventDefault(); };
+        const contextMenu = (event: Event) => { if (armed.current) { event.preventDefault(); record('context-menu'); } };
         const shortcut = (event: KeyboardEvent) => {
-            if (armed.current && ((event.ctrlKey || event.metaKey) && ['c', 'v', 'x', 'p', 's', 'u'].includes(event.key.toLowerCase()) || armed.current && event.key === 'F12')) event.preventDefault();
+            const key = event.key.toLowerCase();
+            if (!armed.current || !((event.ctrlKey || event.metaKey) && ['c', 'v', 'x', 'p', 's', 'u'].includes(key) || event.key === 'F12')) return;
+            event.preventDefault();
+            if (key === 'c' || key === 'x') record('copy');
+            if (key === 'v') record('paste');
+            if (key === 'p') record('print');
         };
-        const clipboard = (event: ClipboardEvent) => { if (armed.current) event.preventDefault(); };
+        const clipboard = (event: ClipboardEvent) => { if (armed.current) { event.preventDefault(); record(event.type === 'paste' ? 'paste' : 'copy'); } };
+        const print = () => record('print');
         document.addEventListener('visibilitychange', hidden);
         document.addEventListener('fullscreenchange', fullscreen);
         document.addEventListener('contextmenu', contextMenu);
         document.addEventListener('keydown', shortcut);
         document.addEventListener('copy', clipboard); document.addEventListener('cut', clipboard); document.addEventListener('paste', clipboard);
         window.addEventListener('blur', blur); window.addEventListener('focus', focus); window.addEventListener('resize', resize);
+        window.addEventListener('beforeprint', print);
         // A newly started attempt arrives with fullscreen already approved. Arm monitoring immediately.
         if (prepared && !current.current.security?.warning && !current.current.send &&
             !document.hidden && document.hasFocus() && (!fullscreenSupported || !!document.fullscreenElement)) {
@@ -124,6 +144,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
             document.removeEventListener('keydown', shortcut);
             document.removeEventListener('copy', clipboard); document.removeEventListener('cut', clipboard); document.removeEventListener('paste', clipboard);
             window.removeEventListener('blur', blur); window.removeEventListener('focus', focus); window.removeEventListener('resize', resize);
+            window.removeEventListener('beforeprint', print);
             // StrictMode remounts effects. Only leave fullscreen when the component really unmounts.
             cleanupTimer.current = setTimeout(() => {
                 void wakeLock.current?.release().catch(() => {});

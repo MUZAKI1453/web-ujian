@@ -23,8 +23,8 @@ export async function requireUser(req: Request, res: Response, next: NextFunctio
     try {
         const user = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true, sesiLogin: true } });
         if (!user) return res.status(401).json({ status: 'ERROR', message: 'Akun tidak ditemukan.' });
-        if (user.role === 'siswa' && (!sesiLogin || sesiLogin !== user.sesiLogin)) {
-            return res.status(401).json({ code: 'SESI_BERAKHIR', message: 'Sesi ini berakhir karena akun masuk kembali. Silakan login ulang.' });
+        if ((user.role === 'siswa' || user.sesiLogin) && (!sesiLogin || sesiLogin !== user.sesiLogin)) {
+            return res.status(401).json({ code: 'SESI_BERAKHIR', message: 'Sesi telah berakhir. Silakan login ulang.' });
         }
         res.locals.user = user;
         next();

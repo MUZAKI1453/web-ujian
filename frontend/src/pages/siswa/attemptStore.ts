@@ -1,5 +1,6 @@
 export type Value = number | number[] | (boolean | null)[] | string;
-export type SecurityEvent = { id: string; reason: 'tab-hidden' | 'window-blur' | 'fullscreen-exit' | 'split-screen' };
+export type SecurityEvent = { id: string; reason: 'tab-hidden' | 'window-blur' | 'fullscreen-exit' | 'split-screen' | 'copy' | 'paste' | 'context-menu' | 'print' };
+export type SecurityWeights = Record<SecurityEvent['reason'], number>;
 export interface Question {
     id: number; tipeSoal: string; pertanyaan: string; gambar?: string;
     items: { teks: string; gambar?: string; benar?: boolean }[];
@@ -9,6 +10,7 @@ export interface LocalAttempt {
     jawaban: Record<string, Value>; soal: Question[]; ragu: number[]; index: number; send: boolean;
     lastSavedAt?: number; savedAnswers?: Record<string, Value>;
     security?: { count: number; pending: SecurityEvent[]; warning?: string };
+    securityWeights?: SecurityWeights;
 }
 
 let database: Promise<IDBDatabase> | undefined;

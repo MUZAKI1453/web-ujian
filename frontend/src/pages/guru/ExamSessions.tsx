@@ -7,16 +7,19 @@ import ModalOverlay from '../../components/ModalOverlay';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import { violationLabels } from '../siswa/useExamSecurity';
+import type { SecurityWeights } from '../siswa/attemptStore';
+import type { ExamProfile } from './examProfiles';
 import { participantStatus, sessionExpanded } from './sessionStatus';
-import { localDateTime } from './examDateFilter';
+import { defaultExamSchedule, localDateTime } from './examDateFilter';
 
-type Student = { id: number; nama: string | null; username: string };
+type Student = { id: number; nama: string | null; username: string; role?: string };
 type Window = { token: string | null; masukBuka: boolean; waktuMulai: string; waktuSelesai: string };
 type Makeup = Window & { id: number; peserta: { siswaId: number; siswa: Student }[] };
 type Attempt = { id: number; siswaId: number; sesiSusulanId: number | null; mulai: string; batasWaktu: string; waktuKirim: string | null; siswa: Student };
 type Answer = { siswaId: number; totalNilai: string; waktuSubmit: string; siswa: Student };
-type Sessions = Window & { durasiMenit: number; jadwalTerkunci: boolean; kelas: { users: Student[] }; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
-    keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string }[] };
+type Sessions = Window & { profil: ExamProfile; durasiMenit: number; jadwalTerkunci: boolean; kelas: { users: Student[] }; pesertaUjiCoba: Student[]; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
+    bobotKeamanan: SecurityWeights;
+    keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string; bobot: number }[] };
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 const formatted = (value: string) => date.format(new Date(value));
@@ -38,7 +41,7 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
     const [data, setData] = useState<Sessions | null>(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
-    const [making, setMaking] = useState(false);
+    const [making, setMaking] = useState<ReturnType<typeof defaultExamSchedule> | null>(null);
     const [rescheduling, setRescheduling] = useState(false);
     const [notice, setNotice] = useState('');
     const [projection, setProjection] = useState<string | null>(null);
@@ -108,7 +111,7 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
         if (!participants.length) { setError('Pilih minimal satu peserta.'); return; }
         void perform(async () => {
             await api.post(url + '/susulan', { waktuMulai: start.toISOString(), waktuSelesai: end.toISOString(), peserta: participants });
-            setMaking(false); setChosen([]);
+            setMaking(null); setChosen([]);
         });
     }
     if (!data) return <section className="space-y-4">{renderHeader()}<p role={error ? 'alert' : 'status'}>{error || 'Memuat sesi ujian…'}</p></section>;
@@ -118,7 +121,7 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
     const regular = new Map(data.kelas.users.filter(item => !assigned.has(item.id)).map(item => [item.id, item]));
     data.pengerjaan.filter(item => item.sesiSusulanId === null).forEach(item => regular.set(item.siswaId, item.siswa));
     data.jawaban.filter(item => attempts.get(item.siswaId)?.sesiSusulanId == null).forEach(item => regular.set(item.siswaId, item.siswa));
-    const eligible = data.kelas.users.filter(item => !assigned.has(item.id) && !attempts.has(item.id) && !answers.has(item.id));
+    const eligible = [...data.kelas.users, ...data.pesertaUjiCoba].filter(item => !assigned.has(item.id) && !attempts.has(item.id) && !answers.has(item.id));
     const sessions = [
         { ...data, key: 'reguler', title: 'Sesi Reguler', id: null, students: [...regular.values()] },
         ...data.susulan.map((item, index) => ({ ...item, key: String(item.id), title: 'Sesi Susulan ' + (index + 1), students: item.peserta.map(p => p.siswa) }))
@@ -126,10 +129,28 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
     const projected = sessions.find(item => item.key === projection);
     const canArchive = !archived && sessions.every(session => +new Date(session.waktuSelesai) <= now);
     return <section className="space-y-4">
+        <details className="ui-card space-y-3 p-4">
+            <summary className="cursor-pointer font-semibold">Pengaturan risiko ujian</summary>
+            <p className="text-sm text-slate-600">Bobot 0 menonaktifkan pencatatan kejadian. Skor risiko digunakan untuk tinjauan.</p>
+            {data.jadwalTerkunci && <p className="text-sm text-slate-600">Pengaturan terkunci setelah pengerjaan dimulai atau ujian diarsipkan.</p>}
+            <form key={JSON.stringify(data.bobotKeamanan)} onSubmit={event => {
+                event.preventDefault();
+                const fields = new FormData(event.currentTarget);
+                const weights = Object.fromEntries(Object.keys(data.bobotKeamanan).map(reason => [reason, Number(fields.get(reason))]));
+                void perform(() => api.patch(url + '/keamanan', { weights }));
+            }}>
+                <fieldset disabled={busy || data.jadwalTerkunci} className="grid gap-3 sm:grid-cols-2">
+                    {(Object.keys(violationLabels) as (keyof SecurityWeights)[]).map(reason => <label key={reason} className="ui-label flex items-center justify-between gap-3">
+                        {violationLabels[reason]}<input name={reason} type="number" min="0" max="10" step="1" required defaultValue={data.bobotKeamanan[reason]} className="ui-input w-20" />
+                    </label>)}
+                    <button type="submit" className={primaryClass}>Simpan bobot risiko</button>
+                </fieldset>
+            </form>
+        </details>
         {error && !making && !rescheduling && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="ui-notice ui-notice-success">{notice}</p>}
         {renderHeader(!archived && <>
-            <button type="button" disabled={busy || archiving || !eligible.length} title={eligible.length ? 'Tambah sesi susulan' : 'Tidak ada peserta yang dapat ditambahkan ke sesi susulan'} className={primaryClass} onClick={() => { setError(''); setChosen([]); setMakeupSearch(''); setMaking(true); }}><Plus size={17} aria-hidden="true" />Sesi Susulan</button>
+            <button type="button" disabled={busy || archiving || !eligible.length} title={eligible.length ? 'Tambah sesi susulan' : 'Tidak ada peserta yang dapat ditambahkan ke sesi susulan'} className={primaryClass} onClick={() => { setError(''); setChosen([]); setMakeupSearch(''); setMaking(defaultExamSchedule(data.durasiMenit)); }}><Plus size={17} aria-hidden="true" />Sesi Susulan</button>
             {canArchive && <button type="button" disabled={busy || archiving} className="ui-button ui-button-neutral-soft" onClick={onArchive}><Archive size={16} aria-hidden="true" />Arsipkan Ujian</button>}
         </>)}
         {sessions.map(session => {
@@ -164,12 +185,15 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
             </summary>
             <div className="space-y-4 border-t border-slate-200 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div><p className="text-xs font-medium text-slate-500">Token ujian</p><strong className="mt-1 block font-mono text-3xl tracking-widest text-slate-900">{session.token || '—'}</strong></div>
+                <div><p className="text-xs font-medium text-slate-500">Token ujian</p><strong className="mt-1 block text-lg text-slate-900">{session.token || 'Tanpa token'}</strong></div>
                 {(ongoing || canReschedule) && <div className="flex flex-wrap gap-2">
                     {canReschedule && <button type="button" disabled={busy || archiving} className="ui-button ui-button-edit" onClick={() => { setError(''); setRescheduling(true); }}><CalendarDays size={16} aria-hidden="true" />Ubah Jadwal</button>}
                     {ongoing && <>
                     {session.token && <button type="button" className="ui-button ui-button-secondary bg-white" onClick={() => setProjection(session.key)}><Monitor size={16} aria-hidden="true" />Tampilkan Token</button>}
-                    <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={() => controls('ganti-token')}><RefreshCw size={16} aria-hidden="true" />Ganti Token</button>
+                    {data.profil !== 'latihan-kuis' && <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={() => controls('ganti-token')}><RefreshCw size={16} aria-hidden="true" />{session.token ? 'Ganti Token' : 'Aktifkan Token'}</button>}
+                    {data.profil === 'ulangan-harian' && session.token && <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={async () => {
+                        if (await askConfirmation({ title: 'Nonaktifkan token?', message: 'Peserta yang memenuhi syarat bisa masuk tanpa token selama akses sesi terbuka.', confirmLabel: 'Nonaktifkan Token', tone: 'warning' })) void controls('hapus-token');
+                    }}>Nonaktifkan Token</button>}
                     <button type="button" disabled={busy} className="ui-button ui-button-secondary bg-white" onClick={() => controls(session.masukBuka ? 'tutup' : 'buka')}>
                         {session.masukBuka ? <LockKeyhole size={16} aria-hidden="true" /> : <UnlockKeyhole size={16} aria-hidden="true" />}{session.masukBuka ? 'Tutup Akses' : 'Buka Akses'}
                     </button>
@@ -193,9 +217,9 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
                     <tbody>{visible.map(({ student, attempt, answer, state, violations }) => <tr key={student.id}>
                         <td><span className="block font-semibold text-slate-800">{student.nama || student.username}</span><span className="text-xs text-slate-500">NIS {student.username}</span></td><td>{badge(state)}</td>
                         <td>{violations.length ? <details className="group min-w-36">
-                            <summary className="monitor-session-summary flex min-h-10 cursor-pointer list-none items-center gap-2 text-yellow-900"><ShieldAlert size={16} aria-hidden="true" /><span className="text-xs font-semibold">{violations.length}/3 pelanggaran</span><ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
-                            <ul className="mt-2 space-y-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs">{violations.map(item => <li key={item.id}>{violationLabels[item.reason] || item.reason}<span className="mt-1 block text-slate-500">{formatted(item.waktu)}</span></li>)}</ul>
-                        </details> : <span className="text-xs text-slate-500">{attempt ? '0/3 pelanggaran' : '—'}</span>}</td>
+                            <summary className="monitor-session-summary flex min-h-10 cursor-pointer list-none items-center gap-2 text-yellow-900"><ShieldAlert size={16} aria-hidden="true" /><span className="text-xs font-semibold">Risiko {violations.reduce((sum, item) => sum + item.bobot, 0)} · {violations.length} kejadian</span><ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
+                            <ul className="mt-2 space-y-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs">{violations.map(item => <li key={item.id}>{violationLabels[item.reason] || item.reason}<span className="mt-1 block text-slate-500">{formatted(item.waktu)} · Bobot {item.bobot}</span></li>)}</ul>
+                        </details> : <span className="text-xs text-slate-500">{attempt ? 'Risiko 0' : '—'}</span>}</td>
                         <td className="font-semibold tabular-nums">{answer ? Number(answer.totalNilai) : '—'}</td>
                         <td>{!archived && (attempt || answer) && <button type="button" disabled={busy} title="Reset pengerjaan" aria-label={'Reset pengerjaan ' + (student.nama || student.username)} className="grid size-10 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40" onClick={async () => {
                             if (await askConfirmation({ title: 'Reset pengerjaan?', message: `Pengerjaan dan jawaban ${student.nama || student.username} akan dihapus.`, confirmLabel: 'Reset Pengerjaan', tone: 'danger' })) void perform(() => api.delete(url + '/pengerjaan/' + student.id));
@@ -229,21 +253,21 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
                 </form>
             </section>
         </ModalOverlay>}
-        {making && <ModalOverlay label="Tambah Sesi Susulan" onClose={() => { if (!busy) setMaking(false); }}>
+        {making && <ModalOverlay label="Tambah Sesi Susulan" onClose={() => { if (!busy) setMaking(null); }}>
             <section className="ui-dialog-panel max-w-2xl space-y-5">
-                <div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 text-lg font-bold"><CalendarDays size={20} className="text-blue-700" aria-hidden="true" />Sesi Susulan</h3><button type="button" disabled={busy} onClick={() => setMaking(false)} className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup form sesi susulan"><X size={18} aria-hidden="true" /></button></div>
+                <div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 text-lg font-bold"><CalendarDays size={20} className="text-blue-700" aria-hidden="true" />Sesi Susulan</h3><button type="button" disabled={busy} onClick={() => setMaking(null)} className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup form sesi susulan"><X size={18} aria-hidden="true" /></button></div>
                 {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
                 <form onSubmit={makeup} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2"><label className="ui-label">Mulai<input type="datetime-local" name="mulai" required className={fieldClass} /></label><label className="ui-label">Selesai<input type="datetime-local" name="selesai" required className={fieldClass} /></label></div>
+                    <div className="grid gap-3 sm:grid-cols-2"><label className="ui-label">Mulai<input type="datetime-local" name="mulai" defaultValue={making.start} required className={fieldClass} /></label><label className="ui-label">Selesai<input type="datetime-local" name="selesai" defaultValue={making.end} required className={fieldClass} /></label></div>
                     <fieldset className="space-y-3"><legend className="mb-2 text-sm font-semibold">Peserta <span className="font-normal text-slate-500">· {chosen.filter(id => eligible.some(student => student.id === id)).length} dipilih</span></legend>
                         <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input type="search" value={makeupSearch} onChange={event => setMakeupSearch(event.target.value)} className="ui-input w-full pl-9" aria-label="Cari peserta susulan" placeholder="Cari nama atau NIS…" /></div>
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">{eligible.map(student => <label key={student.id} className={(((student.nama ?? '') + ' ' + student.username).toLowerCase().includes(makeupSearch.trim().toLowerCase()) ? 'flex ' : 'hidden ') + 'cursor-pointer items-center gap-3 rounded-xl border p-3 ' + (chosen.includes(student.id) ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
                             <input type="checkbox" name="peserta" value={student.id} checked={chosen.includes(student.id)} className="size-5 accent-blue-600" onChange={event => setChosen(current => event.target.checked ? [...current, student.id] : current.filter(id => id !== student.id))} />
-                            <span className="min-w-0"><span className="block text-sm font-semibold">{student.nama || student.username}</span><span className="text-xs text-slate-500">NIS {student.username}</span></span>
+                            <span className="min-w-0"><span className="block text-sm font-semibold">{student.nama || student.username}</span><span className="text-xs text-slate-500">{student.role === 'admin' ? 'Admin uji coba · ' : 'NIS '}{student.username}</span></span>
                         </label>)}
                         {!eligible.some(student => ((student.nama ?? '') + ' ' + student.username).toLowerCase().includes(makeupSearch.trim().toLowerCase())) && <p className="py-5 text-center text-sm text-slate-500">Tidak ada peserta yang cocok.</p>}</div>
                     </fieldset>
-                    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" className="ui-button ui-button-secondary" onClick={() => setMaking(false)}>Batal</button><button type="submit" disabled={!eligible.some(student => chosen.includes(student.id))} className={primaryClass}><Save size={17} aria-hidden="true" />{busy ? 'Menyimpan…' : 'Simpan Sesi'}</button></div>
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" className="ui-button ui-button-secondary" onClick={() => setMaking(null)}>Batal</button><button type="submit" disabled={!eligible.some(student => chosen.includes(student.id))} className={primaryClass}><Save size={17} aria-hidden="true" />{busy ? 'Menyimpan…' : 'Simpan Sesi'}</button></div>
                 </fieldset></form>
             </section>
         </ModalOverlay>}

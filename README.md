@@ -16,7 +16,7 @@ Backend: http://localhost:5000
 
 Untuk membuka aplikasi dari perangkat lain, sambungkan perangkat ke jaringan yang sama lalu buka alamat pada baris **Network** di terminal. Jika Windows Firewall memblokir koneksi, izinkan port frontend yang tercetak di terminal (biasanya 5173) dan port backend 5000 pada jaringan privat.
 
-Akun admin hasil seed: username `admin`, password `admin123` (untuk development lokal).
+Password awal siswa adalah NIS, password awal guru adalah NIP, dan akun admin hasil seed memakai username `admin` dengan password `admin123`. Saat login dengan password bawaan, pengguna mendapat peringatan dengan tombol **Ganti Password** yang membuka Pengaturan → Keamanan. Gunakan HTTPS untuk frontend dan API saat diakses dari perangkat siswa.
 
 `npm run build` memeriksa TypeScript dan membuat build frontend/backend.
 

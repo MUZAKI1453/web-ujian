@@ -13,14 +13,19 @@ import type { LocalAttempt, Question, Value } from './attemptStore';
 import { errorMessage } from '../guru/QuestionEditor';
 import { isStudentHistory, prioritizeStudentExams } from './studentSections';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
+import Select from '../../components/ui/Select';
+import { gradeDestinationLabels } from '../guru/examProfiles';
 
 type Exam = {
-    id: number; judul: string; mapel: string; durasi: number; mulai: string; selesai: string;
+    id: number; judul: string; mapel: string; mapelId: number; durasi: number; mulai: string; selesai: string;
     susulan: boolean; status: 'Berlangsung' | 'Terjadwal' | 'Selesai' | 'Draf'; masukBuka: boolean;
+    perluToken: boolean;
+    tujuanRekap: string;
     attempt: number | null; submitted: boolean; hasil: boolean; nilai: string | null; pembahasan: boolean; offline: boolean; menungguKoreksi: boolean;
 };
 type Packet = {
     attemptId: number; deadline: number; now: number; versi: number; jawaban: Record<string, Value>; soal: Question[]; securityCount: number;
+    securityWeights?: LocalAttempt['securityWeights'];
 };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
 type Discussion = { soal: { id: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
@@ -54,6 +59,8 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     const [busy, setBusy] = useState(false);
     const [prepared, setPrepared] = useState<string | null>(null);
     const [search, setSearch] = useState('');
+    const [trendSubject, setTrendSubject] = useState('');
+    const [destination, setDestination] = useState('');
     const latestNavigation = useRef(navigationKey);
     latestNavigation.current = navigationKey;
 
@@ -127,6 +134,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                 lastSavedAt: same?.lastSavedAt, savedAnswers: packet.jawaban,
                 jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
                 index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false,
+                securityWeights: packet.securityWeights,
                 security: { count: Math.max(same?.security?.count ?? 0, packet.securityCount ?? 0), pending: same?.security?.pending ?? [], warning: same?.security?.warning }
             };
             await storeAttempt(key(exam.id), attempt).catch(() => {});
@@ -233,6 +241,11 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     </section>;
 
     if (view === 'hasil') {
+        const visibleResults = results.filter(exam => !destination || exam.tujuanRekap === destination);
+        const released = visibleResults.filter(exam => exam.hasil && exam.nilai !== null && (destination || exam.tujuanRekap === 'buku-nilai'));
+        const subjects = new Map(released.map(exam => [String(exam.mapelId), exam.mapel]));
+        const subject = subjects.has(trendSubject) ? trendSubject : subjects.keys().next().value;
+        const trend = released.filter(exam => String(exam.mapelId) === subject).slice(0, 10).reverse();
         return <section className="cbt-portal cbt-student">
             <header className="ui-card space-y-2 p-5 sm:p-8">
                 <h1 className="ui-page-title flex items-center gap-2.5"><History size={28} className="text-blue-600" aria-hidden="true" />Hasil Ujian</h1>
@@ -241,14 +254,45 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             {loading && <p role="status" className="ui-card p-5 text-sm text-slate-500">Memuat hasil ujian…</p>}
             {!loading && !error && !results.length && <p className="ui-card p-5 text-sm text-slate-600">Belum ada ujian yang dikumpulkan.</p>}
-            {results.length > 0 && <div className="ui-card overflow-x-auto">
+            {results.length > 0 && <div className="ui-card p-4">
+                <label htmlFor="student-result-destination" className="ui-label mr-3">Tujuan rekap</label>
+                <Select id="student-result-destination" value={destination} onValueChange={setDestination}>
+                    <option value="">Semua hasil</option>
+                    {Object.entries(gradeDestinationLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+            </div>}
+            {results.length > 0 && !visibleResults.length && <p className="ui-card p-5 text-sm text-slate-600">Belum ada hasil untuk rekap ini.</p>}
+            {!adminMode && released.length > 0 && <section className="ui-card space-y-3 p-5" aria-labelledby="student-score-trend">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 id="student-score-trend" className="font-semibold">Tren nilai per mata pelajaran</h2>
+                        <p className="mt-1 text-sm text-slate-600">{gradeDestinationLabels[destination || 'buku-nilai']} · Maksimal 10 nilai yang sudah dirilis, dari ujian terlama ke terbaru.</p>
+                    </div>
+                    <Select aria-label="Mata pelajaran untuk tren nilai" value={subject} onValueChange={setTrendSubject}>
+                        {[...subjects].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </Select>
+                </div>
+                <ol className="space-y-3">
+                    {trend.map(exam => <li key={exam.id} className="space-y-1 text-sm">
+                        <div className="flex items-baseline justify-between gap-2">
+                            <span>{exam.judul} · <time dateTime={exam.mulai}>{resultDate.format(new Date(exam.mulai))}</time></span>
+                            <strong className="tabular-nums">{resultScore.format(Number(exam.nilai))}</strong>
+                        </div>
+                        <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div className="h-full rounded-full bg-blue-600" style={{ width: Math.max(0, Math.min(100, Number(exam.nilai))) + '%' }} />
+                        </div>
+                    </li>)}
+                </ol>
+            </section>}
+            {visibleResults.length > 0 && <div className="ui-card overflow-x-auto">
                 <table className="ui-table">
                     <caption className="sr-only">Ringkasan hasil ujian</caption>
                     <thead><tr><th scope="col" className="px-2 sm:px-4">Ujian</th><th scope="col" className="px-2 sm:px-4">Nilai</th><th scope="col" className="px-2 sm:px-4">Pembahasan</th></tr></thead>
-                    <tbody>{results.map(exam => <tr key={exam.id}>
+                    <tbody>{visibleResults.map(exam => <tr key={exam.id}>
                         <th scope="row" className="border-b border-slate-100 px-2 py-3 text-left font-normal sm:px-4">
                             <span className="block break-words font-semibold text-slate-900">{exam.mapel}</span>
                             <span className="mt-1 block break-words text-xs text-slate-600">{exam.judul}{exam.susulan ? ' · Susulan' : ''}</span>
+                            <span className="mt-1 block text-xs text-slate-500">{gradeDestinationLabels[exam.tujuanRekap]}</span>
                             <time dateTime={exam.mulai} className="mt-1 block text-xs text-slate-500">{resultDate.format(new Date(exam.mulai))}</time>
                             <button type="button" disabled={busy} className="min-h-11 text-left text-xs font-semibold text-blue-700 hover:underline"
                                 onClick={() => void show(exam, 'bukti')}>Bukti Pengumpulan</button>
@@ -294,16 +338,16 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             </div>
             <div className="rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600"><p className="font-semibold text-slate-800">Durasi ujian: {selected.durasi} menit</p><ul className="mt-2 list-disc space-y-1 pl-5"><li>Kerjakan satu soal per layar dan gunakan navigasi untuk berpindah soal.</li><li>Tandai soal yang ragu dan periksa kembali sebelum mengumpulkan.</li><li>Jawaban disimpan otomatis. Tetap di halaman ujian sampai jawaban terkirim.</li></ul></div>
             {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
-            {!selected.attempt && !prepared && <label className="ui-label block max-w-xs">Token ujian
+            {!selected.attempt && !prepared && selected.perluToken && <label className="ui-label block max-w-xs">Token ujian
                 <input name="token" autoComplete="off" maxLength={6} minLength={6} required className={fieldClass + ' uppercase'} />
             </label>}
             <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Ujian memakai mode pengamanan. Keluar fullscreen, berpindah tab/aplikasi, atau split screen akan dicatat. Setelah 3 pelanggaran, ujian dikumpulkan otomatis.</p>
-            {prepared && <p role="status" className="text-sm text-green-800">Token terverifikasi. Mulai Ujian akan menyiapkan layar penuh terlebih dahulu, lalu memulai soal dan timer.</p>}
+            {prepared && <p role="status" className="text-sm text-green-800">{selected.perluToken ? 'Token terverifikasi.' : 'Ujian siap.'} Mulai Ujian akan menyiapkan layar penuh terlebih dahulu, lalu memulai soal dan timer.</p>}
             {(!document.documentElement.requestFullscreen || document.fullscreenEnabled === false) && <p className="text-sm text-amber-900">Browser ini tidak mendukung fullscreen. Pemantauan tab dan fokus tetap aktif.</p>}
             <div className="flex gap-2">
                 <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => { setSelected(null); setPrepared(null); }}>Batal</button>
                 <button type="submit" disabled={busy} className={primaryClass}>
-                    {busy ? 'Menyiapkan soal…' : selected.attempt ? 'Lanjutkan Ujian' : prepared ? 'Mulai Ujian' : 'Verifikasi Token'}
+                    {busy ? 'Menyiapkan soal…' : selected.attempt ? 'Lanjutkan Ujian' : prepared ? 'Mulai Ujian' : selected.perluToken ? 'Verifikasi Token' : 'Siapkan Ujian'}
                 </button>
             </div>
         </form></PortalDialog>}

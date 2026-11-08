@@ -46,11 +46,14 @@ router.get('/ujian/:id/:jenis(hasil|pembahasan)', async (req, res, next) => {
     if (!Number.isSafeInteger(id) || id < 1) return res.sendStatus(404);
     try {
         const siswaId = res.locals.user.id;
+        const result = req.params.jenis === 'hasil';
+        const now = new Date();
         const exam = await prisma.ujian.findFirst({
-            where: { id, draf: false, jawaban: { some: { siswaId } } },
+            where: { id, draf: false, jawaban: { some: { siswaId } }, ...(!result && {
+                waktuSelesai: { lte: now }, susulan: { none: { waktuSelesai: { gt: now } } }
+            }) },
             include: { soal: { orderBy: { id: 'asc' } }, jawaban: { where: { siswaId }, orderBy: { waktuSubmit: 'desc' }, take: 1 } }
         });
-        const result = req.params.jenis === 'hasil';
         if (!exam || !(result ? exam.hasilRilis : exam.bahasanRilis)) return res.status(404).json({ message: 'Hasil belum tersedia.' });
         const answer = exam.jawaban[0];
         const pendingOffline = await prisma.pengerjaanUjian.count({ where: { ujianId: id, siswaId, diterimaOffline: { not: null } } });

@@ -5,16 +5,10 @@ import { fieldClass, primaryClass } from '../../components/ui/styles';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import type { ExamDetail, ExamRow, ExamType } from './UjianGuru';
-import AutoReleaseOption from './AutoReleaseOption';
+import DraftExamSettings, { readDraftRules } from './DraftExamSettings';
+import { defaultExamSchedule } from './examDateFilter';
 
 type Assignment = { mapel: { id: number; nama: string }; kelas: { id: number; namaKelas: string } };
-
-function initialSchedule() {
-    const start = new Date();
-    start.setSeconds(0, 0);
-    const local = (value: Date) => new Date(+value - value.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    return { start: local(start), end: local(new Date(+start + 120 * 60000)) };
-}
 
 export default function DraftExamForm({ assignments, examTypes, source, onCreated }: {
     assignments: Assignment[];
@@ -25,7 +19,8 @@ export default function DraftExamForm({ assignments, examTypes, source, onCreate
     const subjects = [...new Map(assignments.map(pair => [pair.mapel.id, pair.mapel])).values()];
     const [subject, setSubject] = useState(source ? String(source.mapel.id) : subjects.length === 1 ? String(subjects[0].id) : '');
     const [classes, setClasses] = useState<number[]>([]);
-    const [schedule] = useState(initialSchedule);
+    const [schedule] = useState(() => defaultExamSchedule(source?.durasiMenit));
+    const [typeId, setTypeId] = useState(String(examTypes.find(item => item.id === source?.jenisUjianId)?.id ?? ''));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const available = [...new Map(assignments.filter(pair => String(pair.mapel.id) === subject).map(pair => [pair.kelas.id, pair.kelas])).values()];
@@ -46,7 +41,7 @@ export default function DraftExamForm({ assignments, examTypes, source, onCreate
             const url = source ? '/guru/ujian/' + source.id + '/duplikat' : '/guru/ujian';
             const { data } = await api.post<ExamRow & { soal?: ExamDetail['soal'] }>(url, { jenisUjianId: Number(form.get('jenisUjianId')), mapelId: Number(subject), kelasIds: classes,
                 durasiMenit: duration, waktuMulai: start.toISOString(), waktuSelesai: end.toISOString(),
-                rilisHasilOtomatis: form.has('rilisHasilOtomatis') });
+                aturanDraf: readDraftRules(form) });
             onCreated(data);
         } catch (err) { setError(errorMessage(err)); }
         finally { setSaving(false); }
@@ -78,22 +73,22 @@ export default function DraftExamForm({ assignments, examTypes, source, onCreate
             <section className="ui-card space-y-5 bg-white p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-semibold"><FilePenLine size={20} className="text-blue-600" aria-hidden="true" />Detail Ujian</h2>
                 <label className="ui-label block">Jenis ujian
-                    <select name="jenisUjianId" required defaultValue={examTypes.find(item => item.id === source?.jenisUjianId)?.id ?? ''} className={fieldClass}>
+                    <select name="jenisUjianId" required value={typeId} onChange={event => setTypeId(event.target.value)} className={fieldClass}>
                         <option value="" disabled>Pilih jenis ujian</option>
                         {examTypes.map(item => <option key={item.id} value={item.id}>{item.nama}</option>)}
                     </select>
                 </label>
                 {!examTypes.length && <p role="status" className="ui-notice">Belum ada jenis ujian. Hubungi admin untuk menambahkannya melalui Data Master → Jenis Ujian.</p>}
                 <div className="grid gap-4 lg:grid-cols-3">
-                    <label className="ui-label block">Waktu mulai<input name="mulai" type="datetime-local" defaultValue={source ? '' : schedule.start} required className={fieldClass} /></label>
-                    <label className="ui-label block">Waktu selesai<input name="selesai" type="datetime-local" defaultValue={source ? '' : schedule.end} required className={fieldClass} /></label>
+                    <label className="ui-label block">Waktu mulai<input name="mulai" type="datetime-local" defaultValue={schedule.start} required className={fieldClass} /></label>
+                    <label className="ui-label block">Waktu selesai<input name="selesai" type="datetime-local" defaultValue={schedule.end} required className={fieldClass} /></label>
                 <label className="ui-label block"><span className="flex items-center gap-1.5"><Clock3 size={15} aria-hidden="true" />Durasi</span>
                     <span className="mt-1 flex min-h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-visible:ring-blue-100">
                         <input name="durasi" type="number" min="1" step="1" defaultValue={source?.durasiMenit ?? 120} required className="min-h-11 min-w-0 flex-1 border-0 px-3 py-2.5 text-sm" /><span className="self-stretch border-l border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-normal text-slate-500">menit</span>
                     </span>
                 </label>
                 </div>
-                <AutoReleaseOption />
+                <DraftExamSettings exam={source} />
             </section>
             <div className="flex justify-end rounded-xl border border-slate-200 bg-white p-4">
                 <button type="submit" disabled={!subject || !classes.length || !examTypes.length} className={primaryClass}><Save size={18} aria-hidden="true" />{saving ? 'Menyimpan…' : source ? 'Buat Salinan Draf' : 'Simpan Draf'}</button>

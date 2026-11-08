@@ -99,3 +99,18 @@ salah, persiapan sebelum timer, reload, login kedua, perpindahan tab, fullscreen
 ditolak/tidak didukung, keyboard HP, jaringan putus, deadline server, antrean
 terlambat, serta perubahan jawaban setelah pengumpulan. Belum dijalankan dalam
 pemeriksaan ini.
+# Skor risiko per ujian
+
+Di **Sesi & Peserta → Pengaturan risiko ujian**, guru dapat mengatur bobot kejadian sebelum peserta mulai. Bobot `0` menonaktifkan pencatatan kejadian tersebut. Bobot bawaan adalah `2` untuk pindah tab, kehilangan fokus, keluar dari layar penuh, dan dugaan layar terbagi. Salin, tempel, klik kanan, dan cetak memiliki bobot bawaan `1`. Skor adalah jumlah bobot kejadian yang tercatat untuk pengerjaan aktif. Guru dapat membuka detailnya di kolom **Keamanan**.
+
+Kejadian salin, tempel, klik kanan, dan cetak dicatat untuk tinjauan. Pengulangan jenis yang sama dibatasi sekali per 10 detik. Tiga gangguan fokus atau layar yang aktif tetap memicu aturan pengumpulan otomatis yang sudah berlaku. Bobot hanya memengaruhi skor tinjauan. Pembatasan antarmuka seperti fullscreen dan pemblokiran pintasan tetap berlaku sesuai dukungan browser.
+
+Browser biasa hanya mengamati sinyal yang tersedia bagi halaman. Browser tidak bisa melihat ponsel kedua, kamera eksternal, percakapan di ruangan, atau semua cara mengambil gambar layar. Perubahan fokus dan ukuran jendela juga dapat terjadi karena alasan yang sah. Gunakan catatan sebagai bahan tinjauan bersama konteks ujian.
+
+## Ujian berisiko tinggi pada perangkat Android sekolah
+
+Untuk perangkat milik sekolah yang dikelola, gunakan kebijakan Android Enterprise **lock task mode** melalui EMM atau pengendali kebijakan perangkat. Siapkan aplikasi browser kiosk yang diizinkan dan arahkan ke URL HTTPS portal ujian. Batasi navigasi ke origin portal dan origin layanan yang dibutuhkan, lalu uji login, fullscreen atau perilaku layar yang setara, pemuatan gambar, putus-sambung koneksi, pengumpulan, dan prosedur keluar untuk pengawas. Terapkan lebih dulu di perangkat uji sekolah. Mode ini dipasang pada perangkat melalui EMM. Portal web tidak mengaktifkannya dari browser biasa. [Panduan Android Enterprise](https://developer.android.com/work/dpc/dedicated-devices/lock-task-mode)
+
+Jika memakai Safe Exam Browser, penerapan yang mewajibkan klien tersebut memerlukan validasi konfigurasi di server. Validasi itu belum tersedia di aplikasi ini. [Dokumentasi integrasi SEB](https://www.safeexambrowser.org/developer/seb-integration.html)
+
+Deteksi login ganda, perubahan perangkat atau jaringan, jeda heartbeat, waktu jawab sangat singkat, indikasi manipulasi, dan analisis kemiripan jawaban belum masuk skor. Validasi deadline di server tetap berlaku. Perubahan alamat IP dan jeda koneksi dapat berasal dari perpindahan jaringan yang normal dan perlu konteks sebelum ditinjau.

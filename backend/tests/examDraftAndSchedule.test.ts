@@ -19,6 +19,7 @@ test('teacher can duplicate an authorized exam and reschedule only before anyone
     let sourceAccessible = true;
     let locked = false;
     let writes = 0;
+    let explicitRules = false;
     db.$transaction = (async run => {
         locked = false;
         return run({
@@ -39,6 +40,9 @@ test('teacher can duplicate an authorized exam and reschedule only before anyone
                     assert.equal(data.guruId, 3);
                     assert.equal(data.draf, true);
                     assert.equal(data.hasilRilis, false);
+                    assert.equal(data.profil, explicitRules ? 'latihan-kuis' : undefined);
+                    assert.equal(data.tujuanRekap, explicitRules ? 'persiapan' : undefined);
+                    assert.equal(data.bahasanRilis, explicitRules ? true : undefined);
                     assert.equal(data.token, undefined);
                     assert.equal(data.jawaban, undefined);
                     assert.equal(data.pengerjaan, undefined);
@@ -73,6 +77,11 @@ test('teacher can duplicate an authorized exam and reschedule only before anyone
         const copy = { ...schedule, kelasIds: [4], mapelId: 2, jenisUjianId: 5, durasiMenit: 60 };
         assert.equal(await call('duplikat', { ...copy, kelasIds: [99] }), 403);
         assert.equal(await call('duplikat', copy), 201);
+        const aturanDraf = { token: 'tanpa', rekap: 'persiapan', hasilOtomatis: false, pembahasanOtomatis: true };
+        explicitRules = true;
+        assert.equal(await call('duplikat', { ...copy, aturanDraf }), 201);
+        assert.equal(await call('duplikat', { ...copy, aturanDraf: { ...aturanDraf, token: 'bebas' } }), 400);
+        explicitRules = false;
         sourceAccessible = false;
         assert.equal(await call('duplikat', copy), 404);
         assert.equal(await call('jadwal', { ...schedule, waktuSelesai: '2099-05-01T01:30:00.000Z', durasiMenit: 1 }), 400);

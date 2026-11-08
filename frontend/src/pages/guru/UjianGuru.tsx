@@ -15,12 +15,16 @@ import ExamReport from './ExamReport';
 import DraftExamForm from './DraftExamForm';
 import { examOnDate } from './examDateFilter';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
+import { gradeDestinationLabels, type ExamProfile } from './examProfiles';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 
 interface Exam {
     id: number;
     judul: string;
     jenisUjianId: number | null;
+    ujianAsalId: number | null;
+    profil: ExamProfile;
+    tujuanRekap: string;
     mapel: { id: number; nama: string };
     kelas: { namaKelas: string };
     kelasTujuan?: { id: number; namaKelas: string }[];
@@ -29,6 +33,7 @@ interface Exam {
     waktuSelesai: string;
     draf: boolean;
     hasilRilis: boolean;
+    bahasanRilis: boolean;
     diarsipkanPada: string | null;
     poinKhusus?: Partial<Record<keyof PointSettings, number>> | null;
 }
@@ -42,6 +47,7 @@ export function examClassNames(exam: Exam) {
 function ExamMetadata({ exam }: { exam: Exam }) {
     return <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
         <div className="min-w-0"><dt className="sr-only">Jenis ujian</dt><dd><ExamTypeBadge label={exam.judul} /></dd></div>
+        <div><dt className="sr-only">Tujuan rekap</dt><dd>{gradeDestinationLabels[exam.tujuanRekap]}</dd></div>
         <div className="flex min-w-0 items-center gap-1.5"><GraduationCap size={16} className="shrink-0 text-slate-400" aria-hidden="true" /><dt className="sr-only">Kelas</dt><dd className="break-words">{examClassNames(exam)}</dd></div>
         <div className="flex items-center gap-1.5"><Clock3 size={15} className="text-slate-400" aria-hidden="true" /><dt className="sr-only">Durasi</dt><dd>{exam.durasiMenit} menit</dd></div>
     </dl>;

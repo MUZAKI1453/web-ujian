@@ -116,7 +116,6 @@ export default function DataJenisUjian() {
                     <div><label htmlFor="nama-jenis-ujian" className="ui-label block mb-1">Nama Jenis Ujian</label>
                         <input id="nama-jenis-ujian" type="text" autoFocus required maxLength={150} disabled={busy} value={editor.nama} onChange={event => setEditor({ ...editor, nama: event.target.value })} placeholder="Contoh: Ulangan Harian, PTS, PAS" className="ui-input w-full border focus:border-blue-600" />
                     </div>
-                    <p className="text-xs text-slate-600">Jenis ujian yang sudah digunakan tidak dapat dihapus. Perubahan nama tidak mengubah ujian yang sudah terbit.</p>
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" disabled={busy} className="ui-button ui-button-secondary" onClick={() => setEditor(null)}>Batal</button>
                         <button type="submit" disabled={busy || !editor.nama.trim()} className="ui-button ui-button-primary">{busy ? 'Menyimpan…' : editor.id ? 'Simpan Perubahan' : 'Simpan Jenis Ujian'}</button>
