@@ -78,7 +78,10 @@ if (fs.existsSync(frontendIndex)) {
     const workerFile = path.join(frontendDist, 'sw.js');
     if (fs.existsSync(workerFile)) {
         const worker = fs.readFileSync(workerFile, 'utf8');
-        const assets = fs.readdirSync(assetsDir).sort().map(name => '/assets/' + encodeURIComponent(name));
+        // Font .woff/.ttf hanya cadangan untuk browser lama; browser yang mendukung service worker memakai .woff2.
+        // Tanpa saringan ini setiap perangkat mengunduh ±800 KB font yang tidak pernah dipakai.
+        const assets = fs.readdirSync(assetsDir).filter(name => !/\.(woff|ttf)$/.test(name)).sort()
+            .map(name => '/assets/' + encodeURIComponent(name));
         const version = createHash('sha256').update(worker).update(fs.readFileSync(frontendIndex))
             .update(JSON.stringify(assets)).digest('hex').slice(0, 16);
         const script = 'const build = ' + JSON.stringify({ version, assets }) + ';\n' + worker;
@@ -97,6 +100,13 @@ if (fs.existsSync(frontendIndex)) {
                     src: '/icons/' + logo + '-' + size + '.png', sizes: size + 'x' + size, type: 'image/png'
                 }))
             }));
+        } catch (error) { next(error); }
+    });
+    // Ikon layar utama iPhone mengikuti logo sekolah pada instalasi ini (index.html dipakai bersama SMP dan SMA).
+    app.get('/apple-touch-icon.png', async (_req, res, next) => {
+        try {
+            const logo = (await readNavbarSettings())?.logo ?? 'smpip';
+            res.set('Cache-Control', 'no-cache').sendFile(path.join(frontendDist, 'icons', logo + '-192.png'));
         } catch (error) { next(error); }
     });
     app.use('/assets', express.static(assetsDir, { immutable: true, maxAge: '1y' }), (_req, res) => {
