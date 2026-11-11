@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { requireUser } from '../middleware/auth';
-import { grade, object } from './examGrading';
+import { grade, object, questionContent } from './examGrading';
 import { studentReceipt } from './studentReceipt';
 
 const router = Router();
@@ -59,17 +59,18 @@ router.get('/ujian/:id/:jenis(hasil|pembahasan)', async (req, res, next) => {
         if (!exam || !(result ? exam.hasilRilis : exam.bahasanRilis)) return res.status(404).json({ message: 'Hasil belum tersedia.' });
         const answer = exam.jawaban[0];
         const pendingOffline = await prisma.pengerjaanUjian.count({ where: { ujianId: id, siswaId, diterimaOffline: { not: null } } });
-        if (!result) return res.json({ soal: exam.soal.filter(q => !q.dibatalkan).map(q => {
+        if (!result) return res.json({ soal: exam.soal.flatMap((q, index) => {
+            if (q.dibatalkan) return [];
             // Pembahasan may be released independently of marks. Keep marks and notes behind hasilRilis.
             const mark = grade([q], answer.detailJawaban, answer.koreksiEssay);
             const points = exam.hasilRilis && !pendingOffline && !mark.pending ? mark.rincian[q.tipeSoal] : null;
-            return {
-                id: q.id, tipeSoal: q.tipeSoal, pertanyaan: q.pertanyaan, isi: q.isi, semuaBenar: q.semuaBenar,
+            return [{
+                id: q.id, nomor: index + 1, tipeSoal: q.tipeSoal, pertanyaan: q.pertanyaan, isi: questionContent(q), semuaBenar: q.semuaBenar,
                 jawabanSiswa: object(answer.detailJawaban)[q.id] ?? null,
                 penilaian: points ? { poin: points.poin, maksimum: points.maksimum,
                     status: q.tipeSoal === 'ESSAY' ? 'Sudah dikoreksi' : points.benar ? 'Benar' : 'Salah' } : null,
                 catatan: exam.hasilRilis && !pendingOffline ? object(object(answer.koreksiEssay).catatan)[q.id] ?? null : null
-            };
+            }];
         }) });
         const marks = grade(exam.soal, answer.detailJawaban, answer.koreksiEssay);
         if (marks.pending || pendingOffline) return res.status(404).json({ message: 'Hasil belum tersedia.' });

@@ -1,22 +1,21 @@
 import { primaryClass } from '../../components/ui/styles';
-import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, Check, CheckCheck, CircleDot, ClipboardList, Clock3, Copy, Eye, FilePenLine, GraduationCap, Laptop, ListChecks, Plus, Search, SquarePen, TextCursorInput, Trash2, UploadCloud, Users, X, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, ClipboardList, Clock3, Copy, Eye, FilePenLine, GraduationCap, Laptop, Plus, Search, SquarePen, Trash2, UploadCloud, Users, X } from 'lucide-react';
 import { PortalHeader, PortalStat } from '../../components/PortalHeader';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
-import { questionTypeLabels } from './questionTypes';
 import ImportSoal from './ImportSoal';
 import EditUjian from './EditUjian';
-import QuestionContent from './QuestionContent';
+import ExamQuestionReview, { ExamReviewHeader } from '../../components/ExamQuestionReview';
 import PublishExam, { specialPointTypes, type PointSettings } from './PublishExam';
 import ExamSessions from './ExamSessions';
 import ExamReport from './ExamReport';
 import DraftExamForm from './DraftExamForm';
 import { examOnDate } from './examDateFilter';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
-import { gradeDestinationLabels, type ExamProfile } from './examProfiles';
+import type { ExamProfile } from './examProfiles';
 import { useConfirmation } from '../../components/ConfirmationProvider';
 
 interface Exam {
@@ -25,7 +24,6 @@ interface Exam {
     jenisUjianId: number | null;
     ujianAsalId: number | null;
     profil: ExamProfile;
-    tujuanRekap: string;
     mapel: { id: number; nama: string };
     kelas: { namaKelas: string };
     kelasTujuan?: { id: number; namaKelas: string }[];
@@ -48,9 +46,8 @@ export function examClassNames(exam: Exam) {
 }
 
 function ExamMetadata({ exam }: { exam: Exam }) {
-    return <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
+    return <dl className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
         <div className="min-w-0"><dt className="sr-only">Jenis ujian</dt><dd><ExamTypeBadge label={exam.judul} /></dd></div>
-        <div><dt className="sr-only">Tujuan rekap</dt><dd>{gradeDestinationLabels[exam.tujuanRekap]}</dd></div>
         <div className="flex min-w-0 items-center gap-1.5"><GraduationCap size={16} className="shrink-0 text-slate-400" aria-hidden="true" /><dt className="sr-only">Kelas</dt><dd className="break-words">{examClassNames(exam)}</dd></div>
         <div className="flex items-center gap-1.5"><Clock3 size={15} className="text-slate-400" aria-hidden="true" /><dt className="sr-only">Durasi</dt><dd>{exam.durasiMenit} menit</dd></div>
     </dl>;
@@ -84,14 +81,6 @@ function savedPointSettings(exam: Exam): PointSettings {
     return settings;
 }
 
-const questionGroups = Object.entries(questionTypeLabels);
-const questionGroupIcons: Record<string, LucideIcon> = {
-    PG: CircleDot,
-    PM: ListChecks,
-    BS: CheckCheck,
-    ISIAN: TextCursorInput,
-    ESSAY: FilePenLine
-};
 const backButtonClass = 'ui-button border border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200 hover:bg-blue-100';
 const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
 type DetailView = 'preview' | 'sessions' | 'report';
@@ -104,11 +93,6 @@ function examStatus(exam: Exam) {
     const now = Date.now();
     if (exam.diarsipkanPada) return 'Diarsipkan';
     return exam.draf ? 'Draf' : now < +new Date(exam.waktuMulai) ? 'Terjadwal' : now >= +new Date(exam.waktuSelesai) ? 'Selesai' : 'Berlangsung';
-}
-
-function optionLabel(index: number): string {
-    const letter = String.fromCharCode(65 + index % 26);
-    return index < 26 ? letter : optionLabel(Math.floor(index / 26) - 1) + letter;
 }
 
 export default function UjianGuru({ view = 'dashboard', onNavigate }: {
@@ -300,22 +284,15 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                         setNotice(questions.length + ' soal berhasil diimpor.');
                         setImporting(false);
                     }} />}
-                    <div className="ui-card flex flex-col gap-4 border bg-white p-5 xl:flex-row xl:flex-wrap xl:items-center">
-                        <div className="min-w-0 xl:flex-[1_1_20rem]">
-                            <p className="text-sm font-semibold text-blue-700">Preview Ujian</p>
-                            <h1 className="ui-page-title break-words">{exam.mapel.nama}</h1>
-                            <ExamMetadata exam={exam} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
-                            {assignments.some(pair => pair.mapel.id === exam.mapel.id) && <button type="button" className="ui-button ui-button-neutral-soft" onClick={() => setDuplicating(true)}><Copy size={17} aria-hidden="true" />Duplikat ke Draf</button>}
-                            {exam.draf && <>
+                    <ExamReviewHeader label="Preview Ujian" title={exam.mapel.nama} metadata={<ExamMetadata exam={exam} />} actions={<>
+                        {assignments.some(pair => pair.mapel.id === exam.mapel.id) && <button type="button" className="ui-button ui-button-neutral-soft" onClick={() => setDuplicating(true)}><Copy size={17} aria-hidden="true" />Duplikat ke Draf</button>}
+                        {exam.draf && <>
                             <button type="button" className="ui-button ui-button-success"
                                 onClick={() => { setNotice(''); setImporting(true); }}><UploadCloud size={18} aria-hidden="true" />Import</button>
                             <button type="button" className="ui-button ui-button-edit" onClick={() => setEditor({})}><SquarePen size={18} aria-hidden="true" />Edit Ujian</button>
-                            </>}
-                            <button type="button" className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button>
-                        </div>
-                    </div>
+                        </>}
+                        <button type="button" className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button>
+                    </>} />
                     {exam.draf && <PublishExam key={JSON.stringify([exam.id, exam.soal.map(q => [q.id, q.bobot, q.tipeSoal])])}
                         examId={exam.id} settings={pointSettings} questions={exam.soal} onSettingsChange={setPointSettings} onPublish={updated => {
                             setExam({ ...exam, draf: false, soal: updated });
@@ -324,46 +301,9 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                         }} />}
                     {notice && <p role="status" className="ui-notice ui-notice-success">{notice}</p>}
                     {!exam.soal.length && <p className="text-sm text-slate-600">Belum ada soal. Pilih Edit Ujian untuk menambahkan soal.</p>}
-                    {[...questionGroups, ['lainnya', 'Soal Lainnya']].map(([type, label]) => {
-                        const questions = exam.soal.map((question, index) => ({ question, index })).filter(({ question }) =>
-                            type === 'lainnya' ? !questionGroups.some(([known]) => known === question.tipeSoal.toUpperCase()) : question.tipeSoal.toUpperCase() === type);
-                        if (!questions.length) return null;
-                        const GroupIcon = questionGroupIcons[type] ?? ClipboardList;
-                        return <section key={type} className="ui-card overflow-hidden border bg-white">
-                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-4 py-3 text-blue-900">
-                                <h2 className="flex items-center gap-3 font-semibold"><span className="grid size-9 place-items-center rounded-lg bg-white"><GroupIcon size={20} aria-hidden="true" /></span>{label}</h2>
-                            </div>
-                            <div className="divide-y divide-slate-200">{questions.map(({ question, index }) => (
-                        <article key={question.id} className="p-4 sm:p-5">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600"><span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs"><ClipboardList size={14} aria-hidden="true" />Nomor {String(index + 1).padStart(2, '0')}</span>{question.dibatalkan && <span className="text-xs text-red-700">Dibatalkan</span>}</h3>
-                                {(!exam.draf || type === 'ESSAY') && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-800">{Number(question.bobot)} poin</span>}
-                            </div>
-                            <div className={type === 'ESSAY' ? 'mt-4 max-w-3xl whitespace-pre-wrap break-words rounded-xl border border-slate-100 bg-slate-50/40 px-4 py-4 text-base leading-8 sm:px-5' : 'mt-3 whitespace-pre-wrap break-words text-base leading-relaxed'}><QuestionContent text={question.pertanyaan} image={question.isi?.gambar} /></div>
-                            {!!question.isi?.items?.length && <ol className="mt-3 space-y-1">
-                                {question.isi.items.map((item, i) => (
-                                    <li key={i} className={'flex items-start gap-2 rounded-lg px-3 py-2 text-sm ' +
-                                        (item.benar ? 'bg-green-50 text-green-900' : type === 'BS' ? 'bg-red-50 text-red-900' : 'bg-slate-50')}>
-                                        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white font-semibold" role={type === 'BS' ? 'img' : undefined} aria-label={type === 'BS' ? item.benar ? 'Benar' : 'Salah' : undefined} title={type === 'BS' ? item.benar ? 'Benar' : 'Salah' : undefined}>
-                                            {type === 'BS' ? item.benar ? <Check size={18} aria-hidden="true" /> : <X size={18} aria-hidden="true" /> : optionLabel(i)}
-                                        </span>
-                                        <div className="min-w-0 flex-1 break-words"><QuestionContent text={item.teks} image={item.gambar} /></div>
-                                        {type !== 'BS' && item.benar && <span className="shrink-0" role="img" aria-label="Jawaban benar" title="Jawaban benar">
-                                            <Check size={18} aria-hidden="true" />
-                                        </span>}
-                                    </li>
-                                ))}
-                            </ol>}
-                            {type === 'ISIAN' && <div className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-950">
-                                <p className="font-semibold">Kunci jawaban</p>
-                                <ul className="mt-2 flex flex-wrap gap-2">
-                                    {question.isi?.jawaban?.map((answer, i) => <li key={i} className="max-w-full whitespace-pre-wrap break-words rounded-lg border border-blue-200 bg-white px-3 py-1.5">{answer}</li>)}
-                                </ul>
-                            </div>}
-                        </article>
-                            ))}</div>
-                        </section>;
-                    })}
+                    {exam.soal.length > 0 && <ExamQuestionReview questions={exam.soal} points={question =>
+                        !exam.draf || question.tipeSoal.toUpperCase() === 'ESSAY'
+                            ? Number(question.bobot).toLocaleString('id-ID', { maximumFractionDigits: 4 }) + ' poin' : undefined} />}
                 </>
             ) : (
                 <>

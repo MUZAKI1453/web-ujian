@@ -50,7 +50,7 @@ Portal siswa mengelompokkan ujian berdasarkan status pengerjaan, dengan ujian ya
 
 Saat mengerjakan, siswa melihat waktu konfirmasi penyimpanan server dan jumlah jawaban yang masih menunggu sinkronisasi, termasuk pengosongan jawaban. Timer tetap berjalan saat offline. Jawaban isian atau essay yang hanya berisi spasi dihitung kosong. Setelah pengumpulan, bukti menampilkan nomor bukti, waktu diterima server, ringkasan jawaban, dan status pengumpulan; bukti juga dapat dibuka lagi dari beranda tanpa menunggu rilis nilai. Kiriman offline setelah deadline ditandai menunggu tinjauan guru.
 
-Pembahasan yang dirilis menampilkan jawaban siswa beserta kunci atau pedoman. Poin dan catatan essay ditampilkan setelah hasil dirilis dan kiriman offline selesai ditinjau. Guru dapat menambahkan catatan opsional saat menyimpan nilai essay. Catatan disimpan bersama koreksi yang sudah ada sehingga tidak memerlukan perubahan skema database.
+Pembahasan yang dirilis menampilkan jawaban siswa dan kunci untuk soal yang dinilai otomatis. Poin dan catatan essay ditampilkan setelah hasil dirilis dan kiriman offline selesai ditinjau. Guru dapat menambahkan catatan opsional saat menyimpan nilai essay. Catatan disimpan bersama koreksi yang sudah ada sehingga tidak memerlukan perubahan skema database.
 
 Menu admin **Log Audit** menampilkan jejak login (berhasil dan gagal), keluar, ganti password, serta setiap perubahan data oleh admin dan guru, lengkap dengan waktu, status, IP, dan perangkat. Catatan disimpan 180 hari. Agar IP yang tercatat adalah IP pengguna, `TRUST_PROXY` harus sesuai jumlah reverse proxy dan proxy harus meneruskan alamat klien asli.
 

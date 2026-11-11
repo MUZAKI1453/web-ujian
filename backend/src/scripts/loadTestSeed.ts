@@ -54,12 +54,12 @@ async function main() {
     const exam = await prisma.ujian.create({ data: {
         judul: LABEL, mapelId: mapel.id, kelasId: kelas.id, kelasTujuan: { connect: [{ id: kelas.id }] },
         waktuMulai: new Date(now - 60000), waktuSelesai: new Date(now + (minutes + 60) * 60000), durasiMenit: minutes,
-        draf: false, profil: 'latihan-kuis', tujuanRekap: 'latihan',
+        draf: false, profil: 'latihan-kuis',
         soal: { create: Array.from({ length: questions }, (_, index) => {
             const kind = index % 10 === 8 ? 'ISIAN' : index % 10 === 9 ? 'ESSAY' : 'PG';
             const isi = kind === 'PG'
                 ? { gambar: '', items: ['A', 'B', 'C', 'D', 'E'].map((label, option) => ({ teks: 'Opsi ' + label + ' soal ' + (index + 1), benar: option === index % 5, gambar: '' })) }
-                : kind === 'ISIAN' ? { gambar: '', jawaban: ['42'], angka: true } : { gambar: '', pedoman: 'Pedoman uji.', poinEssay: 10 };
+                : kind === 'ISIAN' ? { gambar: '', jawaban: ['42'], angka: true } : { gambar: '', poinEssay: 10 };
             return { tipeSoal: kind, pertanyaan: `Soal ${index + 1}. ${filler}`, isi, bobot: weight };
         }) }
     } });

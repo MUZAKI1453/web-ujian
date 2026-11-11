@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, mock, test } from 'node:test';
 import { Prisma, PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
 
 let db: PrismaClient;
@@ -132,3 +133,38 @@ test('resetAccountPassword resets password to username and rotates sesiLogin', a
         lookup.mock.restore(); write.mock.restore();
     }
 });
+
+for (const role of ['siswa', 'guru'] as const) {
+    for (const usernameChanged of [true, false]) {
+        test(`${role} edit ${usernameChanged ? 'resets credentials for a new ID' : 'keeps credentials for the same ID'}`, async () => {
+            const username = '0012345';
+            const previousUsername = usernameChanged ? '54321' : username;
+            const lookup = stub('findUnique', async (args: any) => args.where.id
+                ? { id: 1, role, username: previousUsername } : null);
+            const write = stub('update', async () => ({ id: 1, username }));
+            const transaction = db.$transaction;
+            if (role === 'guru') db.$transaction = (async (callback: (tx: PrismaClient) => unknown) => callback(db)) as typeof transaction;
+            try {
+                const { res, result } = response();
+                const update = role === 'siswa' ? controllers.updateSiswa : controllers.updateGuru;
+                await update({ ...request, body: { ...request.body, username } } as Request, res);
+                assert.equal(result.code, 200);
+                assert.equal(write.mock.callCount(), 1);
+                const { where, data } = (write.mock.calls[0].arguments as any[])[0];
+                assert.equal(where.username, previousUsername);
+                if (usernameChanged) {
+                    assert.equal(data.username, username);
+                    assert.equal(await bcrypt.compare(username, data.password), true);
+                    assert.match(data.sesiLogin, /^[a-f0-9-]{36}$/);
+                    assert.match(String(result.body.message), /Password direset/);
+                } else {
+                    assert.equal(data.password, undefined);
+                    assert.equal(data.sesiLogin, undefined);
+                }
+            } finally {
+                if (role === 'guru') db.$transaction = transaction;
+                lookup.mock.restore(); write.mock.restore();
+            }
+        });
+    }
+}

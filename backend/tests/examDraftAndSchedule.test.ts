@@ -41,7 +41,7 @@ test('teacher can duplicate an authorized exam and reschedule only before anyone
                     assert.equal(data.draf, true);
                     assert.equal(data.hasilRilis, false);
                     assert.equal(data.profil, explicitRules ? 'latihan-kuis' : undefined);
-                    assert.equal(data.tujuanRekap, explicitRules ? 'persiapan' : undefined);
+                    assert.equal(data.tujuanRekap, undefined);
                     assert.equal(data.bahasanRilis, explicitRules ? true : undefined);
                     assert.equal(data.token, undefined);
                     assert.equal(data.jawaban, undefined);
@@ -77,7 +77,7 @@ test('teacher can duplicate an authorized exam and reschedule only before anyone
         const copy = { ...schedule, kelasIds: [4], mapelId: 2, jenisUjianId: 5, durasiMenit: 60 };
         assert.equal(await call('duplikat', { ...copy, kelasIds: [99] }), 403);
         assert.equal(await call('duplikat', copy), 201);
-        const aturanDraf = { token: 'tanpa', rekap: 'persiapan', hasilOtomatis: false, pembahasanOtomatis: true };
+        const aturanDraf = { token: 'tanpa', hasilOtomatis: false, pembahasanOtomatis: true };
         explicitRules = true;
         assert.equal(await call('duplikat', { ...copy, aturanDraf }), 201);
         assert.equal(await call('duplikat', { ...copy, aturanDraf: { ...aturanDraf, token: 'bebas' } }), 400);

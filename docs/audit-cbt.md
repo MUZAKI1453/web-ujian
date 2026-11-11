@@ -467,7 +467,7 @@ Aturan yang perlu disampaikan ke siswa: keluar layar penuh, pindah tab/aplikasi,
 | Fitur | Manfaat | Kesulitan | Gambaran teknis |
 |---|---|---|---|
 | Dashboard ketuntasan per kelas/mapel | Gambaran cepat untuk kepala sekolah | Sedang | Agregasi `jawaban_siswa` terhadap KKM. |
-| Perkembangan siswa antar-ujian | Bahan rapor dan konseling | Sedang | Deret nilai per siswa per mapel; `tujuanRekap` sudah membedakan buku nilai dan latihan. |
+| Perkembangan siswa antar-ujian | Bahan rapor dan konseling | Sedang | Deret nilai yang sudah dirilis per siswa per mata pelajaran. |
 | Ekspor format rapor/leger | Mengurangi input ganda | Rendah–Sedang | Template Excel leger. Ekspor langsung ke Dapodik/e-Rapor **perlu verifikasi** format resminya. |
 | Log waktu per soal | Deteksi tebak cepat, evaluasi soal | Sedang | Klien mengirim durasi per soal bersama autosave. |
 

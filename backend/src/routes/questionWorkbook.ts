@@ -8,14 +8,14 @@ export const questionTypeLabels = { PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', 
 const header = ['bagian', 'isi', 'kunci'];
 const fields = {
     PG: ['opsi'], PM: ['opsi'], BS: ['pernyataan'],
-    ISIAN: ['jawaban', 'angka'], ESSAY: ['poin', 'pedoman']
+    ISIAN: ['jawaban', 'angka'], ESSAY: ['poin']
 } as const;
 
 type Kind = keyof typeof fields;
 type Item = { teks: string; benar: boolean };
 type Question = {
     tipeSoal: Kind; pertanyaan?: string; items: Item[]; jawaban: string[];
-    angka?: boolean; poin?: number; pedoman?: string;
+    angka?: boolean; poin?: number;
 };
 
 const optionHeaders = ['Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban'];
@@ -29,7 +29,7 @@ const formats: Record<Kind, { columns: string[]; example: (string | number)[]; g
     PM: { columns: optionHeaders, example: ['Pilih semua bilangan genap.', '2', '3', '4', '5', '', 'A,C'], guide: 'Isi minimal dua kunci, dipisahkan koma, contoh: A,C. Opsi yang tidak digunakan boleh kosong.' },
     BS: { columns: Array.from({ length: 5 }, (_, i) => ['Pernyataan ' + (i + 1), 'Kunci ' + (i + 1)]).flat(), example: ['Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 adalah bilangan ganjil.', 'Salah'], guide: 'Isi setiap pasangan pernyataan dan kunci dengan Benar atau Salah. Pasangan yang tidak digunakan boleh kosong.' },
     ISIAN: { columns: ['Jawaban 1', 'Jawaban 2', 'Jawaban 3', 'Isian Angka'], example: ['Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'], guide: 'Isi satu atau beberapa alternatif jawaban. Isi Isian Angka dengan Ya atau Tidak; kosong berarti Tidak.' },
-    ESSAY: { columns: ['Poin Maksimum', 'Pedoman Penilaian'], example: ['Jelaskan perbedaan bilangan ganjil dan genap.', 6, 'Beri poin sesuai ketepatan penjelasan dan contoh.'], guide: 'Isi Poin Maksimum dengan bilangan bulat 1–100. Pedoman Penilaian boleh kosong.' }
+    ESSAY: { columns: ['Poin Maksimum'], example: ['Jelaskan perbedaan bilangan ganjil dan genap.', 6], guide: 'Isi Poin Maksimum dengan bilangan bulat 1–100.' }
 };
 
 export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
@@ -143,16 +143,19 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
             multipleKeys.forEach((_, i) => { rows[i][expected.length + 1] = ''; });
         }
         const headers = (rows[10] ?? []).slice(1).map(value => value.trim());
-        if (expected.some((value, i) => headers[i] !== value) || headers.slice(expected.length).some(Boolean)) {
+        // Ignore the trailing column of older essay templates.
+        const acceptedColumns = expected.length + (type === 'ESSAY' ? 1 : 0);
+        if (expected.some((value, i) => headers[i] !== value) || headers.slice(acceptedColumns).some(Boolean)) {
             throw new Error('Sheet ' + name + ': pertahankan judul kolom pada baris 11 sesuai template.');
         }
         for (let index = 11; index < rows.length; index++) {
             const cells = rows[index].map(value => value.trim());
             // A leftover number alone is not a question.
-            if (!cells.slice(2).some(Boolean)) continue;
+            const values = cells.slice(2, expected.length + 1);
+            const extra = cells.slice(acceptedColumns + 1).some(Boolean);
+            if (!values.some(Boolean) && !extra) continue;
             const fail = (message: string): never => { throw new Error('Sheet ' + name + ', baris ' + (index + 1) + ': ' + message); };
-            if (cells[0] || cells.slice(expected.length + 1).some(Boolean)) fail('Isi data hanya pada kolom tabel.');
-            const values = cells.slice(2);
+            if (cells[0] || extra) fail('Isi data hanya pada kolom tabel.');
             const question: Question = { tipeSoal: type, pertanyaan: values[0] ?? '', items: [], jawaban: [] };
             if (!question.pertanyaan) fail('Pertanyaan wajib diisi.');
             if (type === 'PG' || type === 'PM') {
@@ -180,7 +183,6 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
             } else {
                 if (!/^\d+$/.test(values[1] ?? '') || Number(values[1]) < 1 || Number(values[1]) > 100) fail('Poin Maksimum harus bilangan bulat 1–100.');
                 question.poin = Number(values[1]);
-                question.pedoman = values[2] ?? '';
             }
             questions.push({ row: index + 1, sheet: name, question });
         }
@@ -217,7 +219,8 @@ export function readQuestionWorkbook(buffer: Buffer): { row: number; sheet?: str
         const field = label.toLowerCase();
         const key = rawKey.toLowerCase();
         const fail = (message: string): never => { throw new Error('Baris ' + (i + 1) + ': ' + message); };
-        if (!field || (!value && field !== 'pedoman' && field !== 'angka') || row.slice(3).some(Boolean)) fail('Lengkapi bagian dan isi. Gunakan tiga kolom sesuai template.');
+        if (field === 'pedoman' && current?.tipeSoal === 'ESSAY') continue;
+        if (!field || (!value && field !== 'angka') || row.slice(3).some(Boolean)) fail('Lengkapi bagian dan isi. Gunakan tiga kolom sesuai template.');
         if (field === 'tipe') {
             const type = value.toUpperCase();
             if (!Object.prototype.hasOwnProperty.call(fields, type) || key) fail('Pilih tipe soal yang valid sesuai template dan kosongkan kunci.');
@@ -242,7 +245,6 @@ export function readQuestionWorkbook(buffer: Buffer): { row: number; sheet?: str
         if (seen.has(field)) fail('Bagian ' + field + ' cukup ditulis sekali per soal.');
         seen.add(field);
         if (field === 'soal') current.pertanyaan = value;
-        if (field === 'pedoman') current.pedoman = value;
         if (field === 'poin') {
             if (!/^\d+$/.test(value)) fail('Poin Esai harus bilangan bulat.');
             current.poin = Number(value);

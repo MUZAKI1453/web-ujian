@@ -102,8 +102,11 @@ export const loginUser = async (req: Request, res: Response) => {
             const updated = await prisma.user.updateMany({ where: { id: user.id, password: user.password }, data: { sesiLogin } });
             if (!updated.count) return res.status(401).json({ message: 'NIS / NIP atau password salah!' });
         } else if (!sesiLogin) {
-            await prisma.user.updateMany({ where: { id: user.id, sesiLogin: null }, data: { sesiLogin: randomUUID() } });
-            sesiLogin = (await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { sesiLogin: true } })).sesiLogin;
+            const account = { id: user.id, password: user.password };
+            await prisma.user.updateMany({ where: { ...account, sesiLogin: null }, data: { sesiLogin: randomUUID() } });
+            const current = await prisma.user.findUnique({ where: account, select: { sesiLogin: true } });
+            if (!current?.sesiLogin) return res.status(401).json({ message: 'NIS / NIP atau password salah!' });
+            sesiLogin = current.sesiLogin;
         }
         const passwordBawaan = isDefaultPassword(user, password);
         const token = signToken(user, sesiLogin, passwordBawaan);

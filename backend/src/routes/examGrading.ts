@@ -19,6 +19,12 @@ export function essayLimit(question: Question) {
     return Number(object(question.isi).poinEssay ?? question.bobot);
 }
 
+export function questionContent({ tipeSoal, isi }: Pick<Question, 'tipeSoal' | 'isi'>): Prisma.JsonValue {
+    if (tipeSoal !== 'ESSAY' || !isi || typeof isi !== 'object' || Array.isArray(isi)) return isi;
+    const { pedoman: _pedoman, ...content } = isi;
+    return content;
+}
+
 export function grade(questions: Question[], raw: unknown, essay: unknown) {
     const answers = object(raw);
     const manual = object(essay);

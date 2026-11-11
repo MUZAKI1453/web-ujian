@@ -9,7 +9,7 @@ const examples: Record<string, (string | number)[]> = {
     'Pilihan Majemuk': [1, 'Pilih bilangan genap.', '2', '3', '4', '5', '', 'A,C'],
     'Benar atau Salah': [1, 'Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 ganjil.', 'Salah'],
     'Isian Singkat': [1, 'Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'],
-    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6, 'Beri poin untuk penjelasan dan contoh.']
+    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6]
 };
 
 function fillExample(book: XLSX.WorkBook, name: string) {
@@ -45,6 +45,7 @@ test('horizontal template has five named tables and imports all five question ty
     assert.equal(isian.getCell('G12').dataValidation.formulae[0], '"Ya,Tidak"');
     assert.equal(essay.getCell('D12').dataValidation.type, 'whole');
     assert.deepEqual(essay.getCell('D12').dataValidation.formulae, [1, 100]);
+    assert.equal(essay.getCell('E11').value, null);
 
     const edited = await editedTemplate(file => file.SheetNames.forEach(name => fillExample(file, name)));
     const rows = readQuestionWorkbook(edited);
@@ -100,10 +101,24 @@ test('legacy vertical workbooks still import', () => {
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
         ['bagian', 'isi', 'kunci'], ['tipe', 'PG'], ['soal', 'Satu ditambah satu?'],
-        ['opsi', '2', 'benar'], ['opsi', '3', 'salah']
+        ['opsi', '2', 'benar'], ['opsi', '3', 'salah'],
+        ['tipe', 'ESSAY'], ['soal', 'Jelaskan jawabanmu.'], ['poin', 6], ['pedoman', 'Panduan lama']
     ]), 'Soal');
     const rows = readQuestionWorkbook(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }));
-    assert.equal(rows.length, 1);
+    assert.equal(rows.length, 2);
     assert.equal(rows[0].question.tipeSoal, 'PG');
     assert.equal(rows[0].question.items[0].benar, true);
+    assert.equal(rows[1].question.poin, 6);
+    assert.equal('pedoman' in rows[1].question, false);
+});
+
+test('older horizontal essay templates import without their trailing guidance column', async () => {
+    const buffer = await editedTemplate(book => {
+        fillExample(book, 'Esai');
+        XLSX.utils.sheet_add_aoa(book.Sheets.Esai, [['Pedoman Penilaian'], ['Panduan lama'], ['Sisa panduan tanpa soal']], { origin: 'E11' });
+    });
+    const rows = readQuestionWorkbook(buffer);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].question.poin, 6);
+    assert.equal('pedoman' in rows[0].question, false);
 });

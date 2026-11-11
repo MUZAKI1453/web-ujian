@@ -1,9 +1,8 @@
-import ExcelJS from 'exceljs';
 import { Request, Response, Router } from 'express';
 import { randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { isBlankAnswer } from './answerSummary';
-import { examProfileSettings, parseDraftExamRules } from './examProfiles';
+import { examTokenMode, parseDraftExamRules } from './examProfiles';
 import { DEFAULT_VIOLATION_LIMIT, defaultSecurityConfig, defaultSecurityWeights, parseSecurityConfig, parseSecurityLimit, parseSecurityWeights, type SecurityEvent } from './examSecurity';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
@@ -11,8 +10,9 @@ import { requireUser } from '../middleware/auth';
 import { uploadExcel } from '../middleware/upload';
 import { questionTemplate, questionTypeLabels, readQuestionWorkbook } from './questionWorkbook';
 import { readNavbarSettings } from '../controllers/navbarController';
+import { examReportWorkbook } from '../excel/examReportWorkbook';
 import { calculatePoints } from './examPoints';
-import { essayLimit, grade, object, revise } from './examGrading';
+import { essayLimit, grade, object, questionContent, revise } from './examGrading';
 import { examClassIds, parseClassIds } from './examClasses';
 import { sortByName } from '../controllers/displayOrder';
 import { isDataImage, isMediaPath, storeQuestionImages } from './questionImages';
@@ -81,7 +81,7 @@ async function assignments(actor: Account) {
 }
 
 const examFields = {
-    id: true, judul: true, jenisUjianId: true, profil: true, tujuanRekap: true, waktuMulai: true, waktuSelesai: true, durasiMenit: true, draf: true,
+    id: true, judul: true, jenisUjianId: true, profil: true, waktuMulai: true, waktuSelesai: true, durasiMenit: true, draf: true,
     hasilRilis: true, bahasanRilis: true, diarsipkanPada: true, poinKhusus: true, ujianAsalId: true, acakSoal: true, acakOpsi: true,
     mapel: { select: { id: true, nama: true } }, kelas: { select: { namaKelas: true } },
     kelasTujuan: { select: { id: true, namaKelas: true }, orderBy: { namaKelas: 'asc' } }
@@ -131,10 +131,14 @@ function copyQuestions(questions: Prisma.SoalGetPayload<{}>[], draf: boolean) {
     const essayOnly = questions.every(question => question.tipeSoal === 'ESSAY');
     return questions.map(question => ({
         tipeSoal: question.tipeSoal, pertanyaan: question.pertanyaan,
-        isi: question.isi ?? Prisma.DbNull, pilihanOpsi: question.pilihanOpsi ?? Prisma.DbNull,
+        isi: questionContent(question) ?? Prisma.DbNull, pilihanOpsi: question.pilihanOpsi ?? Prisma.DbNull,
         kunciJawaban: question.kunciJawaban,
         bobot: !draf && essayOnly ? essayLimit(question) : question.bobot
     }));
+}
+
+function questionForResponse(question: Prisma.SoalGetPayload<{}>) {
+    return { ...question, isi: questionContent(question) };
 }
 
 function examTitle(name: string, sourceId: number | null) {
@@ -262,7 +266,7 @@ router.get('/ujian/:id', handle(async (req, res, actor) => {
         where: { id, ...examScope(actor) }, select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
     });
     if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
-    res.json(exam);
+    res.json({ ...exam, soal: exam.soal.map(questionForResponse) });
 }));
 
 const allowedImageHosts = (process.env.GAMBAR_HOST_DIIZINKAN ?? '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean);
@@ -308,7 +312,7 @@ function parseQuestion(input: unknown) {
     } else if (tipeSoal === 'ESSAY') {
         if (!validId(body.poin) || body.poin > 100) return null;
         bobot = body.poin;
-        isi = { pedoman: text(body.pedoman) };
+        isi = {};
     } else return null;
     return { tipeSoal, pertanyaan, isi: { ...isi, gambar }, bobot };
 }
@@ -378,7 +382,7 @@ router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
                 ...(rules ?? { hasilRilis: rilisHasilOtomatis }) },
             select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
         });
-        return { status: 200, data };
+        return { status: 200, data: { ...data, soal: data.soal.map(questionForResponse) } };
     }, { timeout: 20000 });
 
     if (result.status !== 200) return res.status(result.status).json({ message: result.message });
@@ -510,11 +514,11 @@ router.post('/ujian/:id/terbit', handle(async (req, res, actor) => {
             const original = exam.soal.find(question => question.id === row.id)!;
             await tx.soal.update({ where: { id: row.id }, data: {
                 bobot: row.poin,
-                ...(original.tipeSoal === 'ESSAY' ? { isi: { ...object(original.isi), poinEssay: essayLimit(original) } as Prisma.InputJsonObject } : {})
+                ...(original.tipeSoal === 'ESSAY' ? { isi: { ...object(questionContent(original)), poinEssay: essayLimit(original) } as Prisma.InputJsonObject } : {})
             } });
         }
         const updated = await tx.ujian.update({
-            where: { id }, data: { draf: false, token: examProfileSettings(exam.profil).token === 'wajib' ? makeToken() : null, poinKhusus: plan.special },
+            where: { id }, data: { draf: false, token: examTokenMode(exam.profil) === 'wajib' ? makeToken() : null, poinKhusus: plan.special },
             select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
         });
         return { status: 200, updated };
@@ -605,7 +609,7 @@ router.post('/ujian/:id/susulan', handle(async (req, res, actor) => {
         });
         if (eligible !== peserta.length) return { status: 409, message: 'Ada peserta yang sudah terdaftar di susulan atau sudah mengerjakan.' };
         await tx.sesiSusulan.create({ data: {
-            ujianId: id, waktuMulai: mulai, waktuSelesai: selesai, token: examProfileSettings(exam.profil).token === 'wajib' ? makeToken() : null,
+            ujianId: id, waktuMulai: mulai, waktuSelesai: selesai, token: examTokenMode(exam.profil) === 'wajib' ? makeToken() : null,
             peserta: { create: peserta.map(siswaId => ({ siswaId })) }
         } });
         return { status: 201, message: 'Sesi susulan dibuat.' };
@@ -920,7 +924,7 @@ router.get('/ujian/:id/rekap', handle(async (req, res, actor) => {
             return {
                 id: row.id, siswa: row.siswa, nilai: result.values.totalNilai, pending: result.pending, rincian: result.rincian, penilaian: result.penilaian, jawaban: object(row.detailJawaban),
                 essay: exam.soal.filter(q => q.tipeSoal === 'ESSAY' && !q.dibatalkan).map(q => ({
-                    id: q.id, soal: q.pertanyaan, pedoman: object(q.isi).pedoman, maksimum: essayLimit(q),
+                    id: q.id, soal: q.pertanyaan, maksimum: essayLimit(q),
                     jawaban: object(row.detailJawaban)[q.id] ?? '', nilai: object(row.koreksiEssay)[q.id] ?? null,
                     catatan: object(object(row.koreksiEssay).catatan)[q.id] ?? ''
                 }))
@@ -934,20 +938,16 @@ router.get('/ujian/:id/rekap/excel', handle(async (req, res, actor) => {
     if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
     const exam = await prisma.ujian.findFirst({ where: { id, ...examScope(actor), draf: false }, include: gradeInclude });
     if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Rekap Nilai');
-    sheet.columns = [
-        { header: 'NIS', width: 20 }, { header: 'Nama siswa', width: 32 },
-        { header: 'Poin otomatis', width: 18 }, { header: 'Poin essay', width: 18 },
-        { header: 'Total', width: 12 }, { header: 'Status', width: 24 }
-    ];
-    sheet.getRow(1).font = { bold: true };
-    for (const row of exam.jawaban) {
+    const settings = await readNavbarSettings();
+    const rows = exam.jawaban.map(row => {
         const result = grade(exam.soal, row.detailJawaban, row.koreksiEssay);
-        sheet.addRow([row.siswa.username, row.siswa.nama ?? '', Number(result.values.nilaiPg),
-            Number(result.values.nilaiEssay), Number(result.values.totalNilai), result.pending ? 'Menunggu koreksi' : 'Selesai']);
-    }
-    res.attachment('rekap-ujian-' + id + '.xlsx').send(Buffer.from(await workbook.xlsx.writeBuffer()));
+        return {
+            nis: row.siswa.username, nama: row.siswa.nama ?? '', poinOtomatis: Number(result.values.nilaiPg),
+            poinEssay: Number(result.values.nilaiEssay), total: Number(result.values.totalNilai),
+            status: result.pending ? 'Menunggu koreksi' : 'Selesai'
+        };
+    });
+    res.attachment('rekap-ujian-' + id + '.xlsx').send(await examReportWorkbook(exam.judul, rows, settings?.logo ?? 'smpip'));
 }));
 
 router.put('/ujian/:id/rekap/:jawabanId/essay/:soalId?', handle(async (req, res, actor) => {

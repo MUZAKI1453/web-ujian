@@ -28,6 +28,7 @@ type Report = {
 };
 type Impact = { naik: number; turun: number; tetap: number; revisi: number };
 type Correction = { soalId: number; aksi: string; input?: boolean[] | string; alasan: string };
+const automaticTypes = ['PG', 'PM', 'BS', 'ISIAN'] as const;
 
 export default function ExamReport({ examId, questions, onQuestionsChanged, renderHeader, onOpenRemedial }: {
     examId: number; questions: Question[]; onQuestionsChanged: () => Promise<void>;
@@ -230,10 +231,21 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
             </div>
             {!visible.length ? <p className="text-sm text-slate-600">{data.rows.length ? 'Tidak ada siswa yang cocok.' : 'Belum ada jawaban terkirim.'}</p> :
                 <div className="overflow-x-auto"><table className="ui-table w-full text-left text-sm">
-                    <thead className="bg-slate-100"><tr className="divide-x divide-slate-200">{['Siswa', 'Poin otomatis', 'Poin esai', 'Total', 'Status', 'Aksi'].map(title =>
+                    <thead className="bg-slate-100"><tr className="divide-x divide-slate-200">{['Siswa', 'Jawaban benar', 'Poin otomatis', 'Poin esai', 'Total', 'Status', 'Aksi'].map(title =>
                         <th key={title} scope="col" className="whitespace-nowrap p-3">{title}</th>)}</tr></thead>
                     <tbody>{visible.map(row => <tr key={row.id} className="divide-x divide-slate-200 border-b">
                         <td className="p-3"><strong>{row.siswa.nama || row.siswa.username}</strong><p className="text-xs text-slate-600">{row.siswa.username}</p></td>
+                        <td className="p-3">
+                            {automaticTypes.some(type => row.rincian[type]) ? <ul className="flex min-w-36 flex-wrap gap-1.5">
+                                {automaticTypes.map(type => {
+                                    const count = row.rincian[type];
+                                    return count && <li key={type} title={questionTypeLabel(type)}
+                                        className="whitespace-nowrap rounded-md bg-slate-100 px-2 py-1 text-xs font-medium tabular-nums text-slate-700">
+                                        {type === 'ISIAN' ? 'Isian' : type} <strong>{count.benar}/{count.total}</strong>
+                                    </li>;
+                                })}
+                            </ul> : '—'}
+                        </td>
                         <td className="p-3">{Object.entries(row.rincian).filter(([type]) => type !== 'ESSAY').reduce((sum, [, item]) => sum + Number(item.poin), 0).toFixed(2)}</td>
                         <td className="p-3">{row.rincian.ESSAY?.poin ?? '—'}</td>
                         <td className="p-3 font-semibold">{row.nilai}</td>

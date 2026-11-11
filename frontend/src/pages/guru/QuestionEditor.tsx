@@ -17,7 +17,7 @@ export interface Question {
     pertanyaan: string;
     bobot: string;
     dibatalkan?: boolean;
-    isi: { gambar?: string; items?: Item[]; jawaban?: string[]; angka?: boolean; pedoman?: string } | null;
+    isi: { gambar?: string; items?: Item[]; jawaban?: string[]; angka?: boolean } | null;
 }
 
 export function errorMessage(error: unknown) {
@@ -33,7 +33,7 @@ function initialQuestion(question: Question | null, defaultType: QuestionType) {
     return {
         tipeSoal, pertanyaan: question?.pertanyaan ?? '', gambar: question?.isi?.gambar ?? '',
         items: question?.isi?.items ?? emptyItems(tipeSoal), jawaban: question?.isi?.jawaban ?? [''],
-        angka: question?.isi?.angka ?? false, pedoman: question?.isi?.pedoman ?? '',
+        angka: question?.isi?.angka ?? false,
         poin: question?.tipeSoal === 'ESSAY' ? Number(question.bobot) : 1
     };
 }
@@ -62,7 +62,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
         setItems(current => current.map(item => item.editorKey === key ? { ...item, ...values } : item));
     };
     const onReadingChange = (delta: number) => setReading(current => current + delta);
-    const soal = { tipeSoal: type, pertanyaan: text, gambar: image, items: items.map(({ editorKey: _key, ...item }) => item), jawaban: answers.map(answer => answer.value), angka: initial.angka, pedoman: initial.pedoman, poin: points };
+    const soal = { tipeSoal: type, pertanyaan: text, gambar: image, items: items.map(({ editorKey: _key, ...item }) => item), jawaban: answers.map(answer => answer.value), angka: initial.angka, poin: points };
     const changed = !question || JSON.stringify(soal) !== JSON.stringify(initial);
 
     return (
