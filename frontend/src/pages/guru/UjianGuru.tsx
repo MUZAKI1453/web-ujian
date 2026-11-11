@@ -267,13 +267,13 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
         }} />;
 
     if (exam && !exam.draf && detailView !== 'preview') {
-        const detailHeader = (action?: ReactNode) => <header className="ui-card flex flex-wrap items-center justify-between gap-4 bg-white p-5">
-            <div className="min-w-0 flex-1 space-y-1">
+        const detailHeader = (action?: ReactNode) => <header className="ui-card flex flex-col gap-4 bg-white p-5 xl:flex-row xl:flex-wrap xl:items-center">
+            <div className="min-w-0 space-y-1 xl:flex-[1_1_20rem]">
             <p className="flex items-center gap-2 text-sm font-semibold text-blue-700">{detailView === 'sessions' ? <><Users size={17} aria-hidden="true" />Sesi & Peserta</> : <><BarChart3 size={17} aria-hidden="true" />Koreksi & Rekap</>}</p>
             <h1 className="ui-page-title break-words">{exam.mapel.nama}</h1>
             <ExamMetadata exam={exam} />
             </div>
-            <div className="ml-auto flex flex-wrap items-center gap-2">{action}<button type="button" disabled={busy} className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button></div>
+            <div className="flex flex-wrap items-center gap-2 xl:ml-auto">{action}<button type="button" disabled={busy} className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button></div>
         </header>;
         return <section className="cbt-portal">
             {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
@@ -300,13 +300,13 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                         setNotice(questions.length + ' soal berhasil diimpor.');
                         setImporting(false);
                     }} />}
-                    <div className="ui-card flex flex-wrap items-center justify-between gap-4 border bg-white p-5">
-                        <div className="min-w-0 flex-1">
+                    <div className="ui-card flex flex-col gap-4 border bg-white p-5 xl:flex-row xl:flex-wrap xl:items-center">
+                        <div className="min-w-0 xl:flex-[1_1_20rem]">
                             <p className="text-sm font-semibold text-blue-700">Preview Ujian</p>
                             <h1 className="ui-page-title break-words">{exam.mapel.nama}</h1>
                             <ExamMetadata exam={exam} />
                         </div>
-                        <div className="ml-auto flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
                             {assignments.some(pair => pair.mapel.id === exam.mapel.id) && <button type="button" className="ui-button ui-button-neutral-soft" onClick={() => setDuplicating(true)}><Copy size={17} aria-hidden="true" />Duplikat ke Draf</button>}
                             {exam.draf && <>
                             <button type="button" className="ui-button ui-button-success"
