@@ -1,6 +1,7 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useState } from 'react';
 import api from '../../services/api';
+import { saveBlob } from '../../services/nativeApp';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
 import ModalOverlay from '../../components/ModalOverlay';
@@ -22,14 +23,7 @@ export default function ImportSoal({ examId, onClose, onImport }: {
         setDownloading(true);
         try {
             const { data } = await api.get<Blob>('/guru/soal/template', { responseType: 'blob' });
-            const url = URL.createObjectURL(data);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'template-soal.xlsx';
-            document.body.append(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            await saveBlob(data, 'template-soal.xlsx');
         } catch {
             setError('Gagal mengunduh template. Coba lagi.');
         } finally {

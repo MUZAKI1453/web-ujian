@@ -16,6 +16,7 @@ import { isStudentHistory, prioritizeStudentExams } from './studentSections';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import Select from '../../components/ui/Select';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
+import { fullscreenAvailable, nativeApp } from '../../services/nativeApp';
 
 type Exam = {
     id: number; judul: string; mapel: string; mapelId: number; durasi: number; mulai: string; selesai: string;
@@ -159,7 +160,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
         try {
             // Request fullscreen directly from the submit gesture, before storage or network awaits.
             if (adminMode || exam.attempt || prepared) {
-                if (document.documentElement.requestFullscreen && document.fullscreenEnabled !== false && !document.fullscreenElement) {
+                if (fullscreenAvailable() && !document.fullscreenElement) {
                     try { await document.documentElement.requestFullscreen(); }
                     catch { throw new Error('Layar penuh belum aktif. Izinkan fullscreen lalu coba lagi.'); }
                 }
@@ -417,7 +418,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             </label>}
             <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Ujian memakai mode pengamanan. Keluar fullscreen, berpindah tab/aplikasi, atau split screen dapat dicatat. Pengumpulan otomatis mengikuti batas yang diatur guru.</p>
             {prepared && <p role="status" className="text-sm text-green-800">{selected.perluToken ? 'Token terverifikasi.' : 'Ujian siap.'} Mulai Ujian akan menyiapkan layar penuh terlebih dahulu, lalu memulai soal dan timer.</p>}
-            {(!document.documentElement.requestFullscreen || document.fullscreenEnabled === false) && <p className="text-sm text-amber-900">Browser ini tidak mendukung fullscreen. Pemantauan tab dan fokus tetap aktif.</p>}
+            {!fullscreenAvailable() && !nativeApp() && <p className="text-sm text-amber-900">Browser ini tidak mendukung fullscreen. Pemantauan tab dan fokus tetap aktif.</p>}
             <div className="flex gap-2">
                 <button type="button" disabled={busy} className="ui-button ui-button-secondary border" onClick={() => { setSelected(null); setPrepared(null); }}>Batal</button>
                 <button type="submit" disabled={busy} className={primaryClass}>

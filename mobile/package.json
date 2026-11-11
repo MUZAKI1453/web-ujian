@@ -1,0 +1,18 @@
+{
+  "name": "cbt-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Pembungkus Android (Capacitor) untuk CBT. Aplikasi memuat situs sekolah; kode web tetap di frontend/.",
+  "scripts": {
+    "sync": "cap sync android",
+    "apk:debug": "cd android && ./gradlew assembleSmpDebug assembleSmaDebug",
+    "apk:release": "cd android && ./gradlew assembleSmpRelease assembleSmaRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}

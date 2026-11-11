@@ -12,6 +12,7 @@ import { answerState } from './answerStatus';
 import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
+import { nativeApp } from '../../services/nativeApp';
 
 const button = 'ui-button ui-button-secondary';
 const savedTime = new Intl.DateTimeFormat('id-ID', { timeStyle: 'medium' });
@@ -197,7 +198,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
             {backMessage}
             <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><p className="text-amber-800">Pelanggaran: {violations}{limit > 0 && ' / ' + limit}</p><p className="text-blue-800">Sisa waktu: {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</p></div>
             <p className="text-sm text-slate-600">{limit > 0 ? `Pada pelanggaran ke-${limit}, jawaban dikumpulkan otomatis.` : 'Setiap pelanggaran dicatat dan ditinjau guru.'}</p>
-            {!security.fullscreenSupported && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Layar penuh tidak tersedia. Perpindahan tab tetap dipantau.</p>}
+            {!security.fullscreenSupported && !nativeApp() && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Layar penuh tidak tersedia. Perpindahan tab tetap dipantau.</p>}
             {locked ? <p role="status" className="text-sm text-blue-800">{offline ? 'Menunggu koneksi. Tetap buka halaman agar jawaban dan catatan dapat dikirim.' : saveState === 'error' && saveError || 'Mengirim jawaban ke server…'}</p> : <>
                 {attempt.security?.warning && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledgedViolation(e.target.checked ? violations : null)} />Saya memahami peringatan ini.</label>}
                 {security.error && <p role="alert" className="ui-notice ui-notice-error">{security.error}</p>}

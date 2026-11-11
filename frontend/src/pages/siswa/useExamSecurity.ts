@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { violationLimit } from './attemptStore';
+import { fullscreenAvailable, nativeApp } from '../../services/nativeApp';
 import type { LocalAttempt, SecurityEvent } from './attemptStore';
 
 export const violationLabels: Record<SecurityEvent['reason'], string> = {
@@ -28,7 +29,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
     callback.current = update;
     const finishedRef = useRef(finished);
     finishedRef.current = finished;
-    const fullscreenSupported = !!document.documentElement.requestFullscreen && document.fullscreenEnabled !== false;
+    const fullscreenSupported = fullscreenAvailable();
 
     function record(reason: SecurityEvent['reason']) {
         const latest = current.current;
@@ -77,6 +78,8 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         try {
             // Call directly from the button gesture, before any network or storage await.
             if (fullscreenSupported && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+            // Aplikasi Android: blokir screenshot, layar tetap menyala, dan sembunyikan bilah sistem.
+            await nativeApp()?.enableExamMode({ pin: false }).catch(() => {});
             if (document.visibilityState === 'hidden') throw new Error('Kembali ke halaman ujian sebelum melanjutkan.');
             if (typeof AudioContext !== 'undefined') {
                 if (!audio.current) audio.current = new AudioContext();
@@ -126,6 +129,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         };
         const clipboard = (event: ClipboardEvent) => { if (armed.current) { event.preventDefault(); record(event.type === 'paste' ? 'paste' : 'copy'); } };
         const print = () => record('print');
+        const nativeSplit = () => record('split-screen');
         document.addEventListener('visibilitychange', hidden);
         document.addEventListener('fullscreenchange', fullscreen);
         document.addEventListener('contextmenu', contextMenu);
@@ -133,6 +137,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         document.addEventListener('copy', clipboard); document.addEventListener('cut', clipboard); document.addEventListener('paste', clipboard);
         window.addEventListener('blur', blur); window.addEventListener('focus', focus); window.addEventListener('resize', resize);
         window.addEventListener('beforeprint', print);
+        window.addEventListener('cbtnativesplit', nativeSplit);
         // A newly started attempt arrives with fullscreen already approved. Arm monitoring immediately.
         if (prepared && !current.current.security?.warning && !current.current.send &&
             !document.hidden && document.hasFocus() && (!fullscreenSupported || !!document.fullscreenElement)) {
@@ -148,9 +153,11 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
             document.removeEventListener('copy', clipboard); document.removeEventListener('cut', clipboard); document.removeEventListener('paste', clipboard);
             window.removeEventListener('blur', blur); window.removeEventListener('focus', focus); window.removeEventListener('resize', resize);
             window.removeEventListener('beforeprint', print);
+            window.removeEventListener('cbtnativesplit', nativeSplit);
             // StrictMode remounts effects. Only leave fullscreen when the component really unmounts.
             cleanupTimer.current = setTimeout(() => {
                 void wakeLock.current?.release().catch(() => {});
+                void nativeApp()?.disableExamMode().catch(() => {});
                 void audio.current?.close().catch(() => {});
                 if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
             }, 0);
@@ -161,6 +168,7 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         if (finished || current.current.send) {
             armed.current = false;
             void wakeLock.current?.release().catch(() => {});
+            void nativeApp()?.disableExamMode().catch(() => {});
         }
     }, [finished, current.current.send]);
 

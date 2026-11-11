@@ -4,6 +4,7 @@ import Select from '../../components/ui/Select';
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { FormEvent, useCallback, useEffect, useState, type ReactNode } from 'react';
 import api from '../../services/api';
+import { saveBlob } from '../../services/nativeApp';
 import StudentCorrection, { type ReportRow } from './StudentCorrection';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
@@ -220,12 +221,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
                 <button type="button" className="ui-button ui-button-primary"
                     disabled={busy || !data.rows.length} onClick={() => void perform(async () => {
                         const { data: file } = await api.get<Blob>(url + '/rekap/excel', { responseType: 'blob' });
-                        const href = URL.createObjectURL(file);
-                        const link = document.createElement('a');
-                        link.href = href;
-                        link.download = 'rekap-ujian-' + examId + '.xlsx';
-                        link.click();
-                        setTimeout(() => URL.revokeObjectURL(href), 1000);
+                        await saveBlob(file, 'rekap-ujian-' + examId + '.xlsx');
                     })}><Download size={17} aria-hidden="true" />Unduh Excel</button>
                 </div>
             </div>

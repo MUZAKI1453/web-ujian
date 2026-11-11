@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name diisi per varian sekolah di app/build.gradle. -->
+    <string name="package_name">id.sch.baitussalam.cbt</string>
+    <string name="custom_url_scheme">id.sch.baitussalam.cbt</string>
+</resources>

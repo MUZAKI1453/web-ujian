@@ -1,0 +1,21 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Disamakan dengan Gradle 9.6 dan JDK 25 yang terpasang; AGP 9 sudah menyertakan dukungan Kotlin.
+        classpath 'com.android.tools.build:gradle:9.4.1'
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
