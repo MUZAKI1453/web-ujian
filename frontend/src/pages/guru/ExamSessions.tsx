@@ -10,6 +10,7 @@ import { violationLabels } from '../siswa/useExamSecurity';
 import type { SecurityWeights } from '../siswa/attemptStore';
 import type { ExamProfile } from './examProfiles';
 import { participantStatus, sessionExpanded } from './sessionStatus';
+import ProctorAssignments from './ProctorAssignments';
 import { defaultExamSchedule, localDateTime } from './examDateFilter';
 
 type Student = { id: number; nama: string | null; username: string; role?: string };
@@ -19,6 +20,7 @@ type Attempt = { id: number; siswaId: number; sesiSusulanId: number | null; mula
 type Answer = { siswaId: number; totalNilai: string; waktuSubmit: string; siswa: Student };
 type Sessions = Window & { profil: ExamProfile; durasiMenit: number; jadwalTerkunci: boolean; kelas: { users: Student[] }; pesertaUjiCoba: Student[]; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
     bobotKeamanan: SecurityWeights; batasPelanggaran: number;
+    catatanPengawas?: { id: number; teks: string; waktu: string; oleh: string }[];
     keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string; bobot: number; dibatalkan?: { alasan: string; waktu: string | null } | null }[] };
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -151,6 +153,17 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
                     <button type="submit" className={primaryClass}>Simpan pengaturan risiko</button>
                 </fieldset>
             </form>
+        </details>
+        <details className="ui-card space-y-3 p-4">
+            <summary className="cursor-pointer font-semibold">Pengawas ujian{data.catatanPengawas?.length ? ` · ${data.catatanPengawas.length} catatan` : ''}</summary>
+            <ProctorAssignments url={url} readOnly={archived} />
+            {!!data.catatanPengawas?.length && <div className="space-y-2 border-t border-slate-200 pt-3">
+                <h3 className="text-sm font-semibold">Catatan pengawas</h3>
+                <ul className="space-y-2 text-sm">{data.catatanPengawas.map(note => <li key={note.id} className="rounded-lg bg-slate-50 p-3">
+                    <p className="whitespace-pre-wrap break-words">{note.teks}</p>
+                    <p className="mt-1 text-xs text-slate-500">{note.oleh} · {formatted(note.waktu)}</p>
+                </li>)}</ul>
+            </div>}
         </details>
         {error && !making && !rescheduling && !cancelling && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="ui-notice ui-notice-success">{notice}</p>}

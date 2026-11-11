@@ -52,6 +52,8 @@ Saat mengerjakan, siswa melihat waktu konfirmasi penyimpanan server dan jumlah j
 
 Pembahasan yang dirilis menampilkan jawaban siswa dan kunci untuk soal yang dinilai otomatis. Poin dan catatan essay ditampilkan setelah hasil dirilis dan kiriman offline selesai ditinjau. Guru dapat menambahkan catatan opsional saat menyimpan nilai essay. Catatan disimpan bersama koreksi yang sudah ada sehingga tidak memerlukan perubahan skema database.
 
+Guru dapat ditugaskan sebagai **pengawas** sebuah ujian per kelas (Sesi & Peserta → Pengawas ujian). Pengawas memakai menu **Pengawasan** untuk memantau kehadiran dan pelanggaran, membuka atau menutup akses masuk, membatalkan pelanggaran dengan alasan, dan menulis catatan kejadian, tanpa akses ke soal, kunci, jawaban, dan nilai. Jalankan `npm run db:generate` dan `npm run db:migrate` setelah memperbarui kode untuk menambahkan tabel `pengawas_ujian`. Rinciannya ada di `docs/keamanan-ujian.md`.
+
 Menu admin **Log Audit** menampilkan jejak login (berhasil dan gagal), keluar, ganti password, serta setiap perubahan data oleh admin dan guru, lengkap dengan waktu, status, IP, dan perangkat. Catatan disimpan 180 hari. Agar IP yang tercatat adalah IP pengguna, `TRUST_PROXY` harus sesuai jumlah reverse proxy dan proxy harus meneruskan alamat klien asli.
 
 Gambar soal disimpan sebagai file di folder `UPLOAD_DIR` (bawaan `backend/uploads`) dan disajikan di `/media/soal/<hash>.<ext>`; database hanya menyimpan alamatnya. Setelah memperbarui kode, jalankan sekali `npm run build` lalu `npm run db:gambar` untuk memindahkan gambar base64 pada soal lama (aman dijalankan berulang). Folder ini harus ikut dicadangkan bersama database; `deploy/backup-db.sh` sudah menyertakannya. File gambar tidak dihapus otomatis saat soal dihapus.

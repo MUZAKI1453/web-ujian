@@ -94,3 +94,19 @@ export async function recordSecurity(tx: Prisma.TransactionClient, ujianId: numb
     }
     return { securityCount: count, securityAck: events.map(event => event.id) };
 }
+
+// Inti pembatalan pelanggaran, dipakai guru pemilik ujian dan pengawas. "allowed" membatasi siswa yang boleh disentuh pemanggil.
+// Pemanggil sudah memastikan pelaku berhak atas ujian ini.
+export async function cancelViolation(tx: Prisma.TransactionClient, ujianId: number, logId: number, actorId: number, reason: string,
+    allowed: (siswaId: number | null) => boolean = () => true) {
+    const found = await tx.kegiatanUjian.findFirst({ where: { id: logId, ujianId, jenis: 'pelanggaran-ujian' }, select: { pelakuId: true } });
+    if (!found || !allowed(found.pelakuId)) return 404 as const;
+    // Kunci yang sama dengan laporan pelanggaran dari perangkat siswa, agar hitungannya tidak berpacu.
+    if (found.pelakuId) await tx.$queryRaw`SELECT id FROM pengerjaan_ujian WHERE ujian_id = ${ujianId} AND siswa_id = ${found.pelakuId} FOR UPDATE`;
+    const row = await tx.kegiatanUjian.findUniqueOrThrow({ where: { id: logId }, select: { data: true, alasan: true, pelakuId: true } });
+    if (violationCancellation(row.data)) return 409 as const;
+    await tx.kegiatanUjian.update({ where: { id: logId }, data: {
+        data: { ...object(row.data), dibatalkan: { oleh: actorId, alasan: reason, waktu: new Date().toISOString() } } as Prisma.InputJsonObject
+    } });
+    return { pelakuId: row.pelakuId, alasan: row.alasan };
+}

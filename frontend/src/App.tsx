@@ -13,6 +13,7 @@ import { defaultNavbar, navbarLogos, type NavbarSettings } from './pages/admin/P
 import api from './services/api';
 import Pengaturan from './pages/Pengaturan';
 import AnalitikUjian from './pages/guru/AnalitikUjian';
+import PengawasUjian from './pages/guru/PengawasUjian';
 import UjianGuru from './pages/guru/UjianGuru';
 import BerandaSiswa from './pages/siswa/BerandaSiswa';
 import type { ViewRole } from './components/NavbarLayout';
@@ -130,6 +131,7 @@ export default function App() {
             onNavigate={navigate}
         >
             {page === 'guru-analitik' && viewRole === 'guru' ? <AnalitikUjian />
+                : page === 'guru-pengawasan' && viewRole === 'guru' ? <PengawasUjian />
                 : page === 'pengaturan' || page === 'pengaturan-keamanan' ? <Pengaturan key={page} initialSection={page === 'pengaturan-keamanan' ? 'keamanan' : undefined} isAdmin={user.role === 'admin'} navbar={navbar} navbarLoaded={navbarLoaded} onNavbarSaved={setNavbar} /> : viewRole === 'admin' && pages[page] ? pages[page] : viewRole === 'guru' && ['dashboard', 'guru-ujian', 'guru-mapel'].includes(page) ? (
                 <UjianGuru key={teacherNavigationKey} view={page === 'guru-ujian' ? 'ujian' : page === 'guru-mapel' ? 'mapel' : 'dashboard'} onNavigate={navigate} />
             ) : viewRole === 'siswa' && ['dashboard', 'siswa-ujian', 'siswa-hasil'].includes(page) ? (

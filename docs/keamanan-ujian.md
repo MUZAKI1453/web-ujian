@@ -123,3 +123,17 @@ Deteksi login ganda, perubahan perangkat atau jaringan, jeda heartbeat, waktu ja
 Di **Sesi & Peserta → kolom Keamanan**, guru dapat membatalkan satu kejadian yang ternyata bukan kecurangan, misalnya telepon masuk atau notifikasi di HP. Alasan tertulis wajib diisi (5 sampai 300 karakter). Kejadian tidak dihapus: ia tetap tampil dengan tanda dibatalkan beserta alasannya, tidak lagi dihitung dalam batas pelanggaran maupun skor risiko, dan pembatalannya masuk **Log Audit** sebagai `batalkan-pelanggaran`.
 
 Hitungan di perangkat siswa mengikuti server pada sinkronisasi berikutnya (paling lama sekitar 35 detik). Pembatalan tidak membuka kembali pengerjaan yang sudah dikumpulkan otomatis; untuk itu gunakan reset pengerjaan. Pembatalan tidak dapat diurungkan.
+
+## Pengawas ujian
+
+Guru pemilik ujian atau admin menunjuk pengawas di **Sesi & Peserta → Pengawas ujian**: pilih akun guru dan kelas yang diawasinya. Staf non-guru cukup dibuatkan akun guru tanpa mata pelajaran. Guru yang ditugaskan membuka menu **Pengawasan**.
+
+Pengawas dapat:
+- melihat peserta kelas yang ditugaskan: status pengerjaan, jumlah soal terisi, tersambung atau terputus, dan pelanggaran;
+- melihat token sesi serta membuka dan menutup akses masuk (berlaku untuk seluruh sesi, bukan per kelas);
+- membatalkan pelanggaran dengan alasan tertulis, tercatat di Log Audit dengan peran `pengawas`;
+- menulis catatan kejadian yang terbaca guru pemilik ujian.
+
+Pengawas tidak dapat melihat soal, kunci, isi jawaban, dan nilai, serta tidak dapat mengganti token, mereset pengerjaan, atau mengakhiri sesi. Server tidak mengirim data itu ke panel pengawas; pembatasannya bukan sekadar disembunyikan di tampilan.
+
+Penanda tersambung/terputus berasal dari kontak terakhir perangkat siswa (paling lama sekitar 35 detik sekali) dan hanya disimpan di memori server, jadi kosong sesaat setelah server dimulai ulang.

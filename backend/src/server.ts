@@ -10,6 +10,7 @@ import adminRoutes from './routes/adminRoutes';
 import guruRoutes, { collectExpiredAttempts, processCorrectionQueue } from './routes/guruRoutes';
 import studentResultsRoutes from './routes/studentResultsRoutes';
 import studentExamRoutes from './routes/studentExamRoutes';
+import pengawasRoutes from './routes/pengawasRoutes';
 import { getNavbar, readNavbarSettings } from './controllers/navbarController';
 import { requireToken } from './middleware/auth';
 import { auditMutations, pruneAudit } from './middleware/audit';
@@ -54,6 +55,7 @@ app.use('/api', (_req, res, next) => {
 });
 // requireToken menolak permintaan tanpa login sebelum body besar diproses.
 app.use('/api/guru', requireToken, auditMutations, express.json({ limit: '8mb' }), guruRoutes);
+app.use('/api/pengawas', requireToken, auditMutations, express.json(), pengawasRoutes);
 app.use('/api/siswa', requireToken, express.json({ limit: '2mb' }), studentExamRoutes, studentResultsRoutes);
 app.use(express.json());
 app.get('/api/navbar', getNavbar);

@@ -20,6 +20,7 @@ model Kelas {
   ujian     Ujian[]
   ujianTujuan Ujian[] @relation("KelasTujuanUjian")
   pengampu  GuruMapelKelas[]
+  pengawasUjian PengawasUjian[]
 
   @@map("kelas")
 }
@@ -43,6 +44,7 @@ model User {
   pengerjaan PengerjaanUjian[]
   kegiatan   KegiatanUjian[]
   percobaanToken PercobaanToken[]
+  mengawasi  PengawasUjian[]
 
   @@index([kelasId])
   @@index([role])
@@ -123,6 +125,7 @@ model Ujian {
   susulan SesiSusulan[]
   pengerjaan PengerjaanUjian[]
   percobaanToken PercobaanToken[]
+  pengawas   PengawasUjian[]
 
   @@index([kelasId, draf])
   @@index([mapelId])
@@ -295,4 +298,22 @@ model AuditLog {
   @@index([pelakuId, id])
   @@index([aksi, id])
   @@map("audit_log")
+}
+
+// Guru yang ditugaskan mengawasi sebuah ujian, per kelas. Pengawas hanya melihat peserta kelas itu,
+// tanpa akses ke soal, kunci, jawaban, dan nilai.
+model PengawasUjian {
+  id      Int @id @default(autoincrement())
+  ujianId Int @map("ujian_id")
+  guruId  Int @map("guru_id")
+  kelasId Int @map("kelas_id")
+
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  guru  User  @relation(fields: [guruId], references: [id], onDelete: Cascade)
+  kelas Kelas @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+
+  @@unique([ujianId, guruId, kelasId])
+  @@index([guruId])
+  @@index([kelasId])
+  @@map("pengawas_ujian")
 }

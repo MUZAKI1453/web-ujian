@@ -3,8 +3,9 @@ import { randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { isBlankAnswer } from './answerSummary';
 import { examTokenMode, parseDraftExamRules } from './examProfiles';
-import { DEFAULT_VIOLATION_LIMIT, defaultSecurityConfig, defaultSecurityWeights, parseCancelReason, parseSecurityConfig, parseSecurityLimit, parseSecurityWeights, violationCancellation, type SecurityEvent } from './examSecurity';
+import { cancelViolation, DEFAULT_VIOLATION_LIMIT, defaultSecurityConfig, defaultSecurityWeights, parseCancelReason, parseSecurityConfig, parseSecurityLimit, parseSecurityWeights, violationCancellation, type SecurityEvent } from './examSecurity';
 import { writeAudit } from '../middleware/audit';
+import { parseProctorAssignments } from './proctoring';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { requireUser } from '../middleware/auth';
@@ -573,16 +574,63 @@ router.get('/ujian/:id/sesi', handle(async (req, res, actor) => {
     });
     const { _count, diarsipkanPada, pesertaRemedial, kegiatan, ...session } = exam;
     const security = parseSecurityConfig(kegiatan[0]?.data) ?? defaultSecurityConfig;
+    const notes = await prisma.kegiatanUjian.findMany({
+        where: { ujianId: id, jenis: 'catatan-pengawas' }, orderBy: { id: 'desc' },
+        select: { id: true, data: true, waktu: true, pelaku: { select: { nama: true, username: true } } }
+    });
     const pesertaUjiCoba = exam.ujianAsalId === null
         ? await prisma.user.findMany({ where: { role: 'admin' }, select: siswa, orderBy: { nama: 'asc' } }) : [];
     res.json({ ...session, jadwalTerkunci: scheduleLocked({ _count, diarsipkanPada }),
         pesertaUjiCoba,
         kelas: { users: exam.ujianAsalId !== null ? pesertaRemedial : [...new Map([...exam.kelas.users, ...exam.kelasTujuan.flatMap(k => k.users)].map(s => [s.id, s])).values()] },
         bobotKeamanan: security.weights, batasPelanggaran: security.limit,
+        catatanPengawas: notes.map(row => ({ id: row.id, teks: typeof object(row.data).teks === 'string' ? object(row.data).teks : '', waktu: row.waktu,
+            oleh: row.pelaku ? row.pelaku.nama || row.pelaku.username : 'Akun dihapus' })),
         keamanan: securityLog.map(row => ({ id: row.id, siswaId: row.pelakuId, attemptId: object(row.data).attemptId, reason: row.alasan, waktu: row.waktu,
             bobot: object(row.data).weight ?? defaultSecurityWeights[row.alasan as SecurityEvent['reason']] ?? 0,
             dibatalkan: violationCancellation(row.data) }))
     });
+}));
+
+// Penugasan pengawas: guru pemilik ujian (dan admin) menunjuk guru lain untuk mengawasi kelas tertentu.
+router.get('/ujian/:id/pengawas', handle(async (req, res, actor) => {
+    const id = Number(req.params.id);
+    if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
+    const exam = await prisma.ujian.findFirst({ where: { id, ...examScope(actor) }, select: {
+        kelas: { select: { id: true, namaKelas: true } }, kelasTujuan: { select: { id: true, namaKelas: true } },
+        pengawas: { select: { guruId: true, kelasId: true } }
+    } });
+    if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
+    const guru = await prisma.user.findMany({ where: { role: 'guru' }, select: { id: true, nama: true, username: true }, orderBy: { nama: 'asc' } });
+    const byTeacher = new Map<number, number[]>();
+    for (const row of exam.pengawas) byTeacher.set(row.guruId, [...(byTeacher.get(row.guruId) ?? []), row.kelasId]);
+    res.json({
+        kelas: [...new Map([exam.kelas, ...exam.kelasTujuan].map(item => [item.id, item])).values()].sort((a, b) => a.namaKelas.localeCompare(b.namaKelas)),
+        guru, penugasan: [...byTeacher].map(([guruId, kelasIds]) => ({ guruId, kelasIds }))
+    });
+}));
+
+router.put('/ujian/:id/pengawas', handle(async (req, res, actor) => {
+    const id = Number(req.params.id);
+    if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
+    const result = await prisma.$transaction(async tx => {
+        const exam = await tx.ujian.findFirst({ where: { id, ...examScope(actor) }, select: { kelasId: true, kelasTujuan: { select: { id: true } }, diarsipkanPada: true } });
+        if (!exam) return 404;
+        if (exam.diarsipkanPada) return 409;
+        const assignments = parseProctorAssignments(req.body?.penugasan, examClassIds(exam));
+        if (!assignments) return 400;
+        const teachers = await tx.user.count({ where: { id: { in: assignments.map(item => item.guruId) }, role: 'guru' } });
+        if (teachers !== assignments.length) return 400;
+        await tx.pengawasUjian.deleteMany({ where: { ujianId: id } });
+        if (assignments.length) await tx.pengawasUjian.createMany({
+            data: assignments.flatMap(item => item.kelasIds.map(kelasId => ({ ujianId: id, guruId: item.guruId, kelasId })))
+        });
+        return 204;
+    });
+    if (result === 404) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
+    if (result === 409) return res.status(409).json({ message: 'Ujian sudah diarsipkan.' });
+    if (result === 400) return res.status(400).json({ message: 'Pilih guru dan minimal satu kelas ujian untuk setiap pengawas.' });
+    res.sendStatus(204);
 }));
 
 // Guru membatalkan pelanggaran yang ternyata bukan kecurangan (notifikasi, telepon masuk, gangguan perangkat).
@@ -595,16 +643,7 @@ router.patch('/ujian/:id/pelanggaran/:logId', handle(async (req, res, actor) => 
     if (!reason) return res.status(400).json({ message: 'Tulis alasan pembatalan, 5 sampai 300 karakter.' });
     const result = await prisma.$transaction(async tx => {
         const exam = await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: false }, select: { id: true } });
-        const found = exam && await tx.kegiatanUjian.findFirst({ where: { id: logId, ujianId: id, jenis: 'pelanggaran-ujian' }, select: { pelakuId: true } });
-        if (!found) return 404;
-        // Kunci yang sama dengan laporan pelanggaran dari perangkat siswa, agar hitungannya tidak berpacu.
-        if (found.pelakuId) await tx.$queryRaw`SELECT id FROM pengerjaan_ujian WHERE ujian_id = ${id} AND siswa_id = ${found.pelakuId} FOR UPDATE`;
-        const row = await tx.kegiatanUjian.findUniqueOrThrow({ where: { id: logId }, select: { data: true, alasan: true, pelakuId: true } });
-        if (violationCancellation(row.data)) return 409;
-        await tx.kegiatanUjian.update({ where: { id: logId }, data: {
-            data: { ...object(row.data), dibatalkan: { oleh: actor.id, alasan: reason, waktu: new Date().toISOString() } } as Prisma.InputJsonObject
-        } });
-        return row;
+        return exam ? cancelViolation(tx, id, logId, actor.id, reason) : 404;
     });
     if (result === 404) return res.status(404).json({ message: 'Catatan pelanggaran tidak ditemukan.' });
     if (result === 409) return res.status(409).json({ message: 'Pelanggaran ini sudah dibatalkan.' });

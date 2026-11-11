@@ -102,6 +102,10 @@ function bumpRevision(id: number) {
     revisionTimer ??= setTimeout(() => void flushRevisions(), 1000);
 }
 
+// Waktu kontak terakhir tiap pengerjaan, untuk penanda tersambung/terputus di panel pengawas.
+// Hanya di memori: murah saat ratusan siswa autosave, dan kosong lagi setelah server dimulai ulang.
+export const lastContact = new Map<number, number>();
+
 function respond(fn: (req: Request, res: Response, user: ExamUser) => Promise<unknown>) {
     return async (req: Request, res: Response) => {
         const user = res.locals.user;
@@ -380,6 +384,10 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
     }, light);
     if (submitted) bumpRevision(id);
     if (!result) return res.status(404).json({ message: 'Ujian tidak tersedia.' });
+    if (result.status === 200) {
+        if (lastContact.size > 5000) lastContact.clear();
+        lastContact.set(attemptId, Date.now());
+    }
     const receipt = result.status === 200 && ['submitted', 'review'].includes(result.state ?? '')
         ? receiptNow ?? await studentReceipt(id, user.id) : undefined;
     res.status(result.status).json({ ...result, serverTime: Date.now(), receipt });
