@@ -47,6 +47,16 @@ npm run apk:release
 
 Naikkan `versionCode` dan `versionName` di `android/app/build.gradle` pada setiap rilis.
 
+## Uji coba satu kelas
+
+1. Kirim APK sekolah yang sesuai ke siswa (grup kelas, Google Drive, atau kabel). Jangan kirim APK debug.
+2. Di HP siswa: buka berkas APK, izinkan "Pasang aplikasi dari sumber ini" bila diminta, lalu pasang. Play Protect bisa menampilkan peringatan karena aplikasi tidak berasal dari Play Store; pilih tetap pasang.
+3. Buka aplikasi dan login seperti di web. Aplikasi butuh internet saat pertama dibuka.
+4. Untuk ujian percobaan, atur dulu batas pelanggaran di **Sesi & Peserta → Pengaturan risiko ujian**. Untuk percobaan pertama, batas `0` (hanya dicatat) lebih aman.
+5. Yang perlu diamati dan dicatat per merek HP: apakah ujian bisa dimulai, apakah screenshot terblokir, apa yang terjadi saat notifikasi atau telepon masuk, dan apakah jawaban tetap ada setelah koneksi putus lalu aplikasi dibuka lagi.
+
+Memperbarui aplikasi: pasang APK versi baru yang ditandatangani keystore yang sama di atas yang lama; data login tetap ada.
+
 ## Bagian native
 
 Kode Kotlin ada di `android/app/src/main/java/id/sch/baitussalam/cbt/`.
