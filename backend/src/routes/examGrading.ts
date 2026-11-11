@@ -97,7 +97,8 @@ export function revise(questions: Question[], id: number, action: unknown, input
         const items = Array.isArray(isi.items) ? isi.items : [];
         if (!Array.isArray(input) || input.length !== items.length || !input.every(value => typeof value === 'boolean')) throw new Error('Isi kunci untuk setiap opsi atau pernyataan.');
         const count = input.filter(Boolean).length;
-        if ((question.tipeSoal === 'PG' && count !== 1) || (question.tipeSoal === 'PM' && count < 2)) throw new Error('Pilihan Ganda membutuhkan satu kunci. Pilihan Majemuk membutuhkan minimal dua kunci.');
+        if (question.tipeSoal === 'PG' && count !== 1) throw new Error('Pilihan Ganda membutuhkan tepat satu kunci.');
+        if (question.tipeSoal === 'PM' && count === 0) throw new Error('Pilihan Majemuk membutuhkan minimal satu kunci.');
         question.isi = { ...isi, items: items.map((item, index) => ({ ...object(item), benar: input[index] })) } as Prisma.JsonObject;
         question.semuaBenar = false;
     } else if (action === 'batalkan') {

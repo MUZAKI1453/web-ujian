@@ -36,9 +36,10 @@ test('horizontal template has five named tables and imports all five question ty
     assert.throws(() => readQuestionWorkbook(buffer), /minimal satu soal/);
     const [pg, pm, bs, isian, essay] = book.worksheets;
     assert.equal(pg.getCell('I511').dataValidation.formulae[0], '"A,B,C,D,E"');
-    assert.equal(pm.getCell('I12').dataValidation.formulae[0], '$J$1:$J$26');
+    assert.equal(pm.getCell('I12').dataValidation.formulae[0], '$J$1:$J$31');
     assert.equal(pm.getColumn('J').hidden, true);
-    assert.equal(pm.getCell('J1').value, 'A,B');
+    assert.equal(pm.getCell('J1').value, 'A');
+    assert.equal(pm.getCell('J6').value, 'A,B');
     for (const address of ['E12', 'G12', 'I12', 'K12', 'M12']) {
         assert.equal(bs.getCell(address).dataValidation.formulae[0], '"Benar,Salah"');
     }
@@ -69,12 +70,28 @@ test('empty sheets are skipped, later rows are imported, and keys survive unused
     assert.deepEqual(rows[0].question.items, [{ teks: '1', benar: false }, { teks: '2', benar: true }]);
 });
 
+test('a single multiple-choice key imports from current and older templates', async () => {
+    for (const legacy of [false, true]) {
+        const buffer = await editedTemplate(book => {
+            const sheet = book.Sheets['Pilihan Majemuk'];
+            if (legacy) {
+                for (let row = 1; row <= 26; row++) sheet['J' + row] = sheet['J' + (row + 5)];
+                for (let row = 27; row <= 31; row++) delete sheet['J' + row];
+            }
+            fillExample(book, 'Pilihan Majemuk');
+            sheet.I12.v = 'C';
+        });
+        const [row] = readQuestionWorkbook(buffer);
+        assert.deepEqual(row.question.items.map(item => item.benar), [false, false, true, false]);
+    }
+});
+
 test('invalid answers report the sheet and row', async () => {
     const cases: [string, string, string | number, RegExp][] = [
         ['Pilihan Ganda', 'I12', 'A,C', /tepat satu/],
         ['Pilihan Ganda', 'I12', 'E', /opsi yang terisi/],
         ['Pilihan Majemuk', 'I12', 'A,A', /tanpa pengulangan/],
-        ['Pilihan Majemuk', 'I12', 'A', /minimal dua/],
+        ['Pilihan Majemuk', 'I12', '', /minimal satu/],
         ['Benar atau Salah', 'E12', '', /Benar atau Salah/],
         ['Isian Singkat', 'G12', 'mungkin', /Ya atau Tidak/],
         ['Esai', 'D12', 101, /1–100/],

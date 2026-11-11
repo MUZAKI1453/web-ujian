@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { ClipboardList } from 'lucide-react';
 
 export function PortalHeader({ title, label, subtitle, icon: Icon, children }: {
     title: string; label: string; subtitle: string; icon: LucideIcon; children?: ReactNode;
@@ -35,4 +36,19 @@ export function PortalStat({ value, label, icon: Icon, green = false }: {
         <span className={'cbt-stat-icon ' + (green ? 'cbt-stat-green' : '')}><Icon size={28} aria-hidden="true" /></span>
         <div><strong>{value}</strong><p>{label}</p></div>
     </div>;
+}
+
+export function ExamListHeader({ description, children }: { description: string; children?: ReactNode }) {
+    return <header className="ui-card flex flex-col gap-4 border-blue-100 bg-gradient-to-br from-white to-blue-50/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700 sm:size-14">
+                <ClipboardList size={24} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+                <h1 className="ui-page-title">Ujian Saya</h1>
+                <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">{description}</p>
+            </div>
+        </div>
+        {children}
+    </header>;
 }

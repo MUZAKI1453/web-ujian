@@ -1,6 +1,6 @@
 import { primaryClass } from '../../components/ui/styles';
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, ClipboardList, Clock3, Copy, Eye, FilePenLine, GraduationCap, Laptop, Plus, Search, SquarePen, Trash2, UploadCloud, Users, X } from 'lucide-react';
-import { PortalHeader, PortalStat } from '../../components/PortalHeader';
+import { ExamListHeader, PortalHeader, PortalStat } from '../../components/PortalHeader';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import api from '../../services/api';
@@ -345,10 +345,11 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                                 <button type="button" className={primaryClass} onClick={() => onNavigate('guru-mapel')}><Plus size={16} />Buat Ujian</button>
                             </div>}
                         </section>
-                    </> : <header className="ui-card flex flex-wrap items-center justify-between gap-4 p-5 sm:p-8">
-                        <h1 className="ui-page-title flex items-center gap-2.5">{view === 'ujian' ? <ClipboardList size={28} className="text-blue-600" aria-hidden="true" /> : <FilePenLine size={28} className="text-blue-600" aria-hidden="true" />}{view === 'ujian' ? 'Ujian Saya' : 'Buat Ujian'}</h1>
-                        {view === 'ujian' ? <button type="button" className={primaryClass} onClick={() => onNavigate('guru-mapel')}><Plus size={18} aria-hidden="true" />Buat Ujian</button>
-                            : <button type="button" className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button>}
+                    </> : view === 'ujian' ? <ExamListHeader description="Kelola draf, pantau sesi ujian, dan koreksi hasil siswa.">
+                        <button type="button" className={primaryClass} onClick={() => onNavigate('guru-mapel')}><Plus size={18} aria-hidden="true" />Buat Ujian</button>
+                    </ExamListHeader> : <header className="ui-card flex flex-wrap items-center justify-between gap-4 p-5 sm:p-8">
+                        <h1 className="ui-page-title flex items-center gap-2.5"><FilePenLine size={28} className="text-blue-600" aria-hidden="true" />Buat Ujian</h1>
+                        <button type="button" className={backButtonClass} onClick={backToExams}><ArrowLeft size={17} aria-hidden="true" />Kembali</button>
                     </header>}
                     {view === 'mapel' && !loading && assignments.length > 0 && <DraftExamForm assignments={assignments} examTypes={examTypes} onCreated={created => {
                         setExams(current => [created, ...current]); setDetailView('preview'); setPointSettings({}); setExam({ ...created, soal: [] });
@@ -380,14 +381,19 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                         {!loading && <ul className="grid gap-3 xl:grid-cols-2">
                             {matches.map(item => {
                                 const status = examStatus(item);
-                                return <li key={item.id} className="ui-card flex min-w-0 flex-col gap-4 p-4 sm:p-5">
+                                return <li key={item.id} data-status={status} className="cbt-exam-card gap-4">
                                     <div className="flex flex-wrap items-start justify-between gap-2">
-                                        <h3 className="min-w-0 break-words text-base font-semibold text-slate-900">{item.mapel.nama}</h3>
+                                        <h3 className="min-w-0 text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">{item.mapel.nama}</h3>
                                         <span className={'ui-badge whitespace-nowrap ' + examStatusStyles[status]}>{status}</span>
                                     </div>
                                     <div className="flex-1">
                                         <ExamListMetadata exam={item} />
-                                        <p className="mt-3 text-xs text-slate-600">Mulai <time dateTime={item.waktuMulai}>{schedule.format(new Date(item.waktuMulai))} WIB</time></p>
+                                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+                                            <p className="flex min-w-0 items-center gap-2"><CalendarDays size={15} className="shrink-0 text-blue-600" aria-hidden="true" />
+                                                <time dateTime={item.waktuMulai}>{schedule.format(new Date(item.waktuMulai))} WIB</time>
+                                            </p>
+                                            <p className="flex items-center gap-2"><Clock3 size={15} className="shrink-0 text-blue-600" aria-hidden="true" />{item.durasiMenit} menit</p>
+                                        </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                                         <ExamActions exam={item} busy={busy} onOpen={openExam} />

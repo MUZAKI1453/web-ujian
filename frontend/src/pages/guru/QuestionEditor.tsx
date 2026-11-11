@@ -56,7 +56,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
     const [points, setPoints] = useState(initial.poin);
     const [reading, setReading] = useState(0);
     useEffect(() => {
-        multipleAnswerInput.current?.setCustomValidity(items.filter(item => item.benar).length < 2 ? 'Pilih minimal dua opsi sebagai jawaban benar.' : '');
+        multipleAnswerInput.current?.setCustomValidity(items.some(item => item.benar) ? '' : 'Pilih minimal satu opsi sebagai jawaban benar.');
     }, [items]);
     const updateItem = (key: number, values: Partial<Item>) => {
         setItems(current => current.map(item => item.editorKey === key ? { ...item, ...values } : item));
@@ -110,7 +110,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
                                 <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-blue-100 bg-white text-blue-700"><KeyRound size={18} aria-hidden="true" /></span>
                                 <div className="min-w-0">
                                     <h3 id={answerId + '-title'} className="text-sm font-semibold text-slate-900">Kunci jawaban</h3>
-                                    <p className="mt-1 text-xs leading-relaxed text-slate-500">{type === 'PG' ? 'Pilih satu opsi yang benar.' : type === 'PM' ? 'Centang minimal dua opsi yang benar. Opsi lain dianggap salah.' : 'Tentukan Benar atau Salah untuk setiap pernyataan pada tabel ini.'}</p>
+                                    <p className="mt-1 text-xs leading-relaxed text-slate-500">{type === 'PG' ? 'Pilih satu opsi yang benar.' : type === 'PM' ? 'Centang satu atau beberapa opsi yang benar.' : 'Tentukan Benar atau Salah untuk setiap pernyataan pada tabel ini.'}</p>
                                 </div>
                             </div>
                         {type === 'PG' && <label className="ui-label block">Jawaban benar
@@ -135,8 +135,8 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
                                         onChange={event => updateItem(item.editorKey, { benar: event.target.checked })} />
                                 </label>)}
                             </div>
-                            <p className={'text-xs font-medium ' + (items.filter(item => item.benar).length >= 2 ? 'text-blue-700' : 'text-slate-500')} role="status">
-                                {items.filter(item => item.benar).length} jawaban benar dipilih · minimal 2
+                            <p className={'text-xs font-medium ' + (items.some(item => item.benar) ? 'text-blue-700' : 'text-slate-500')} role="status">
+                                {items.filter(item => item.benar).length} jawaban benar dipilih · minimal 1
                             </p>
                         </div>}
                         {type === 'BS' && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">

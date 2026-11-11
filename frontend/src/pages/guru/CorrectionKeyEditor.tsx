@@ -15,7 +15,7 @@ export default function CorrectionKeyEditor({ question, append, onChange }: {
     const firstCheckbox = useRef<HTMLInputElement>(null);
     const items = question.isi?.items ?? [];
     useEffect(() => {
-        firstCheckbox.current?.setCustomValidity(keys.filter(Boolean).length < 2 ? 'Pilih minimal dua jawaban benar.' : '');
+        firstCheckbox.current?.setCustomValidity(keys.some(Boolean) ? '' : 'Pilih minimal satu jawaban benar.');
     }, [keys]);
     function updateKey(index: number, value: boolean) {
         setKeys(current => current.map((entry, i) => i === index ? value : entry));
@@ -44,7 +44,7 @@ export default function CorrectionKeyEditor({ question, append, onChange }: {
                 <input ref={index === 0 ? firstCheckbox : undefined} type="checkbox" className="size-5 shrink-0 accent-blue-600" checked={keys[index]}
                     aria-label={'Opsi ' + String.fromCharCode(65 + index) + ' sebagai jawaban benar'} onChange={event => updateKey(index, event.target.checked)} />
             </label>)}</div>
-            <p role="status" className="text-xs text-slate-500">{keys.filter(Boolean).length} jawaban benar dipilih · minimal 2</p>
+            <p role="status" className="text-xs text-slate-500">{keys.filter(Boolean).length} jawaban benar dipilih · minimal 1</p>
         </div>}
         {question.tipeSoal === 'BS' && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <table className="w-full table-fixed text-left text-sm">

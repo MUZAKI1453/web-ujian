@@ -1,8 +1,8 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { isAxiosError } from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Clock, GraduationCap, History, LockKeyhole, Search } from 'lucide-react';
-import { PortalHeader } from '../../components/PortalHeader';
+import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Clock, GraduationCap, History, KeyRound, LockKeyhole, Search } from 'lucide-react';
+import { ExamListHeader, PortalHeader } from '../../components/PortalHeader';
 import PortalDialog from '../../components/PortalDialog';
 import api, { mediaUrl } from '../../services/api';
 import ExamQuestionReview, { ExamReviewHeader, optionLabel } from '../../components/ExamQuestionReview';
@@ -34,7 +34,7 @@ type Discussion = { soal: { id: number; nomor: number; pertanyaan: string; tipeS
     gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[];
 } | null }[] };
 
-const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
 const resultDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' });
 const resultScore = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
 const questionScore = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 });
@@ -237,30 +237,57 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     const displayed = view === 'dashboard' ? pending.slice(0, 2) : filtered;
 
     function renderExam(exam: Exam) {
-        const status = exam.status;
-        return <article key={exam.id} className="ui-card flex h-full min-w-0 flex-col p-5" data-status={status}>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                        <ExamTypeBadge label={exam.judul} />
-                        <span className={'cbt-badge ' + (status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-800' : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600')}>{status === 'Terjadwal' ? 'Terjadwal' : progress(exam)}</span>
+        const { status } = exam;
+        const canEnter = !exam.submitted && !exam.offline && (exam.attempt !== null || (status === 'Berlangsung' && exam.masukBuka));
+        const available = status === 'Berlangsung' && canEnter;
+        const label = available && !exam.attempt ? 'Bisa dikerjakan'
+            : status === 'Terjadwal' || status === 'Draf' ? status : progress(exam);
+        const badgeStyle = available ? 'bg-emerald-100 text-emerald-800'
+            : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700';
+
+        return <article key={exam.id} className="cbt-exam-card gap-3 sm:gap-4" data-status={status}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">{exam.mapel}</h3>
+                <span className={'ui-badge ' + badgeStyle}>{label}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+                <ExamTypeBadge label={exam.judul} />
+                {exam.susulan && <span className="ui-badge bg-slate-100 text-slate-700">Susulan</span>}
+            </div>
+            <dl className="grid gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm min-[440px]:grid-cols-2">
+                <div className="flex min-w-0 items-start gap-2">
+                    <CalendarDays size={16} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                    <div>
+                        <dt className="text-xs text-slate-500">Mulai</dt>
+                        <dd className="font-medium text-slate-800"><time dateTime={exam.mulai}>{schedule.format(new Date(exam.mulai))} WIB</time></dd>
                     </div>
-                    <h3 className="mb-3 mt-3 break-words text-lg font-semibold">{exam.mapel}</h3>
-                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600"><CalendarDays size={16} />{schedule.format(new Date(exam.mulai))}</p>
-                    <p className="mb-2 flex items-center gap-2 text-sm text-slate-500"><Clock size={16} />{exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
-                    <p className="mb-6 text-xs text-slate-500">Batas akhir: {schedule.format(new Date(exam.selesai))}</p>
-                    <div className="mt-auto flex flex-wrap gap-2">
-                        {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
-                            <button type="button" disabled={busy} className={primaryClass + ' flex w-full items-center justify-center gap-2 py-3'} onClick={() => {
-                                setOutput(null);
-                                setError('');
-                                if (adminMode) void enter(exam);
-                                else { setSelected(exam); setPrepared(null); }
-                            }}>
-                                {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'} <ArrowRight size={17} />
-                            </button>}
-                        {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
-                        {!exam.attempt && !exam.submitted && (status === 'Terjadwal' || status === 'Selesai' || status === 'Draf') && <button type="button" disabled className="ui-button ui-button-secondary flex items-center justify-center gap-2"><LockKeyhole size={17} />{status === 'Selesai' ? 'Waktu Habis' : 'Belum Dibuka'}</button>}
+                </div>
+                <div className="flex min-w-0 items-start gap-2">
+                    <Clock size={16} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                    <div>
+                        <dt className="text-xs text-slate-500">Batas akhir</dt>
+                        <dd className="font-medium text-slate-800"><time dateTime={exam.selesai}>{schedule.format(new Date(exam.selesai))} WIB</time></dd>
                     </div>
-                </article>;
+                </div>
+            </dl>
+            <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-slate-600">
+                    <span className="inline-flex items-center gap-1.5"><Clock size={14} aria-hidden="true" />Durasi {exam.durasi} menit</span>
+                    {exam.perluToken && !exam.attempt && <span className="inline-flex items-center gap-1.5"><KeyRound size={14} aria-hidden="true" />Perlu token</span>}
+                </div>
+                {canEnter ? <button type="button" disabled={busy} className={primaryClass + ' w-full justify-between'} onClick={() => {
+                    setOutput(null);
+                    setError('');
+                    if (adminMode) void enter(exam);
+                    else { setSelected(exam); setPrepared(null); }
+                }}>
+                    {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'}<ArrowRight size={17} aria-hidden="true" />
+                </button> : <p className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3 text-sm font-medium text-slate-600">
+                    <LockKeyhole size={16} aria-hidden="true" />
+                    {status === 'Selesai' ? 'Waktu habis' : status === 'Berlangsung' ? 'Akses masuk ditutup' : 'Belum dibuka'}
+                </p>}
+            </div>
+        </article>;
     }
 
     if (working) return <KerjakanUjian initial={working.attempt} storageKey={key(working.exam.id)} examId={working.exam.id}
@@ -372,9 +399,11 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                     <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">{stat.label}</p>
                 </div>)}
             </div>
-        </> : <header className="ui-card flex flex-wrap items-center justify-between gap-3 p-5 sm:p-8">
-            <h1 className="ui-page-title flex items-center gap-2.5"><ClipboardList size={28} className="text-blue-600" aria-hidden="true" />Ujian Saya</h1>
-        </header>}
+        </> : <ExamListHeader description="Cek jadwal, durasi, dan batas akhir ujianmu. Buka ujian dari daftar saat akses tersedia.">
+            <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-hasil')}>
+                <History size={17} aria-hidden="true" />Hasil Ujian
+            </button>
+        </ExamListHeader>}
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {selected && <PortalDialog titleId="exam-instructions" onClose={() => { if (!busy) { setSelected(null); setPrepared(null); } }}><form onSubmit={event => { event.preventDefault(); void enter(selected, new FormData(event.currentTarget).get('token')); }} className="space-y-5">
             <span className="inline-flex rounded-xl bg-blue-50 p-3 text-blue-600"><ClipboardList size={28} /></span>
@@ -398,12 +427,15 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
         </form></PortalDialog>}
         {loading && <p role="status">Memuat daftar ujian…</p>}
         <section className="space-y-3" aria-label="Daftar ujian">
-            <header className="flex flex-wrap items-center justify-between gap-3">
+            <header className={'flex flex-wrap items-center justify-between gap-3 ' + (view === 'ujian' ? 'ui-card p-4' : '')}>
                 {view === 'dashboard' ? <>
                     <h2 className="text-lg font-bold">Ujian untukmu</h2>
                     <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-ujian')}>Lihat semua<ArrowRight size={16} aria-hidden="true" /></button>
                 </> : <>
-                    <span className="text-sm text-slate-500">{loading ? '—' : filtered.length + ' ujian'}</span>
+                    <div>
+                        <h2 className="font-semibold text-slate-900">Daftar ujian</h2>
+                        {!loading && <p className="mt-0.5 text-xs text-slate-500">{filtered.length} ujian{keyword ? ' ditemukan' : ''}</p>}
+                    </div>
                     <div className="relative w-full sm:w-80">
                         <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input type="search" aria-label="Cari ujian atau mata pelajaran" className="ui-input w-full pl-10" placeholder="Cari ujian atau mapel…"
@@ -412,7 +444,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                 </>}
             </header>
             <div className="grid gap-4 md:grid-cols-2">{displayed.map(exam => renderExam(exam))}</div>
-            {!loading && !displayed.length && <div className="ui-card space-y-3 px-5 py-10 text-center">
+            {!loading && !error && !displayed.length && <div className="ui-card space-y-3 px-5 py-10 text-center">
                 <ClipboardList size={36} className="mx-auto text-slate-300" aria-hidden="true" />
                 <p className="text-sm text-slate-500">{search.trim() ? 'Ujian tidak ditemukan.' : 'Belum ada ujian yang perlu dikerjakan.'}</p>
                 {search.trim() ? <button type="button" className="ui-button ui-button-secondary" onClick={() => setSearch('')}>Hapus pencarian</button>

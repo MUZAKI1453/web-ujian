@@ -302,7 +302,7 @@ function parseQuestion(input: unknown) {
         const items = body.items.map(item => ({ teks: text(item?.teks), benar: item?.benar, gambar: image(item?.gambar) }));
         if (items.some(item => !item.teks || item.teks.length > 12000 || typeof item.benar !== 'boolean' || item.gambar === null)) return null;
         const keys = items.filter(item => item.benar).length;
-        if ((tipeSoal === 'PG' && keys !== 1) || (tipeSoal === 'PM' && keys < 2)) return null;
+        if ((tipeSoal === 'PG' && keys !== 1) || (tipeSoal === 'PM' && keys === 0)) return null;
         isi = { items };
     } else if (tipeSoal === 'ISIAN') {
         if (!Array.isArray(body.jawaban)) return null;

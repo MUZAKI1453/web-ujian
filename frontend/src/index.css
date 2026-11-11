@@ -85,11 +85,12 @@
     .cbt-section-title::before { content: ''; @apply h-6 w-1 shrink-0 rounded-full bg-blue-600; }
     .cbt-subject { @apply flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-5 text-center; box-shadow: var(--ui-shadow-card); }
     .cbt-subject button { @apply mt-auto min-h-11 w-full rounded-xl border border-blue-600 px-4 py-2.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-50; }
-    .cbt-exam-card { @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5; box-shadow: var(--ui-shadow-card); }
-    .cbt-exam-card::before { content: ''; @apply absolute inset-y-0 left-0 w-1.5 bg-blue-600; }
+    .cbt-exam-card { @apply relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:p-5; box-shadow: var(--ui-shadow-card); }
+    .cbt-exam-card::before { content: ''; @apply absolute inset-y-0 left-0 w-1 bg-blue-600; }
     .cbt-exam-card[data-status='Terjadwal']::before { @apply bg-amber-400; }
-    .cbt-exam-card[data-status='Selesai']::before { @apply bg-slate-400; }
-    .cbt-exam-card h3 { @apply my-4 break-words text-xl font-bold leading-snug; }
+    .cbt-exam-card[data-status='Selesai']::before,
+    .cbt-exam-card[data-status='Draf']::before,
+    .cbt-exam-card[data-status='Diarsipkan']::before { @apply bg-slate-400; }
     .cbt-table thead th { @apply bg-slate-50 px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-600; }
     .cbt-table tbody td { @apply px-5 py-4 align-middle; }
     .cbt-table tbody tr { @apply hover:bg-slate-50/60; }

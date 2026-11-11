@@ -21,12 +21,12 @@ type Question = {
 const optionHeaders = ['Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban'];
 const optionKeys = ['A', 'B', 'C', 'D', 'E'];
 const multipleKeys = Array.from({ length: 31 }, (_, index) => optionKeys.filter((_, bit) => (index + 1) & (1 << bit)))
-    .filter(keys => keys.length >= 2)
     .map(keys => keys.join(','))
     .sort((a, b) => a.length - b.length || a.localeCompare(b));
+const legacyMultipleKeys = multipleKeys.filter(key => key.includes(','));
 const formats: Record<Kind, { columns: string[]; example: (string | number)[]; guide: string }> = {
     PG: { columns: optionHeaders, example: ['Berapakah hasil 2 + 3?', '5', '6', '7', '8', '', 'A'], guide: 'Isi minimal dua opsi dan satu huruf kunci, contoh: A. Opsi yang tidak digunakan boleh kosong.' },
-    PM: { columns: optionHeaders, example: ['Pilih semua bilangan genap.', '2', '3', '4', '5', '', 'A,C'], guide: 'Isi minimal dua kunci, dipisahkan koma, contoh: A,C. Opsi yang tidak digunakan boleh kosong.' },
+    PM: { columns: optionHeaders, example: ['Pilih semua bilangan genap.', '2', '3', '4', '5', '', 'A,C'], guide: 'Isi satu atau beberapa kunci. Pisahkan dengan koma jika lebih dari satu, contoh: A,C.' },
     BS: { columns: Array.from({ length: 5 }, (_, i) => ['Pernyataan ' + (i + 1), 'Kunci ' + (i + 1)]).flat(), example: ['Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 adalah bilangan ganjil.', 'Salah'], guide: 'Isi setiap pasangan pernyataan dan kunci dengan Benar atau Salah. Pasangan yang tidak digunakan boleh kosong.' },
     ISIAN: { columns: ['Jawaban 1', 'Jawaban 2', 'Jawaban 3', 'Isian Angka'], example: ['Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'], guide: 'Isi satu atau beberapa alternatif jawaban. Isi Isian Angka dengan Ya atau Tidak; kosong berarti Tidak.' },
     ESSAY: { columns: ['Poin Maksimum'], example: ['Jelaskan perbedaan bilangan ganjil dan genap.', 6], guide: 'Isi Poin Maksimum dengan bilangan bulat 1–100.' }
@@ -105,7 +105,7 @@ export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
             if (label === 'Kunci Jawaban' && type === 'PG') return dropdown(optionKeys, 'Pilih satu huruf dari opsi yang terisi.');
             // Excel uses commas to separate list entries, so combinations are stored in cells.
             if (label === 'Kunci Jawaban' && type === 'PM') return {
-                ...dropdown([], 'Pilih kombinasi minimal dua opsi yang terisi.'), formulae: [`$${sheet.getColumn(last + 1).letter}$1:$${sheet.getColumn(last + 1).letter}$${multipleKeys.length}`]
+                ...dropdown([], 'Pilih satu atau beberapa opsi yang terisi.'), formulae: [`$${sheet.getColumn(last + 1).letter}$1:$${sheet.getColumn(last + 1).letter}$${multipleKeys.length}`]
             };
             if (type === 'BS' && label.startsWith('Kunci ')) return dropdown(['Benar', 'Salah'], 'Pilih kunci untuk pernyataan di sebelah kiri.');
             if (label === 'Isian Angka') return dropdown(['Ya', 'Tidak'], 'Pilih Ya jika jawaban dinilai sebagai angka.');
@@ -139,8 +139,10 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
         const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, range, raw: false, blankrows: true, defval: '' });
         const expected = ['No', 'Pertanyaan', ...formats[type].columns];
         // The optional helper column contains only the dropdown choices for Pilihan Majemuk.
-        if (type === 'PM' && multipleKeys.every((key, i) => rows[i]?.[expected.length + 1] === key)) {
-            multipleKeys.forEach((_, i) => { rows[i][expected.length + 1] = ''; });
+        if (type === 'PM') {
+            const helperColumn = expected.length + 1;
+            const helperKeys = [multipleKeys, legacyMultipleKeys].find(keys => keys.every((key, i) => rows[i]?.[helperColumn] === key));
+            helperKeys?.forEach((_, i) => { rows[i][helperColumn] = ''; });
         }
         const headers = (rows[10] ?? []).slice(1).map(value => value.trim());
         // Ignore the trailing column of older essay templates.
@@ -160,9 +162,11 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
             if (!question.pertanyaan) fail('Pertanyaan wajib diisi.');
             if (type === 'PG' || type === 'PM') {
                 const options = Array.from({ length: 5 }, (_, i) => values[i + 1] ?? '');
-                const keys = (values[6] ?? '').toUpperCase().split(',').map(value => value.trim());
+                const keyText = values[6] ?? '';
+                if (!keyText) fail('Isi minimal satu kunci jawaban.');
+                const keys = keyText.toUpperCase().split(',').map(value => value.trim());
                 if (keys.some(key => !/^[A-E]$/.test(key) || !options[key.charCodeAt(0) - 65]) || new Set(keys).size !== keys.length) fail('Kunci harus berupa huruf opsi yang terisi, dipisahkan koma tanpa pengulangan.');
-                if ((type === 'PG' && keys.length !== 1) || (type === 'PM' && keys.length < 2)) fail(type === 'PG' ? 'Pilih tepat satu kunci jawaban.' : 'Pilih minimal dua kunci jawaban.');
+                if (type === 'PG' && keys.length !== 1) fail('Pilih tepat satu kunci jawaban.');
                 question.items = options.flatMap((teks, i) => teks ? [{ teks, benar: keys.includes(String.fromCharCode(65 + i)) }] : []);
                 if (question.items.length < 2) fail('Isi minimal dua opsi jawaban.');
             } else if (type === 'BS') {

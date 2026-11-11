@@ -87,18 +87,18 @@ export default function ExamQuestionReview<T extends ReviewQuestion>({ questions
                         {!!question.isi?.items?.length && <ol className="space-y-1.5">
                             {question.isi.items.map((item, index) => <li key={index} className={'flex min-w-0 items-start gap-2 rounded-lg px-2.5 py-2 text-sm sm:px-3 ' +
                                 (item.benar ? 'bg-green-50 text-green-900' : statements ? 'bg-red-50 text-red-900' : 'bg-slate-50')}>
-                                <span className="grid min-h-6 min-w-6 shrink-0 place-items-center rounded-md bg-white px-1 font-semibold">
-                                    {statements ? index + 1 : optionLabel(index)}
-                                </span>
+                                {statements ? <span className="grid min-h-6 min-w-6 shrink-0 place-items-center rounded-md bg-white px-1 font-semibold">
+                                    {index + 1}
+                                </span> : <input type="checkbox" checked={item.benar} disabled
+                                    aria-label={`Kunci opsi ${optionLabel(index)}`} className="mt-0.5 size-4 shrink-0 accent-emerald-700" />}
                                 <div className="min-w-0 flex-1 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">
+                                    {!statements && <span className="mr-1.5 font-semibold">{optionLabel(index)}.</span>}
                                     <QuestionContent text={item.teks} image={item.gambar} />
                                 </div>
                                 {statements ? <span className="flex shrink-0 items-center gap-1 text-xs font-semibold">
                                     {item.benar ? <Check size={16} aria-hidden="true" /> : <X size={16} aria-hidden="true" />}
                                     {item.benar ? 'Benar' : 'Salah'}
-                                </span> : item.benar && <span className="shrink-0" role="img" aria-label="Jawaban benar" title="Jawaban benar">
-                                    <Check size={18} aria-hidden="true" />
-                                </span>}
+                                </span> : null}
                             </li>)}
                         </ol>}
                         {!!question.isi?.jawaban?.length && type === 'ISIAN' && <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-950">
