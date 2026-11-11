@@ -117,3 +117,9 @@ Untuk perangkat milik sekolah yang dikelola, gunakan kebijakan Android Enterpris
 Jika memakai Safe Exam Browser, penerapan yang mewajibkan klien tersebut memerlukan validasi konfigurasi di server. Validasi itu belum tersedia di aplikasi ini. [Dokumentasi integrasi SEB](https://www.safeexambrowser.org/developer/seb-integration.html)
 
 Deteksi login ganda, perubahan perangkat atau jaringan, jeda heartbeat, waktu jawab sangat singkat, indikasi manipulasi, dan analisis kemiripan jawaban belum masuk skor. Validasi deadline di server tetap berlaku. Perubahan alamat IP dan jeda koneksi dapat berasal dari perpindahan jaringan yang normal dan perlu konteks sebelum ditinjau.
+
+## Membatalkan pelanggaran
+
+Di **Sesi & Peserta → kolom Keamanan**, guru dapat membatalkan satu kejadian yang ternyata bukan kecurangan, misalnya telepon masuk atau notifikasi di HP. Alasan tertulis wajib diisi (5 sampai 300 karakter). Kejadian tidak dihapus: ia tetap tampil dengan tanda dibatalkan beserta alasannya, tidak lagi dihitung dalam batas pelanggaran maupun skor risiko, dan pembatalannya masuk **Log Audit** sebagai `batalkan-pelanggaran`.
+
+Hitungan di perangkat siswa mengikuti server pada sinkronisasi berikutnya (paling lama sekitar 35 detik). Pembatalan tidak membuka kembali pengerjaan yang sudah dikumpulkan otomatis; untuk itu gunakan reset pengerjaan. Pembatalan tidak dapat diurungkan.

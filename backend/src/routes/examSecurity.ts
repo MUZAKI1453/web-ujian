@@ -35,6 +35,19 @@ export function parseSecurityConfig(value: unknown): SecurityConfig | null {
     return weights && limit !== null ? { weights, limit } : null;
 }
 
+// Pelanggaran yang dibatalkan guru tetap tersimpan (agar laporan ulang tidak mencatatnya lagi) tetapi tidak dihitung.
+export function violationCancellation(data: unknown) {
+    const info = object(data).dibatalkan;
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return null;
+    const { alasan, waktu } = info as Record<string, unknown>;
+    return { alasan: typeof alasan === 'string' ? alasan : '', waktu: typeof waktu === 'string' ? waktu : null };
+}
+
+export function parseCancelReason(value: unknown) {
+    const reason = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+    return reason.length >= 5 && reason.length <= 300 ? reason : null;
+}
+
 export function interruptsExam(reason: SecurityEvent['reason']) {
     return interruptionReasons.includes(reason);
 }
@@ -65,7 +78,7 @@ export async function recordSecurity(tx: Prisma.TransactionClient, ujianId: numb
         return rowAttemptId === undefined || rowAttemptId === attemptId;
     });
     const known = new Set(rows.map(row => object(row.data).eventId));
-    let count = rows.filter(row => row.alasan && interruptsExam(row.alasan as SecurityEvent['reason'])).length;
+    let count = rows.filter(row => row.alasan && interruptsExam(row.alasan as SecurityEvent['reason']) && !violationCancellation(row.data)).length;
     const recent = new Set(rows.filter(row => Date.now() - +row.waktu < 10_000).map(row => row.alasan));
     for (const event of events) {
         const interrupt = interruptsExam(event.reason);

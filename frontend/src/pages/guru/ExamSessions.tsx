@@ -19,7 +19,7 @@ type Attempt = { id: number; siswaId: number; sesiSusulanId: number | null; mula
 type Answer = { siswaId: number; totalNilai: string; waktuSubmit: string; siswa: Student };
 type Sessions = Window & { profil: ExamProfile; durasiMenit: number; jadwalTerkunci: boolean; kelas: { users: Student[] }; pesertaUjiCoba: Student[]; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
     bobotKeamanan: SecurityWeights; batasPelanggaran: number;
-    keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string; bobot: number }[] };
+    keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string; bobot: number; dibatalkan?: { alasan: string; waktu: string | null } | null }[] };
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 const formatted = (value: string) => date.format(new Date(value));
@@ -51,6 +51,7 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
     const [now, setNow] = useState(Date.now);
     const [makeupSearch, setMakeupSearch] = useState('');
     const [chosen, setChosen] = useState<number[]>([]);
+    const [cancelling, setCancelling] = useState<{ id: number; label: string; student: string } | null>(null);
     const url = '/guru/ujian/' + examId;
     const refresh = useCallback(async (signal?: AbortSignal) => {
         const response = await api.get<Sessions>(url + '/sesi', { signal, timeout: 10000 });
@@ -151,7 +152,7 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
                 </fieldset>
             </form>
         </details>
-        {error && !making && !rescheduling && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
+        {error && !making && !rescheduling && !cancelling && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {notice && <p role="status" className="ui-notice ui-notice-success">{notice}</p>}
         {renderHeader(!archived && <>
             <button type="button" disabled={busy || archiving || !eligible.length} title={eligible.length ? 'Tambah sesi susulan' : 'Tidak ada peserta yang dapat ditambahkan ke sesi susulan'} className={primaryClass} onClick={() => { setError(''); setChosen([]); setMakeupSearch(''); setMaking(defaultExamSchedule(data.durasiMenit)); }}><Plus size={17} aria-hidden="true" />Sesi Susulan</button>
@@ -221,8 +222,14 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
                     <tbody>{visible.map(({ student, attempt, answer, state, violations }) => <tr key={student.id}>
                         <td><span className="block font-semibold text-slate-800">{student.nama || student.username}</span><span className="text-xs text-slate-500">NIS {student.username}</span></td><td>{badge(state)}</td>
                         <td>{violations.length ? <details className="group min-w-36">
-                            <summary className="monitor-session-summary flex min-h-10 cursor-pointer list-none items-center gap-2 text-yellow-900"><ShieldAlert size={16} aria-hidden="true" /><span className="text-xs font-semibold">Risiko {violations.reduce((sum, item) => sum + item.bobot, 0)} · {violations.length} kejadian</span><ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
-                            <ul className="mt-2 space-y-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs">{violations.map(item => <li key={item.id}>{violationLabels[item.reason] || item.reason}<span className="mt-1 block text-slate-500">{formatted(item.waktu)} · Bobot {item.bobot}</span></li>)}</ul>
+                            <summary className="monitor-session-summary flex min-h-10 cursor-pointer list-none items-center gap-2 text-yellow-900"><ShieldAlert size={16} aria-hidden="true" /><span className="text-xs font-semibold">Risiko {violations.reduce((sum, item) => sum + (item.dibatalkan ? 0 : item.bobot), 0)} · {violations.filter(item => !item.dibatalkan).length} kejadian{violations.some(item => item.dibatalkan) && ` · ${violations.filter(item => item.dibatalkan).length} dibatalkan`}</span><ChevronDown size={14} className="transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
+                            <ul className="mt-2 space-y-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-xs">{violations.map(item => <li key={item.id}>
+                                <span className={item.dibatalkan ? 'text-slate-500 line-through' : undefined}>{violationLabels[item.reason] || item.reason}</span>
+                                <span className="mt-1 block text-slate-500">{formatted(item.waktu)} · Bobot {item.bobot}</span>
+                                {item.dibatalkan ? <span className="mt-1 block break-words text-slate-600">Dibatalkan: {item.dibatalkan.alasan}</span>
+                                    : !archived && <button type="button" disabled={busy} className="mt-1 font-semibold text-blue-700 underline disabled:opacity-40"
+                                        onClick={() => setCancelling({ id: item.id, label: violationLabels[item.reason] || item.reason, student: student.nama || student.username })}>Batalkan</button>}
+                            </li>)}</ul>
                         </details> : <span className="text-xs text-slate-500">{attempt ? 'Risiko 0' : '—'}</span>}</td>
                         <td className="font-semibold tabular-nums">{answer ? Number(answer.totalNilai) : '—'}</td>
                         <td>{!archived && (attempt || answer) && <button type="button" disabled={busy} title="Reset pengerjaan" aria-label={'Reset pengerjaan ' + (student.nama || student.username)} className="grid size-10 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40" onClick={async () => {
@@ -239,6 +246,24 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
             <div className="flex items-center justify-between gap-3"><p className="font-semibold">{projected.title}</p><button type="button" onClick={() => setProjection(null)} className="grid size-10 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup token"><X size={20} aria-hidden="true" /></button></div>
             <p className="my-8 break-all font-mono text-[clamp(2rem,12vw,7rem)] font-bold tracking-wider text-blue-800">{projected.token}</p>
         </dialog>}
+        {cancelling && <ModalOverlay label="Batalkan pelanggaran" onClose={() => { if (!busy) setCancelling(null); }}>
+            <form className="ui-dialog-panel max-w-lg space-y-4" onSubmit={event => {
+                event.preventDefault();
+                const alasan = String(new FormData(event.currentTarget).get('alasan') ?? '');
+                void perform(async () => { await api.patch(url + '/pelanggaran/' + cancelling.id, { alasan }); setCancelling(null); });
+            }}>
+                <h3 className="text-lg font-bold">Batalkan pelanggaran</h3>
+                {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
+                <p className="text-sm text-slate-600">{cancelling.student} · {cancelling.label}. Kejadian tetap tercatat, tetapi tidak dihitung lagi sebagai pelanggaran dan skor risiko. Pengerjaan yang sudah dikumpulkan otomatis tidak dibuka kembali.</p>
+                <label className="ui-label block">Alasan pembatalan
+                    <textarea name="alasan" required minLength={5} maxLength={300} rows={3} className={fieldClass} placeholder="Contoh: telepon masuk, disaksikan pengawas ruang." />
+                </label>
+                <div className="flex justify-end gap-2">
+                    <button type="button" disabled={busy} className="ui-button ui-button-secondary" onClick={() => setCancelling(null)}>Batal</button>
+                    <button type="submit" disabled={busy} className={primaryClass}>Batalkan Pelanggaran</button>
+                </div>
+            </form>
+        </ModalOverlay>}
         {rescheduling && <ModalOverlay label="Ubah jadwal sesi reguler" onClose={() => { if (!busy) setRescheduling(false); }}>
             <section className="ui-dialog-panel max-w-xl space-y-4">
                 <h3 className="flex items-center gap-2 text-lg font-bold"><CalendarDays size={20} className="text-blue-700" aria-hidden="true" />Ubah Jadwal Reguler</h3>

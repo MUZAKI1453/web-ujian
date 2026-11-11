@@ -8,6 +8,7 @@ import api, { mediaUrl } from '../../services/api';
 import ExamQuestionReview, { ExamReviewHeader, optionLabel } from '../../components/ExamQuestionReview';
 import { questionTypeLabel } from '../guru/questionTypes';
 import KerjakanUjian from './KerjakanUjian';
+import { interruptsExam } from './useExamSecurity';
 import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import { loadAttempt, storeAttempt } from './attemptStore';
 import type { LocalAttempt, Question, Value } from './attemptStore';
@@ -195,7 +196,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                 jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
                 index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false,
                 securityWeights: packet.securityWeights, securityLimit: packet.securityLimit,
-                security: { count: Math.max(same?.security?.count ?? 0, packet.securityCount ?? 0), pending: same?.security?.pending ?? [], warning: same?.security?.warning }
+                security: { count: (packet.securityCount ?? 0) + (same?.security?.pending ?? []).filter(event => interruptsExam(event.reason)).length, pending: same?.security?.pending ?? [], warning: same?.security?.warning }
             };
             await storeAttempt(key(exam.id), attempt).catch(() => {});
             for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {

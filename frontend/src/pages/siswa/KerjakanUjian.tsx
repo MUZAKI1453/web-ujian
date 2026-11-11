@@ -112,7 +112,8 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                     const pending = (latest.security?.pending ?? []).filter(event => !(response.securityAck ?? []).includes(event.id));
                     update({ ...latest, versi: Math.max(latest.versi, response.versi), saved: response.versi,
                         savedAnswers: data.jawaban, lastSavedAt: dirty || !latest.lastSavedAt ? response.serverTime : latest.lastSavedAt,
-                        security: { count: Math.max(latest.security?.count ?? 0, (response.securityCount ?? 0) + pending.filter(event => interruptsExam(event.reason)).length), pending, warning: latest.security?.warning } });
+                        // Hitungan server yang menentukan (guru dapat membatalkan pelanggaran); kejadian yang belum diterima server ditambahkan.
+                        security: { count: (response.securityCount ?? latest.security?.count ?? 0) + (response.securityCount === undefined ? 0 : pending.filter(event => interruptsExam(event.reason)).length), pending, warning: latest.security?.warning } });
                     setSaveState(latest.versi > response.versi ? 'pending' : 'saved');
                 }
             } catch (err) {

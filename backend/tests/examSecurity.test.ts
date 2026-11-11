@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import dotenv from 'dotenv';
 import type { Prisma } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
-import { defaultSecurityWeights, parseSecurityConfig, parseSecurityEvents, parseSecurityWeights, recordSecurity } from '../src/routes/examSecurity';
+import { defaultSecurityWeights, parseCancelReason, parseSecurityConfig, parseSecurityEvents, parseSecurityWeights, recordSecurity, violationCancellation } from '../src/routes/examSecurity';
 
 test('security reports reject invalid data and collapse retries of the same event', () => {
     const event = { id: 'event-123456', reason: 'tab-hidden' };
@@ -65,6 +65,28 @@ test('interruptions are counted up to the exam limit; limit 0 keeps counting wit
     const unlimited = store();
     assert.equal((await recordSecurity(unlimited.tx, 1, 2, 3, events, defaultSecurityWeights, 0)).securityCount, 7);
     assert.equal(unlimited.rows.length, 7);
+});
+
+test('a violation cancelled by the teacher stops counting but its retry is not recorded again', async () => {
+    assert.equal(parseCancelReason('  telepon   masuk  '), 'telepon masuk');
+    for (const input of [undefined, 12, 'ya', ' a  b ', 'x'.repeat(301)]) assert.equal(parseCancelReason(input), null);
+    assert.equal(violationCancellation({ eventId: 'a' }), null);
+    assert.deepEqual(violationCancellation({ dibatalkan: { oleh: 1, alasan: 'telepon masuk', waktu: '2026-11-11T00:00:00.000Z' } }),
+        { alasan: 'telepon masuk', waktu: '2026-11-11T00:00:00.000Z' });
+    const rows: { alasan: string; data: Record<string, unknown>; waktu: Date }[] = [];
+    const tx = { kegiatanUjian: {
+        findMany: async () => rows,
+        create: async ({ data }: { data: { alasan: string; data: Record<string, unknown> } }) => rows.push({ ...data, waktu: new Date() })
+    } } as unknown as Prisma.TransactionClient;
+    const events = [{ id: 'event-cancel-1', reason: 'tab-hidden' as const }, { id: 'event-cancel-2', reason: 'window-blur' as const }];
+    assert.equal((await recordSecurity(tx, 1, 2, 3, events)).securityCount, 2);
+    rows[0].data = { ...rows[0].data, dibatalkan: { oleh: 9, alasan: 'telepon masuk', waktu: new Date().toISOString() } };
+    assert.equal((await recordSecurity(tx, 1, 2, 3, events)).securityCount, 1);
+    assert.equal(rows.length, 2);
+    // Setelah satu dibatalkan, pelanggaran baru masih bisa dicatat sampai batas ujian tercapai lagi.
+    const more = [{ id: 'event-cancel-3', reason: 'fullscreen-exit' as const }, { id: 'event-cancel-4', reason: 'split-screen' as const }, { id: 'event-cancel-5', reason: 'tab-hidden' as const }];
+    assert.equal((await recordSecurity(tx, 1, 2, 3, more)).securityCount, 3);
+    assert.equal(rows.length, 4);
 });
 
 test('optional token activation invalidates earlier preparation without bypassing the schedule', async t => {
