@@ -2,6 +2,7 @@ import { primaryClass } from '../../components/ui/styles';
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, Check, CheckCheck, CircleDot, ClipboardList, Clock3, Copy, Eye, FilePenLine, GraduationCap, Laptop, ListChecks, Plus, Search, SquarePen, TextCursorInput, Trash2, UploadCloud, Users, X, type LucideIcon } from 'lucide-react';
 import { PortalHeader, PortalStat } from '../../components/PortalHeader';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import api from '../../services/api';
 import { errorMessage } from './QuestionEditor';
 import type { Question } from './QuestionEditor';
@@ -231,6 +232,10 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
                 .finally(() => setLoading(false));
         }
     }
+
+    useBackHandler(!!exam, () => { if (!busy) backToExams(); }, backLayer.detail);
+    useBackHandler(!!editor, () => setEditor(null), backLayer.editor);
+    useBackHandler(duplicating, () => setDuplicating(false), backLayer.editor);
 
     if (exam && duplicating) return <section className="cbt-portal">
         <header className="ui-card flex flex-wrap items-center justify-between gap-4 p-5">

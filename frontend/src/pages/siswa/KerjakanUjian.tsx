@@ -11,6 +11,7 @@ import ActionDialog from '../../components/ActionDialog';
 import { answerState } from './answerStatus';
 import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
+import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 
 const button = 'ui-button ui-button-secondary';
 
@@ -25,8 +26,10 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     const [saveState, setSaveState] = useState('');
     const [offline, setOffline] = useState(!navigator.onLine);
     const [storageFailed, setStorageFailed] = useState(false);
-    const [acknowledged, setAcknowledged] = useState(false);
+    const [acknowledgedViolation, setAcknowledgedViolation] = useState<number | null>(null);
     const [confirmFinish, setConfirmFinish] = useState(false);
+    const [backNotice, setBackNotice] = useState(false);
+    const backNoticeTimer = useRef<ReturnType<typeof setTimeout>>();
     const current = useRef(initial);
     const sending = useRef(false);
     const stopped = useRef(false);
@@ -35,6 +38,18 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     const locked = !remain || attempt.send;
     const limit = violationLimit(attempt);
     const violations = attempt.security?.count ?? 0;
+    const acknowledged = acknowledgedViolation === violations;
+
+    useBackHandler(true, () => {
+        if (result) return onExit();
+        setBackNotice(true);
+        clearTimeout(backNoticeTimer.current);
+        backNoticeTimer.current = setTimeout(() => setBackNotice(false), 4000);
+    }, backLayer.editor);
+    useEffect(() => () => clearTimeout(backNoticeTimer.current), []);
+    const backMessage = backNotice && <p role="status" className="ui-notice ui-notice-warning">
+        Tetap di halaman ujian. Gunakan tombol Kumpulkan Ujian setelah selesai.
+    </p>;
 
     function update(value: LocalAttempt) {
         current.current = value;
@@ -46,7 +61,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
         JSON.stringify(attempt.jawaban[id]) !== JSON.stringify(attempt.savedAnswers?.[id])).length;
 
     useEffect(() => {
-        if (!security.ready) { setSheet(false); setConfirmFinish(false); setAcknowledged(false); }
+        if (!security.ready) { setSheet(false); setConfirmFinish(false); }
     }, [security.ready]);
 
     useEffect(() => {
@@ -166,11 +181,12 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 <div className="mt-1"><ExamTypeBadge label={examType} /></div>
             </div>
             <p className="rounded-xl bg-slate-50 p-3 text-sm">{attempt.security?.warning || 'Tetap di halaman ujian dan gunakan layar penuh.'}</p>
+            {backMessage}
             <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><p className="text-amber-800">Pelanggaran: {violations}{limit > 0 && ' / ' + limit}</p><p className="text-blue-800">Sisa waktu: {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</p></div>
             <p className="text-sm text-slate-600">{limit > 0 ? `Pada pelanggaran ke-${limit}, jawaban dikumpulkan otomatis.` : 'Setiap pelanggaran dicatat dan ditinjau guru.'}</p>
             {!security.fullscreenSupported && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Layar penuh tidak tersedia. Perpindahan tab tetap dipantau.</p>}
             {locked ? <p role="status" className="text-sm text-blue-800">{offline ? 'Menunggu koneksi. Tetap buka halaman agar jawaban dan catatan dapat dikirim.' : saveState || 'Mengirim jawaban ke server…'}</p> : <>
-                {attempt.security?.warning && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />Saya memahami peringatan ini.</label>}
+                {attempt.security?.warning && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledgedViolation(e.target.checked ? violations : null)} />Saya memahami peringatan ini.</label>}
                 {security.error && <p role="alert" className="ui-notice ui-notice-error">{security.error}</p>}
                 <button type="button" disabled={security.activating || (!!attempt.security?.warning && !acknowledged)} className="ui-button ui-button-primary w-full" onClick={() => void security.activate()}>{security.activating ? 'Mengaktifkan…' : 'Masuk & Lanjutkan Ujian'}</button>
             </>}
@@ -233,6 +249,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 <progress aria-label="Jumlah soal terjawab" value={answered} max={total || 1} className="cbt-exam-progress block h-1.5 w-full" />
             </div>
         </header>
+        {backMessage && <div className="mx-auto mt-2 w-full max-w-6xl shrink-0 px-3 sm:px-4">{backMessage}</div>}
         {(offline || storageFailed || locked) && <div className="mt-2 shrink-0 px-3 sm:px-4">
             <p role="status" className="ui-notice ui-notice-warning mx-auto max-w-6xl">
             {storageFailed ? 'Penyimpanan di perangkat gagal. Tetap buka tab dan periksa koneksi.' : !remain

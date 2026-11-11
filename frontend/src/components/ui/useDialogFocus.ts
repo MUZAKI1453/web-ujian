@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { backLayer, useBackHandler } from './useBackHandler';
 
 let openDialogs = 0;
 let previousOverflow = '';
@@ -6,6 +7,7 @@ let previousOverflow = '';
 export function useDialogFocus(panel: RefObject<HTMLElement>, onClose?: () => void) {
     const close = useRef(onClose);
     close.current = onClose;
+    useBackHandler(true, () => close.current?.(), backLayer.dialog);
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
         if (openDialogs++ === 0) {

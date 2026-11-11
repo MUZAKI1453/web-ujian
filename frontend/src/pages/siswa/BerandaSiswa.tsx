@@ -15,6 +15,7 @@ import { isStudentHistory, prioritizeStudentExams } from './studentSections';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import Select from '../../components/ui/Select';
 import { gradeDestinationLabels } from '../guru/examProfiles';
+import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 
 type Exam = {
     id: number; judul: string; mapel: string; mapelId: number; durasi: number; mulai: string; selesai: string;
@@ -27,6 +28,7 @@ type Packet = {
     attemptId: number; deadline: number; now: number; versi: number; jawaban: Record<string, Value>; soal: Question[]; securityCount: number;
     securityWeights?: LocalAttempt['securityWeights']; securityLimit?: number;
 };
+type AttemptLocation = Pick<Exam, 'id' | 'mapel' | 'judul'> & { attemptId: number };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
 type Discussion = { soal: { id: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
     jawabanSiswa: Value | null; penilaian: { poin: string; maksimum: string; status: string } | null; catatan: string | null; isi: {
@@ -52,7 +54,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
 }) {
     const [exams, setExams] = useState<Exam[]>([]);
     const [selected, setSelected] = useState<Exam | null>(null);
-    const [working, setWorking] = useState<{ exam: Exam; attempt: LocalAttempt; securityPrepared?: boolean } | null>(null);
+    const [working, setWorking] = useState<{ exam: AttemptLocation; attempt: LocalAttempt; securityPrepared?: boolean } | null>(null);
     const [output, setOutput] = useState<{ exam: Exam; result?: Result; discussion?: Discussion; receipt?: Receipt } | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
@@ -63,6 +65,23 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     const [destination, setDestination] = useState('');
     const latestNavigation = useRef(navigationKey);
     latestNavigation.current = navigationKey;
+    const resumeKey = 'cbt-active-attempt:' + username;
+
+    useBackHandler(!!output && !working, () => setOutput(null), backLayer.detail);
+
+    useEffect(() => {
+        let active = true;
+        async function restore() {
+            const location = JSON.parse(sessionStorage.getItem(resumeKey) ?? 'null') as AttemptLocation | null;
+            if (!location) return;
+            const attempt = await loadAttempt(username + ':' + location.id);
+            if (active && attempt?.attemptId === location.attemptId) {
+                setWorking(current => current ?? { exam: location, attempt });
+            }
+        }
+        void restore().catch(() => {});
+        return () => { active = false; };
+    }, [resumeKey, username]);
 
     useEffect(() => {
         setSelected(null);
@@ -95,6 +114,14 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
 
     const key = (id: number) => username + ':' + id;
 
+    function openAttempt(exam: Exam, attempt: LocalAttempt, securityPrepared: boolean) {
+        const location = { id: exam.id, mapel: exam.mapel, judul: exam.judul, attemptId: attempt.attemptId };
+        try { sessionStorage.setItem(resumeKey, JSON.stringify(location)); }
+        catch { /* Pengerjaan tetap bisa berjalan jika penyimpanan sesi tidak tersedia. */ }
+        setWorking({ exam: location, attempt, securityPrepared });
+        setSelected(null);
+    }
+
     async function enter(exam: Exam, token: FormDataEntryValue | null = null) {
         setBusy(true);
         setError('');
@@ -123,8 +150,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             } catch (err) {
                 if (local && local.attemptId === exam.attempt && !exam.submitted &&
                     (!navigator.onLine || (isAxiosError(err) && !err.response) || (local.versi > local.saved && Date.now() + local.offset >= local.deadline))) {
-                    setWorking({ exam, attempt: local, securityPrepared });
-                    setSelected(null);
+                    openAttempt(exam, local, securityPrepared);
                     return;
                 }
                 throw err;
@@ -144,8 +170,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {
                 if (source && !source.startsWith('data:')) { const image = new Image(); image.src = mediaUrl(source); }
             }
-            setWorking({ exam, attempt, securityPrepared });
-            setSelected(null);
+            openAttempt(exam, attempt, securityPrepared);
         } catch (err) {
             if (isAxiosError(err) && err.response?.status === 409 && !exam.attempt) setPrepared(null);
             if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
@@ -209,7 +234,11 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     }
 
     if (working) return <KerjakanUjian initial={working.attempt} storageKey={key(working.exam.id)} examId={working.exam.id}
-        title={working.exam.mapel} examType={working.exam.judul} securityPrepared={working.securityPrepared} onExit={() => { setWorking(null); void refresh().catch(err => setError(errorMessage(err))); }} />;
+        title={working.exam.mapel} examType={working.exam.judul} securityPrepared={working.securityPrepared} onExit={() => {
+            try { sessionStorage.removeItem(resumeKey); } catch { /* Penyimpanan sesi tidak tersedia. */ }
+            setWorking(null);
+            void refresh().catch(err => setError(errorMessage(err)));
+        }} />;
 
     if (output) return <section className="ui-card space-y-4 bg-white p-5">
         <button type="button" className="ui-button ui-button-secondary" onClick={() => setOutput(null)}><ArrowLeft size={16} />Kembali ke Hasil Ujian</button>
@@ -344,7 +373,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             {!selected.attempt && !prepared && selected.perluToken && <label className="ui-label block max-w-xs">Token ujian
                 <input name="token" autoComplete="off" maxLength={6} minLength={6} required className={fieldClass + ' uppercase'} />
             </label>}
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Ujian memakai mode pengamanan. Keluar fullscreen, berpindah tab/aplikasi, atau split screen akan dicatat. Setelah 3 pelanggaran, ujian dikumpulkan otomatis.</p>
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Ujian memakai mode pengamanan. Keluar fullscreen, berpindah tab/aplikasi, atau split screen dapat dicatat. Pengumpulan otomatis mengikuti batas yang diatur guru.</p>
             {prepared && <p role="status" className="text-sm text-green-800">{selected.perluToken ? 'Token terverifikasi.' : 'Ujian siap.'} Mulai Ujian akan menyiapkan layar penuh terlebih dahulu, lalu memulai soal dan timer.</p>}
             {(!document.documentElement.requestFullscreen || document.fullscreenEnabled === false) && <p className="text-sm text-amber-900">Browser ini tidak mendukung fullscreen. Pemantauan tab dan fokus tetap aktif.</p>}
             <div className="flex gap-2">

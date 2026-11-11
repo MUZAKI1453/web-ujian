@@ -18,6 +18,7 @@ import BerandaSiswa from './pages/siswa/BerandaSiswa';
 import type { ViewRole } from './components/NavbarLayout';
 import GantiPassword from './pages/GantiPassword';
 import { clearSyncedAttempts } from './pages/siswa/attemptStore';
+import { useBackHandler } from './components/ui/useBackHandler';
 
 interface User {
     username: string;
@@ -40,6 +41,10 @@ export default function App() {
     const [previewRole, setPreviewRole] = useState<ViewRole>('admin');
     const [navbar, setNavbar] = useState<NavbarSettings>(defaultNavbar);
     const [navbarLoaded, setNavbarLoaded] = useState(false);
+    useBackHandler(!!user && !user.passwordBawaan && page !== 'dashboard', () => {
+        setPage('dashboard');
+        setTeacherNavigationKey(current => current + 1);
+    });
 
     useEffect(() => {
         const controller = new AbortController();

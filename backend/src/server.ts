@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import express, { ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -9,7 +10,7 @@ import adminRoutes from './routes/adminRoutes';
 import guruRoutes, { collectExpiredAttempts, processCorrectionQueue } from './routes/guruRoutes';
 import studentResultsRoutes from './routes/studentResultsRoutes';
 import studentExamRoutes from './routes/studentExamRoutes';
-import { getNavbar } from './controllers/navbarController';
+import { getNavbar, readNavbarSettings } from './controllers/navbarController';
 import { requireToken } from './middleware/auth';
 import { auditMutations, pruneAudit } from './middleware/audit';
 import { mediaDir } from './routes/questionImages';
@@ -73,7 +74,34 @@ app.use('/media', express.static(mediaDir, { immutable: true, maxAge: '1y', inde
 });
 
 if (fs.existsSync(frontendIndex)) {
-    app.use('/assets', express.static(path.join(frontendDist, 'assets'), { immutable: true, maxAge: '1y' }));
+    const assetsDir = path.join(frontendDist, 'assets');
+    const workerFile = path.join(frontendDist, 'sw.js');
+    if (fs.existsSync(workerFile)) {
+        const worker = fs.readFileSync(workerFile, 'utf8');
+        const assets = fs.readdirSync(assetsDir).sort().map(name => '/assets/' + encodeURIComponent(name));
+        const version = createHash('sha256').update(worker).update(fs.readFileSync(frontendIndex))
+            .update(JSON.stringify(assets)).digest('hex').slice(0, 16);
+        const script = 'const build = ' + JSON.stringify({ version, assets }) + ';\n' + worker;
+        app.get('/sw.js', (_req, res) => {
+            res.set('Cache-Control', 'no-cache').type('application/javascript').send(script);
+        });
+    }
+    app.get('/manifest.webmanifest', async (_req, res, next) => {
+        try {
+            const settings = await readNavbarSettings();
+            const logo = settings?.logo ?? 'smpip';
+            res.set('Cache-Control', 'no-cache').type('application/manifest+json').send(JSON.stringify({
+                id: '/', name: settings ? 'Ujian Online ' + settings.text : 'Ujian Online', short_name: 'CBT',
+                scope: '/', start_url: '/', display: 'standalone', theme_color: '#1d4ed8', background_color: '#f8fafc',
+                icons: [192, 512].map(size => ({
+                    src: '/icons/' + logo + '-' + size + '.png', sizes: size + 'x' + size, type: 'image/png'
+                }))
+            }));
+        } catch (error) { next(error); }
+    });
+    app.use('/assets', express.static(assetsDir, { immutable: true, maxAge: '1y' }), (_req, res) => {
+        res.sendStatus(404);
+    });
     app.use(express.static(frontendDist, { index: false }));
     app.get('*', (req, res, next) => {
         if (req.path.startsWith('/api')) return next();

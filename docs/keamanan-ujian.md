@@ -6,15 +6,18 @@ Tanggal pemeriksaan: 5 November 2026.
 
 Setelah riset awal di bawah, pengamanan telah diterapkan: fullscreen melalui aksi
 siswa, deteksi perpindahan tab/jendela dan keluar fullscreen, deteksi perubahan
-lebar layar, peringatan dengan konfirmasi, pencatatan per pengerjaan di server,
-serta pengumpulan otomatis setelah tiga kejadian. Laporan idempotent dan disimpan
-di antrean lokal saat offline. Guru dapat melihat hitungan dan rincian pada Sesi &
-Peserta. Endpoint persiapan tidak lagi mengirim isi soal sebelum timer dimulai.
+lebar layar, peringatan dengan konfirmasi, dan pencatatan per pengerjaan di server.
+Guru dapat menetapkan batas 1–10 sebelum pengerjaan dimulai. Bawaan 3, termasuk
+untuk pengaturan lama. Batas 0 mencatat pelanggaran tanpa memicu pengumpulan otomatis.
+Laporan idempotent dan disimpan di antrean lokal saat offline. Guru dapat melihat
+hitungan dan rincian di **Sesi & Peserta**. Endpoint persiapan baru memberikan izin
+masuk. Soal dikirim saat server memulai pengerjaan.
 
-Lima pengujian backend/API lolos, termasuk pengiriman ulang, pemulihan hitungan,
-pengumpulan pada kejadian ketiga, dan penolakan perubahan jawaban sesudahnya.
-Pengujian UI browser masih terkendala timeout alat kontrol browser. Tabel dan
-temuan berikut mencatat keadaan saat riset awal, bukan status implementasi terbaru.
+Tombol Back menutup dialog teratas atau kembali dari halaman detail. Saat ujian
+aktif, tombol ini menutup daftar soal atau menampilkan petunjuk pengumpulan tanpa
+meninggalkan halaman. Jika aplikasi sudah tersimpan di cache, siswa dapat memuat
+ulang tab yang sama saat offline dan membuka pengerjaan dari IndexedDB. Timer tetap
+mengacu pada batas waktu dari server. Tabel berikut mencatat keadaan saat riset awal.
 
 Sumber lama: `C:\Users\ijaaal\Downloads\CBT_Sekolah-main.zip`, terutama
 `CBT_Sekolah/routes/siswa_routes.py` dan `CBT_Sekolah/templates/siswa/ujian.html`.
