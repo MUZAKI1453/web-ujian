@@ -15,6 +15,7 @@ import { calculatePoints } from './examPoints';
 import { essayLimit, grade, object, revise } from './examGrading';
 import { examClassIds, parseClassIds } from './examClasses';
 import { sortByName } from '../controllers/displayOrder';
+import { isDataImage, isMediaPath, storeQuestionImages } from './questionImages';
 import { collectQuestionStats, createQuestionStats, summarizeQuestionStats } from './questionAnalytics';
 
 const router = Router();
@@ -81,7 +82,7 @@ async function assignments(actor: Account) {
 
 const examFields = {
     id: true, judul: true, jenisUjianId: true, profil: true, tujuanRekap: true, waktuMulai: true, waktuSelesai: true, durasiMenit: true, draf: true,
-    hasilRilis: true, bahasanRilis: true, diarsipkanPada: true, poinKhusus: true, ujianAsalId: true,
+    hasilRilis: true, bahasanRilis: true, diarsipkanPada: true, poinKhusus: true, ujianAsalId: true, acakSoal: true, acakOpsi: true,
     mapel: { select: { id: true, nama: true } }, kelas: { select: { namaKelas: true } },
     kelasTujuan: { select: { id: true, namaKelas: true }, orderBy: { namaKelas: 'asc' } }
 } satisfies Prisma.UjianSelect;
@@ -95,11 +96,11 @@ router.get('/notifikasi', handle(async (_req, res, actor) => {
             ujian: { select: { judul: true, mapel: { select: { nama: true } } } } }
     });
     const users = events.length ? await prisma.user.findMany({
-        where: { id: { in: [...new Set(events.map(event => event.pelakuId))] } },
+        where: { id: { in: [...new Set(events.flatMap(event => event.pelakuId ?? []))] } },
         select: { id: true, nama: true, username: true }
     }) : [];
     const names = new Map(users.map(user => [user.id, user.nama || user.username]));
-    res.json({ data: events.map(({ pelakuId, ...event }) => ({ ...event, siswa: names.get(pelakuId) ?? 'Peserta ujian' })) });
+    res.json({ data: events.map(({ pelakuId, ...event }) => ({ ...event, siswa: (pelakuId === null ? undefined : names.get(pelakuId)) ?? 'Peserta ujian' })) });
 }));
 
 router.get('/ujian', handle(async (_req, res, actor) => {
@@ -264,6 +265,8 @@ router.get('/ujian/:id', handle(async (req, res, actor) => {
     res.json(exam);
 }));
 
+const allowedImageHosts = (process.env.GAMBAR_HOST_DIIZINKAN ?? '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean);
+
 function parseQuestion(input: unknown) {
     if (typeof input !== 'object' || !input) return null;
     const body = input as Record<string, unknown>;
@@ -273,13 +276,16 @@ function parseQuestion(input: unknown) {
     const image = (value: unknown) => {
         if (!value) return '';
         if (typeof value !== 'string') return null;
-        if (value.startsWith('data:')) {
-            return value.length <= 700000 && /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(value) ? value : null;
-        }
+        // Unggahan baru datang sebagai data URI dan disimpan menjadi file sebelum soal ditulis ke database;
+        // soal yang sudah tersimpan mengirim kembali alamat filenya.
+        if (value.startsWith('data:')) return isDataImage(value) ? value : null;
+        if (value.startsWith('/media/')) return isMediaPath(value) ? value : null;
+        // Gambar dari server luar membuat perangkat siswa menghubungi pihak ketiga saat ujian.
+        // Hanya host https yang didaftarkan di GAMBAR_HOST_DIIZINKAN yang diterima; bawaannya tidak ada.
         if (value.length > 2000) return null;
         try {
             const url = new URL(value);
-            return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+            return url.protocol === 'https:' && allowedImageHosts.includes(url.hostname.toLowerCase()) ? url.href : null;
         } catch { return null; }
     };
     const gambar = image(body.gambar);
@@ -340,13 +346,13 @@ router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
             return res.status(400).json({ message: label + ' belum lengkap. Periksa teks, opsi, kunci, atau poin.' });
         }
         if (change.id === null) {
-            additions.push({ ujianId: id, ...data });
+            additions.push({ ujianId: id, ...data, isi: await storeQuestionImages(data.isi) });
         } else {
             if (!validId(change.id) || !existing.has(change.id) || edited.has(change.id)) {
                 return res.status(400).json({ message: 'Daftar soal tidak valid.' });
             }
             edited.add(change.id);
-            updates.push({ id: change.id, data });
+            updates.push({ id: change.id, data: { ...data, isi: await storeQuestionImages(data.isi) } });
         }
     }
 
@@ -413,8 +419,17 @@ router.post('/ujian/:id/soal/import', (req, res, next) => {
     }
     const soal = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
-        if (!await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: true }, select: { id: true } })) return null;
-        return tx.soal.createManyAndReturn({ data: records });
+        const current = await tx.ujian.findFirst({
+            where: { id, ...examScope(actor), draf: true },
+            select: { soal: { select: { id: true } } }
+        });
+        if (!current) return null;
+        const existingIds = current.soal.map(q => q.id);
+        await tx.soal.createMany({ data: records });
+        return tx.soal.findMany({
+            where: { ujianId: id, ...(existingIds.length ? { id: { notIn: existingIds } } : {}) },
+            orderBy: { id: 'asc' }
+        });
     });
     if (!soal) return res.status(409).json({ message: 'Ujian sudah terbit.' });
     res.status(201).json({ soal: soal.sort((a, b) => a.id - b.id) });
@@ -428,6 +443,7 @@ router.post('/ujian/:id/soal', handle(async (req, res, actor) => {
     const exam = await prisma.ujian.findFirst({ where: { id, ...examScope(actor) }, select: { draf: true } });
     if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
     if (!exam.draf) return res.status(409).json({ message: 'Ujian sudah terbit.' });
+    data.isi = await storeQuestionImages(data.isi);
     const question = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
         if (!await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: true }, select: { id: true } })) return null;
@@ -443,6 +459,8 @@ router.put('/ujian/:id/soal/:soalId', handle(async (req, res, actor) => {
     if (!validId(ujianId) || !validId(id)) return res.status(404).json({ message: 'Soal tidak ditemukan.' });
     const data = parseQuestion(req.body);
     if (!data) return res.status(400).json({ message: 'Lengkapi Soal, opsi atau pernyataan, kunci, dan poin sesuai tipe.' });
+    if (!await prisma.ujian.count({ where: { id: ujianId, ...examScope(actor), draf: true } })) return res.status(404).json({ message: 'Soal draf tidak ditemukan.' });
+    data.isi = await storeQuestionImages(data.isi);
     const updated = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${ujianId} FOR UPDATE`;
         return tx.soal.updateMany({ where: { id, ujianId, ujian: { ...examScope(actor), draf: true } }, data });
@@ -691,13 +709,13 @@ router.get('/ujian/:id/analitik', handle(async (req, res, actor) => {
         prisma.kegiatanUjian.count({ where })
     ]);
     const users = events.length ? await prisma.user.findMany({
-        where: { id: { in: [...new Set(events.map(event => event.pelakuId))] } },
+        where: { id: { in: [...new Set(events.flatMap(event => event.pelakuId ?? []))] } },
         select: { id: true, nama: true, username: true }
     }) : [];
     const names = new Map(users.map(user => [user.id, user.nama || user.username]));
     res.json({ rows: [...participants.values()], totalPelanggaran, jumlahKiriman, menungguTinjauan: offline.size,
         kkm: exam.kkm == null ? null : Number(exam.kkm), ...summarizeQuestionStats(questionStats, jumlahKiriman, totalSquares),
-        pelanggaran: events.map(({ pelakuId, ...event }) => ({ ...event, siswa: names.get(pelakuId) ?? 'Peserta ujian' })) });
+        pelanggaran: events.map(({ pelakuId, ...event }) => ({ ...event, siswa: (pelakuId === null ? undefined : names.get(pelakuId)) ?? 'Peserta ujian' })) });
 }));
 
 async function collectAttempts(tx: Prisma.TransactionClient, exam: GradeExam, attempts: GradeExam['pengerjaan'], now: Date) {
@@ -850,6 +868,7 @@ router.post('/ujian/:id/remedial', handle(async (req, res, actor) => {
             data: {
                 ...schedule, draf: true, guruId: actor.id, ujianAsalId: id, mapelId: exam.mapelId, kelasId: exam.kelasId,
                 kelasTujuan: { connect: source.kelasTujuan }, jenisUjianId: exam.jenisUjianId, judul: examTitle(exam.judul, id),
+                acakSoal: exam.acakSoal, acakOpsi: exam.acakOpsi,
                 poinKhusus: exam.poinKhusus ?? Prisma.DbNull, soal: { create: copyQuestions(exam.soal.filter(q => !q.dibatalkan), false) },
                 pesertaRemedial: { connect: candidates.map(row => ({ id: row.siswa.id })) }
             }, select: { id: true }
@@ -1105,7 +1124,7 @@ export async function processCorrectionQueue() {
     const job = await prisma.kegiatanUjian.findFirst({ where: { status: 'antre', jenis: 'perbaiki-soal' }, orderBy: { id: 'asc' } });
     if (!job) return;
     try {
-        await lockedExam(job.ujianId, { id: job.pelakuId, role: 'admin' }, async (tx, exam) => {
+        await lockedExam(job.ujianId, { id: job.pelakuId ?? 0, role: 'admin' }, async (tx, exam) => {
             const current = await tx.kegiatanUjian.findFirst({ where: { id: job.id, status: 'antre' } });
             if (!current) return;
             const payload = object(current.data);

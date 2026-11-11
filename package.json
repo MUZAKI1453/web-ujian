@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "concurrently -k -n backend,frontend \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build --workspaces",
+    "start": "npm run start -w backend",
     "db:generate": "npm run db:generate -w backend",
     "db:push": "npm run db:push -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:baseline": "npm run db:baseline -w backend",
+    "db:seed": "npm run db:seed -w backend",
+    "db:gambar": "npm run db:gambar -w backend",
+    "uji-beban:siapkan": "npm run uji-beban:siapkan -w backend --",
+    "uji-beban:jalankan": "npm run uji-beban:jalankan -w backend --",
+    "uji-beban:hapus": "npm run uji-beban:hapus -w backend"
   },
   "workspaces": ["backend", "frontend"],
   "dependencies": {},

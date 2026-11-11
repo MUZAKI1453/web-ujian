@@ -49,13 +49,21 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
 
     useEffect(() => {
         let active = true;
-        async function sync() {
+        let lastContact = 0;
+        // Tanpa perubahan, cukup menyapa server tiap 25–35 detik. Jeda acak mencegah semua perangkat mengirim serentak.
+        const heartbeat = 25000 + Math.random() * 10000;
+        async function sync(force = false) {
             if (!active || stopped.current || sending.current) return;
             const data = current.current;
-            const dirty = data.versi > data.saved || data.send || !!data.security?.pending.length;
-            // Heartbeat also detects logout on a different device or an ended session.
+            const urgent = data.send || !!data.security?.pending.length;
+            const dirty = data.versi > data.saved || urgent;
             if (!navigator.onLine) { setOffline(true); return; }
+            // Jawaban sudah aman di perangkat; kirim perubahan paling cepat tiap 5 detik.
+            // Heartbeat also detects logout on a different device or an ended session.
+            const idle = Date.now() - lastContact;
+            if (!force && !urgent && idle < (dirty ? 5000 : heartbeat)) return;
             sending.current = true;
+            lastContact = Date.now();
             if (dirty) setSaveState('Menyinkronkan…');
             try {
                 const { data: response } = await api.put('/siswa/ujian/' + examId + '/jawaban', {
@@ -92,15 +100,15 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 }
             } finally { sending.current = false; }
         }
-        void sync();
+        void sync(true);
         const clock = setInterval(() => setTime(Date.now()), 1000);
         const polling = setInterval(() => void sync(), 2500);
-        const onOnline = () => void sync();
+        const onOnline = () => void sync(true);
         const onOffline = () => setOffline(true);
         window.addEventListener('online', onOnline);
         window.addEventListener('cbt-security-report', onOnline);
         window.addEventListener('offline', onOffline);
-        const visibility = () => { if (!document.hidden) void sync(); };
+        const visibility = () => { if (!document.hidden) void sync(true); };
         document.addEventListener('visibilitychange', visibility);
         return () => {
             active = false;

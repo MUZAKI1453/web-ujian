@@ -50,7 +50,9 @@ router.get('/ujian/:id/:jenis(hasil|pembahasan)', async (req, res, next) => {
         const now = new Date();
         const exam = await prisma.ujian.findFirst({
             where: { id, draf: false, jawaban: { some: { siswaId } }, ...(!result && {
-                waktuSelesai: { lte: now }, susulan: { none: { waktuSelesai: { gt: now } } }
+                waktuSelesai: { lte: now }, susulan: { none: { waktuSelesai: { gt: now } } },
+                // Remedial menyalin soal ujian asal; kunci tidak boleh terbuka sampai remedial selesai.
+                NOT: { remedial: { OR: [{ draf: true }, { waktuSelesai: { gt: now } }, { susulan: { some: { waktuSelesai: { gt: now } } } }] } }
             }) },
             include: { soal: { orderBy: { id: 'asc' } }, jawaban: { where: { siswaId }, orderBy: { waktuSubmit: 'desc' }, take: 1 } }
         });

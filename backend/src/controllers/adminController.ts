@@ -1,8 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import prisma from '../config/db';
 import bcrypt from 'bcrypt';
 import { compareNames, sortByName } from './displayOrder';
+
+// Rincian kesalahan hanya dicatat di server; klien menerima pesan umum.
+function serverError(res: Response, error: unknown) {
+    console.error('API admin:', error);
+    res.status(500).json({ status: 'ERROR', message: 'Gagal memproses permintaan. Coba lagi.' });
+}
 
 function validDeleteIds(ids: unknown): ids is number[] {
     return Array.isArray(ids) && ids.length > 0 &&
@@ -22,7 +29,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
             data: { totalKelas, totalSiswa, totalGuru, totalMapel }
         });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -35,7 +42,7 @@ export const manageKelas = async (req: Request, res: Response) => {
         });
         res.json({ status: 'SUCCESS', data: sortByName(kelasList, item => item.namaKelas) });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -50,7 +57,7 @@ export const createKelas = async (req: Request, res: Response) => {
         const newKelas = await prisma.kelas.create({ data: { namaKelas } });
         res.status(201).json({ status: 'SUCCESS', message: 'Kelas berhasil ditambah!', data: newKelas });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -75,7 +82,7 @@ export const updateKelas = async (req: Request, res: Response) => {
 
         res.json({ status: 'SUCCESS', message: 'Kelas berhasil diperbarui!', data: updated });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -132,7 +139,7 @@ export const getSiswa = async (req: Request, res: Response) => {
         });
         res.json({ status: 'SUCCESS', data: sortByName(siswaList, item => item.nama) });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -229,13 +236,29 @@ export const updateSiswa = async (req: Request, res: Response) => {
 
 export const deleteSiswa = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
-        await prisma.user.delete({ where: { id: Number(id), role: 'siswa' } });
+        const id = Number(req.params.id);
+        const blocked = await studentsWithRecords([id]);
+        if (blocked.length) return res.status(409).json({ message: recordsMessage(blocked) });
+        await prisma.user.delete({ where: { id, role: 'siswa' } });
         res.json({ status: 'SUCCESS', message: 'Data siswa berhasil dihapus!' });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
+
+// Menghapus akun siswa ikut menghapus jawaban dan nilainya. Tolak bila siswa sudah punya riwayat ujian.
+async function studentsWithRecords(ids: number[]) {
+    return prisma.user.findMany({
+        where: { id: { in: ids }, role: 'siswa', OR: [{ jawaban: { some: {} } }, { pengerjaan: { some: {} } }] },
+        select: { nama: true, username: true }, orderBy: { nama: 'asc' }
+    });
+}
+
+function recordsMessage(students: { nama: string | null; username: string }[]) {
+    const names = students.slice(0, 5).map(student => student.nama || student.username).join(', ');
+    return 'Tidak dihapus karena ' + students.length + ' siswa sudah punya riwayat ujian (' + names +
+        (students.length > 5 ? ', dan lainnya' : '') + '). Menghapus akun akan menghapus nilainya. Keluarkan siswa tersebut dari pilihan.';
+}
 
 function normalizeAssignments(input: unknown) {
     if (input === undefined) return undefined;
@@ -268,14 +291,15 @@ export const getGuru = async (req: Request, res: Response) => {
             pengampu: [...guru.pengampu].sort((a, b) => compareNames(a.mapel.nama, b.mapel.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id)
         })) });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
 class AssignmentConflict extends Error {}
 
-async function lockAssignments(tx: Prisma.TransactionClient) {
-    await tx.$queryRaw`SELECT 1::int FROM pg_advisory_xact_lock(845213)`;
+async function lockAssignments(tx: Prisma.TransactionClient, mapelIds: number[]) {
+    if (!mapelIds.length) return;
+    await tx.$queryRaw`SELECT id FROM mapel WHERE id IN (${Prisma.join(mapelIds)}) ORDER BY id FOR UPDATE`;
 }
 
 async function checkAssignmentConflicts(
@@ -284,10 +308,11 @@ async function checkAssignmentConflicts(
     guruId?: number
 ) {
     if (!assignments.length) return;
-    // Serialize assignment checks and writes, including requests using different endpoints.
-    await lockAssignments(tx);
+    // Serialize assignment checks and writes using standard InnoDB row locks on mapel.
+    const mapelIds = [...new Set(assignments.map(item => item.mapelId))];
+    await lockAssignments(tx, mapelIds);
     const existing = await tx.guruMapelKelas.findMany({
-        where: { mapelId: { in: assignments.map(item => item.mapelId) }, guruId: guruId === undefined ? undefined : { not: guruId } },
+        where: { mapelId: { in: mapelIds }, guruId: guruId === undefined ? undefined : { not: guruId } },
         include: { mapel: true, guru: { select: { nama: true, username: true } } }
     });
     for (const item of assignments) {
@@ -338,7 +363,7 @@ export const createGuru = async (req: Request, res: Response) => {
         res.status(201).json({ status: 'SUCCESS', message: 'Guru dan penugasannya berhasil ditambahkan!', data: newGuru });
     } catch (error: any) {
         if (error instanceof AssignmentConflict) return res.status(409).json({ message: error.message });
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -390,7 +415,7 @@ export const updateGuru = async (req: Request, res: Response) => {
         res.json({ status: 'SUCCESS', message: 'Data guru dan penugasannya berhasil diperbarui!', data: updatedGuru });
     } catch (error: any) {
         if (error instanceof AssignmentConflict) return res.status(409).json({ message: error.message });
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -400,7 +425,7 @@ export const deleteGuru = async (req: Request, res: Response) => {
         await prisma.user.delete({ where: { id: Number(id), role: 'guru' } });
         res.json({ status: 'SUCCESS', message: 'Data guru berhasil dihapus!' });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -419,7 +444,7 @@ export const getMapel = async (req: Request, res: Response) => {
             pengampu: [...mapel.pengampu].sort((a, b) => compareNames(a.guru.nama, b.guru.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id)
         })) });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -438,7 +463,7 @@ export const createMapel = async (req: Request, res: Response) => {
 
         res.status(201).json({ status: 'SUCCESS', message: 'Mata pelajaran berhasil ditambahkan!', data: newMapel });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -469,7 +494,7 @@ export const updateMapel = async (req: Request, res: Response) => {
 
         res.json({ status: 'SUCCESS', message: 'Mata pelajaran berhasil diperbarui!', data: updated });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -479,7 +504,21 @@ async function removeMapel(ids: unknown, res: Response) {
     }
 
     try {
-        const { count } = await prisma.mapel.deleteMany({ where: { id: { in: ids } } });
+        // Menghapus mapel ikut menghapus ujian, soal, dan nilainya. Tolak bila masih dipakai.
+        const result = await prisma.$transaction(async tx => {
+            const used = await tx.mapel.findMany({
+                where: { id: { in: ids }, ujian: { some: {} } }, select: { nama: true }, orderBy: { nama: 'asc' }
+            });
+            if (used.length) return { used };
+            return tx.mapel.deleteMany({ where: { id: { in: ids } } });
+        });
+        if ('used' in result) {
+            return res.status(409).json({
+                message: 'Mata pelajaran berikut masih memiliki ujian: ' + result.used.map(mapel => mapel.nama).join(', ') +
+                    '. Hapus draf ujiannya atau biarkan mata pelajaran ini agar nilai tidak ikut terhapus.'
+            });
+        }
+        const { count } = result;
         res.json({ status: 'SUCCESS', count, message: 'Mata pelajaran berhasil dihapus!' });
     } catch (error) {
         console.error('Gagal menghapus mata pelajaran:', error);
@@ -503,7 +542,7 @@ export const getGuruMapelKelas = async (req: Request, res: Response) => {
         });
         res.json({ status: 'SUCCESS', data: [...list].sort((a, b) => compareNames(a.guru.nama, b.guru.nama) || compareNames(a.mapel.nama, b.mapel.nama) || compareNames(a.kelas.namaKelas, b.kelas.namaKelas) || a.id - b.id) });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -528,7 +567,7 @@ export const assignGuruMapelKelas = async (req: Request, res: Response) => {
         res.status(201).json({ status: 'SUCCESS', message: 'Penugasan berhasil ditambahkan!', data: newAssignment });
     } catch (error: any) {
         if (error instanceof AssignmentConflict) return res.status(409).json({ message: error.message });
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 
@@ -540,7 +579,7 @@ export const deleteGuruMapelKelas = async (req: Request, res: Response) => {
         });
         res.json({ status: 'SUCCESS', message: 'Penugasan berhasil dihapus!' });
     } catch (error: any) {
-        res.status(500).json({ status: 'ERROR', message: error.message });
+        serverError(res, error);
     }
 };
 export function deleteAccounts(role: 'siswa' | 'guru') {
@@ -551,11 +590,52 @@ export function deleteAccounts(role: 'siswa' | 'guru') {
         }
 
         try {
+            if (role === 'siswa') {
+                const blocked = await studentsWithRecords(ids);
+                if (blocked.length) return res.status(409).json({ message: recordsMessage(blocked) });
+            }
             const { count } = await prisma.user.deleteMany({ where: { role, id: { in: ids } } });
             res.json({ status: 'SUCCESS', count });
         } catch (error) {
             console.error('Gagal menghapus data ' + role + ':', error);
             res.status(500).json({ message: 'Gagal menghapus data ' + role + '.' });
+        }
+    };
+}
+
+export function resetAccountPassword(role: 'siswa' | 'guru') {
+    return async (req: Request, res: Response) => {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
+            return res.status(400).json({ status: 'ERROR', message: 'ID akun tidak valid.' });
+        }
+
+        try {
+            const existing = await prisma.user.findUnique({
+                where: { id },
+                select: { id: true, username: true, nama: true, role: true }
+            });
+            if (!existing || existing.role !== role) {
+                return res.status(404).json({ status: 'ERROR', message: 'Data ' + role + ' tidak ditemukan!' });
+            }
+
+            const hashedPassword = await bcrypt.hash(existing.username, 10);
+            await prisma.user.update({
+                where: { id: existing.id },
+                data: {
+                    password: hashedPassword,
+                    sesiLogin: randomUUID()
+                }
+            });
+
+            const idLabel = role === 'siswa' ? 'NIS' : 'NIP';
+            res.json({
+                status: 'SUCCESS',
+                message: `Password ${existing.nama || existing.username} berhasil direset ke ${idLabel} (${existing.username}).`
+            });
+        } catch (error) {
+            console.error('Gagal mereset password ' + role + ':', error);
+            res.status(500).json({ status: 'ERROR', message: 'Gagal mereset password ' + role + '. Coba lagi.' });
         }
     };
 }

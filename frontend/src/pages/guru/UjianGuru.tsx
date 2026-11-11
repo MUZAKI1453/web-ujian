@@ -33,6 +33,8 @@ interface Exam {
     waktuSelesai: string;
     draf: boolean;
     hasilRilis: boolean;
+    acakSoal?: boolean;
+    acakOpsi?: boolean;
     bahasanRilis: boolean;
     diarsipkanPada: string | null;
     poinKhusus?: Partial<Record<keyof PointSettings, number>> | null;

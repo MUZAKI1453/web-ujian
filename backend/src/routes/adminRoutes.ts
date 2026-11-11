@@ -13,6 +13,7 @@ import {
     updateSiswa,
     deleteSiswa,
     deleteAccounts,
+    resetAccountPassword,
 
     getGuru,
     createGuru,
@@ -37,11 +38,13 @@ import { downloadTemplate, importUsers } from '../controllers/adminImportControl
 import { monitorUjian } from '../controllers/monitoringController';
 import { updateNavbar } from '../controllers/navbarController';
 import jenisUjianRoutes from './jenisUjianRoutes';
+import { listAudit } from '../middleware/audit';
 
 const router = Router();
 router.use(requireUser, requireAdmin);
 router.use('/jenis-ujian', jenisUjianRoutes);
 router.get('/ujian', monitorUjian);
+router.get('/audit', listAudit);
 
 // Dashboard
 router.get('/dashboard', getDashboardStats);
@@ -60,6 +63,7 @@ router.post('/siswa/import', uploadExcel.single('file'), importUsers('siswa'));
 router.get('/siswa', getSiswa);
 router.post('/siswa', createSiswa);
 router.put('/siswa/:id', updateSiswa);
+router.post('/siswa/:id/reset-password', resetAccountPassword('siswa'));
 router.post('/siswa/hapus-terpilih', deleteAccounts('siswa'));
 router.delete('/siswa/:id', deleteSiswa);
 
@@ -69,6 +73,7 @@ router.post('/guru/import', uploadExcel.single('file_excel'), importUsers('guru'
 router.get('/guru', getGuru);
 router.post('/guru', createGuru);
 router.put('/guru/:id', updateGuru);
+router.post('/guru/:id/reset-password', resetAccountPassword('guru'));
 router.post('/guru/hapus-terpilih', deleteAccounts('guru'));
 router.delete('/guru/:id', deleteGuru);
 

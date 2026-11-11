@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Clock, GraduationCap, History, LockKeyhole, Search } from 'lucide-react';
 import { PortalHeader } from '../../components/PortalHeader';
 import PortalDialog from '../../components/PortalDialog';
-import api from '../../services/api';
+import api, { mediaUrl } from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
 import KerjakanUjian from './KerjakanUjian';
 import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
@@ -78,6 +78,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
         setExams(data.data);
     }, []);
 
+    const isWorking = working !== null;
     useEffect(() => {
         const controller = new AbortController();
         const update = async () => {
@@ -85,10 +86,12 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             catch (err) { if (!controller.signal.aborted) setError(errorMessage(err)); }
             finally { if (!controller.signal.aborted) setLoading(false); }
         };
+        // Saat siswa mengerjakan ujian, layar pengerjaan punya sinkronisasi sendiri; daftar ini tidak perlu dimuat ulang.
+        if (isWorking) return;
         void update();
-        const poll = setInterval(() => void update(), 15000);
+        const poll = setInterval(() => { if (!document.hidden) void update(); }, 20000 + Math.random() * 10000);
         return () => { controller.abort(); clearInterval(poll); };
-    }, [refresh]);
+    }, [refresh, isWorking]);
 
     const key = (id: number) => username + ':' + id;
 
@@ -139,7 +142,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             };
             await storeAttempt(key(exam.id), attempt).catch(() => {});
             for (const source of packet.soal.flatMap(q => [q.gambar, ...q.items.map(i => i.gambar)])) {
-                if (source && !source.startsWith('data:')) { const image = new Image(); image.src = source; }
+                if (source && !source.startsWith('data:')) { const image = new Image(); image.src = mediaUrl(source); }
             }
             setWorking({ exam, attempt, securityPrepared });
             setSelected(null);

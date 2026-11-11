@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 import api from '../services/api';
 import { KeyRound } from 'lucide-react';
 
-export default function GantiPassword() {
+export default function GantiPassword({ onChanged }: { onChanged?: () => void } = {}) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -22,9 +22,12 @@ export default function GantiPassword() {
         }
         setSaving(true);
         try {
-            await api.put('/auth/password', { passwordLama, passwordBaru });
+            const { data } = await api.put<{ token?: string }>('/auth/password', { passwordLama, passwordBaru });
+            // Sesi lama berakhir di semua perangkat; pakai token baru agar tetap masuk di perangkat ini.
+            if (data.token) localStorage.setItem('token', data.token);
             form.reset();
             setSuccess(true);
+            onChanged?.();
         } catch (err) {
             setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal mengubah password.' : 'Gagal mengubah password.');
         } finally {
@@ -36,7 +39,7 @@ export default function GantiPassword() {
         <section className="ui-card space-y-4 p-4 sm:p-5" aria-labelledby="password-settings-title">
             <div className="space-y-2">
                 <h2 id="password-settings-title" className="flex items-center gap-2 text-lg font-bold"><KeyRound size={20} className="text-blue-600" aria-hidden="true" />Ganti Password</h2>
-                <p className="text-sm leading-relaxed text-slate-600">Gunakan password baru yang berbeda dari password lama, minimal 8 karakter dan maksimal 72 byte.</p>
+                <p className="text-sm leading-relaxed text-slate-600">Gunakan password baru minimal 8 karakter yang memuat huruf dan angka, berbeda dari password lama, dan tidak memuat NIS/NIP Anda.</p>
             </div>
             <form onSubmit={submit} className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-3">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, BookOpen, ChevronDown, ClipboardList, GraduationCap, History, Layers, LayoutDashboard, LogOut, Menu, MonitorCheck, PanelLeftClose, PanelLeftOpen, Repeat2, Settings, ShieldCheck, Users, X, type LucideIcon } from 'lucide-react';
+import { BarChart3, BookOpen, ChevronDown, ClipboardList, GraduationCap, History, Layers, LayoutDashboard, LogOut, Menu, MonitorCheck, PanelLeftClose, PanelLeftOpen, Repeat2, ScrollText, Settings, ShieldCheck, Users, X, type LucideIcon } from 'lucide-react';
 import { useDialogFocus } from './ui/useDialogFocus';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
@@ -25,7 +25,8 @@ const studentMenus: MenuItem[] = [
 ];
 const adminMenus: MenuItem[] = [
     { page: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { page: 'monitoring', label: 'Monitoring Ujian', icon: MonitorCheck }
+    { page: 'monitoring', label: 'Monitoring Ujian', icon: MonitorCheck },
+    { page: 'audit', label: 'Log Audit', icon: ScrollText }
 ];
 const roleIcons = { admin: ShieldCheck, guru: GraduationCap, siswa: Users };
 const navButtonClass = 'flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors';

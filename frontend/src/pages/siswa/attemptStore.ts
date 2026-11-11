@@ -43,3 +43,22 @@ export async function storeAttempt(key: string, value: LocalAttempt | null) {
         tx.onabort = tx.onerror = () => reject(tx.error);
     });
 }
+
+// Saat keluar, hapus salinan soal dan jawaban yang sudah tersimpan di server agar tidak tertinggal di perangkat bersama.
+// Pengerjaan yang masih punya jawaban belum terkirim dipertahankan supaya tidak hilang.
+export async function clearSyncedAttempts() {
+    const db = await open();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('pengerjaan', 'readwrite');
+        const request = tx.objectStore('pengerjaan').openCursor();
+        request.onsuccess = () => {
+            const cursor = request.result;
+            if (!cursor) return;
+            const attempt = cursor.value as LocalAttempt;
+            if (attempt.versi <= attempt.saved && !attempt.security?.pending.length) cursor.delete();
+            cursor.continue();
+        };
+        tx.oncomplete = () => resolve();
+        tx.onabort = tx.onerror = () => reject(tx.error);
+    });
+}

@@ -37,9 +37,13 @@ export function parseSecurityEvents(input: unknown): SecurityEvent[] | null {
 // The caller holds the exam/attempt transaction lock; retries must not count twice.
 export async function recordSecurity(tx: Prisma.TransactionClient, ujianId: number, siswaId: number, attemptId: number, events: SecurityEvent[], weights = defaultSecurityWeights) {
     const reasons = [...new Set([...interruptionReasons, ...events.map(event => event.reason)])];
-    const rows = await tx.kegiatanUjian.findMany({ where: {
-        ujianId, pelakuId: siswaId, jenis: 'pelanggaran-ujian', alasan: { in: reasons }, data: { path: ['attemptId'], equals: attemptId }
+    const allRows = await tx.kegiatanUjian.findMany({ where: {
+        ujianId, pelakuId: siswaId, jenis: 'pelanggaran-ujian', alasan: { in: reasons }
     }, select: { data: true, alasan: true, waktu: true } });
+    const rows = allRows.filter(row => {
+        const rowAttemptId = object(row.data).attemptId;
+        return rowAttemptId === undefined || rowAttemptId === attemptId;
+    });
     const known = new Set(rows.map(row => object(row.data).eventId));
     let count = rows.filter(row => row.alasan && interruptsExam(row.alasan as SecurityEvent['reason'])).length;
     const recent = new Set(rows.filter(row => Date.now() - +row.waktu < 10_000).map(row => row.alasan));

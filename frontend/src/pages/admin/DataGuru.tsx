@@ -2,13 +2,14 @@ import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import ClassPicker from '../../components/ClassPicker';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import ActionDialog from '../../components/ActionDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import AccountToolbar from '../../components/AccountToolbar';
 import AccountImportDialog from '../../components/AccountImportDialog';
-import { GraduationCap, Plus, Edit3, Trash2, Search, BookOpen, X } from 'lucide-react';
+import { GraduationCap, Plus, Edit3, Trash2, Search, BookOpen, X, KeyRound } from 'lucide-react';
 
 interface Mapel {
     id: number;
@@ -46,6 +47,8 @@ export default function DataGuru() {
 
     // State Modal Form (Tambah / Edit)
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [resetTarget, setResetTarget] = useState<Guru | null>(null);
+    const [resetting, setResetting] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -313,13 +316,23 @@ export default function DataGuru() {
                                                 onClick={() => handleOpenEdit(item)}
                                                 className="ui-button ui-button-edit ui-icon-button"
                                                 title="Edit Guru"
+                                                aria-label={'Edit ' + item.nama}
                                             >
                                                 <Edit3 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => setResetTarget(item)}
+                                                className="ui-button ui-button-secondary ui-icon-button"
+                                                title="Reset Password ke NIP"
+                                                aria-label={'Reset password ' + item.nama}
+                                            >
+                                                <KeyRound size={16} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteIds([item.id])}
                                                 className="ui-button ui-button-danger-soft ui-icon-button"
                                                 title="Hapus Guru"
+                                                aria-label={'Hapus ' + item.nama}
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -332,6 +345,34 @@ export default function DataGuru() {
                     </table>
                 </div>
             </div>
+
+            {/* Dialog Konfirmasi Reset Password */}
+            {resetTarget && (
+                <ActionDialog
+                    title="Reset Password Guru?"
+                    message={`Password akun ${resetTarget.nama} akan dikembalikan ke NIP (${resetTarget.username}) dan sesi login aktifnya akan diakhiri.`}
+                    tone="warning"
+                    centered
+                    pending={resetting}
+                    confirmLabel={resetting ? 'Mereset...' : 'Reset Password'}
+                    cancelLabel="Batal"
+                    onClose={() => { if (!resetting) setResetTarget(null); }}
+                    onConfirm={async () => {
+                        if (resetting) return;
+                        setResetting(true);
+                        try {
+                            const res = await api.post(`/admin/guru/${resetTarget.id}/reset-password`);
+                            setResetTarget(null);
+                            setSuccessMessage(res.data.message || 'Password guru berhasil direset.');
+                        } catch (err: any) {
+                            setResetTarget(null);
+                            setErrorMessage(err.response?.data?.message || 'Gagal mereset password guru.');
+                        } finally {
+                            setResetting(false);
+                        }
+                    }}
+                />
+            )}
 
             {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (

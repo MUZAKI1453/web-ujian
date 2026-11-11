@@ -1,0 +1,28 @@
+# Tambahkan kedua blok ini ke /etc/caddy/Caddyfile (di bawah blok yang sudah ada),
+# lalu: caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+# Record A "cbt" di kedua domain harus sudah mengarah ke IP server sebelum Caddy dimuat ulang.
+# Pada VPS ini port 80/443 publik dirutekan per nama domain oleh penyedia: daftarkan juga kedua domain
+# di panel VPS (tab Network), sama seperti domain yang sudah ada, agar sertifikat bisa diterbitkan.
+# Validasi sertifikat dibiarkan memakai bawaan Caddy (port 80 atau 443), karena gateway penyedia
+# sempat menahan jalur validasi port 80 untuk domain baru.
+(cbt_app) {
+	encode gzip zstd
+	request_body {
+		max_size 9MB
+	}
+}
+
+cbt.smpipbaitussalam.sch.id {
+	import cbt_app
+	reverse_proxy 127.0.0.1:5001
+}
+
+cbt.smaipbaitussalam.sch.id {
+	import cbt_app
+	reverse_proxy 127.0.0.1:5002
+}
+
+# Alamat tanpa https diarahkan ke https (global option "auto_https disable_redirects" mematikan pengalihan otomatis).
+http://cbt.smpipbaitussalam.sch.id, http://cbt.smaipbaitussalam.sch.id {
+	redir https://{host}{uri} permanent
+}

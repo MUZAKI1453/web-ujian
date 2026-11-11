@@ -8,7 +8,13 @@
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:migrate": "prisma migrate deploy",
+    "db:baseline": "prisma migrate resolve --applied 0_awal",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:gambar": "node dist/scripts/migrateImages.js",
+    "uji-beban:siapkan": "node dist/scripts/loadTestSeed.js",
+    "uji-beban:jalankan": "node dist/scripts/loadTest.js",
+    "uji-beban:hapus": "node dist/scripts/loadTestSeed.js --hapus"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -19,7 +25,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

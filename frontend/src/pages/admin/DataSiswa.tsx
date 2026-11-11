@@ -1,13 +1,14 @@
 import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
+import ActionDialog from '../../components/ActionDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../../services/api';
 import AccountToolbar from '../../components/AccountToolbar';
 import AccountImportDialog from '../../components/AccountImportDialog';
-import { Users, Edit3, Trash2, Search, School } from 'lucide-react';
+import { Users, Edit3, Trash2, Search, School, KeyRound } from 'lucide-react';
 
 interface Kelas {
     id: number;
@@ -30,6 +31,8 @@ export default function DataSiswa() {
 
     // State Modal Form (Tambah / Edit)
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
+    const [resetTarget, setResetTarget] = useState<Siswa | null>(null);
+    const [resetting, setResetting] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -246,13 +249,23 @@ export default function DataSiswa() {
                                                 onClick={() => handleOpenEdit(item)}
                                                 className="ui-button ui-button-edit ui-icon-button"
                                                 title="Edit Siswa"
+                                                aria-label={'Edit ' + item.nama}
                                             >
                                                 <Edit3 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => setResetTarget(item)}
+                                                className="ui-button ui-button-secondary ui-icon-button"
+                                                title="Reset Password ke NIS"
+                                                aria-label={'Reset password ' + item.nama}
+                                            >
+                                                <KeyRound size={16} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteIds([item.id])}
                                                 className="ui-button ui-button-danger-soft ui-icon-button"
                                                 title="Hapus Siswa"
+                                                aria-label={'Hapus ' + item.nama}
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -265,6 +278,34 @@ export default function DataSiswa() {
                     </table>
                 </div>
             </div>
+
+            {/* Dialog Konfirmasi Reset Password */}
+            {resetTarget && (
+                <ActionDialog
+                    title="Reset Password Siswa?"
+                    message={`Password akun ${resetTarget.nama} akan dikembalikan ke NIS (${resetTarget.username}) dan sesi login aktifnya akan diakhiri.`}
+                    tone="warning"
+                    centered
+                    pending={resetting}
+                    confirmLabel={resetting ? 'Mereset...' : 'Reset Password'}
+                    cancelLabel="Batal"
+                    onClose={() => { if (!resetting) setResetTarget(null); }}
+                    onConfirm={async () => {
+                        if (resetting) return;
+                        setResetting(true);
+                        try {
+                            const res = await api.post(`/admin/siswa/${resetTarget.id}/reset-password`);
+                            setResetTarget(null);
+                            setSuccessMessage(res.data.message || 'Password siswa berhasil direset.');
+                        } catch (err: any) {
+                            setResetTarget(null);
+                            setErrorMessage(err.response?.data?.message || 'Gagal mereset password siswa.');
+                        } finally {
+                            setResetting(false);
+                        }
+                    }}
+                />
+            )}
 
             {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (

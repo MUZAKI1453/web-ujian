@@ -113,3 +113,22 @@ test('unrelated database errors remain server errors without exposing Prisma det
         lookup.mock.restore(); log.mock.restore();
     }
 });
+
+test('resetAccountPassword resets password to username and rotates sesiLogin', async () => {
+    const lookup = stub('findUnique', async () => ({ id: 1, username: '12345', nama: 'Siswa Uji', role: 'siswa' }));
+    const write = stub('update', async () => ({ id: 1 }));
+    try {
+        const { res, result } = response();
+        await controllers.resetAccountPassword('siswa')(request, res);
+        assert.equal(result.code, 200);
+        assert.equal(result.body.status, 'SUCCESS');
+        assert.equal(write.mock.callCount(), 1);
+        const data = (write.mock.calls[0].arguments as any[])[0].data;
+        const bcrypt = await import('bcrypt');
+        assert.equal(await bcrypt.compare('12345', data.password), true);
+        assert.equal(typeof data.sesiLogin, 'string');
+        assert.ok(data.sesiLogin.length > 10);
+    } finally {
+        lookup.mock.restore(); write.mock.restore();
+    }
+});

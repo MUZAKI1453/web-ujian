@@ -18,7 +18,11 @@ export function parseDraftExamRules(value: unknown) {
     if (token !== 'wajib' && token !== 'opsional' && token !== 'tanpa') return null;
     if (rekap !== 'buku-nilai' && rekap !== 'latihan' && rekap !== 'persiapan' && rekap !== 'talenta') return null;
     if (typeof hasilOtomatis !== 'boolean' || typeof pembahasanOtomatis !== 'boolean') return null;
+    // Klien lama tidak mengirim pilihan acak; anggap aktif.
+    const { acakSoal = true, acakOpsi = true } = value as Record<string, unknown>;
+    if (typeof acakSoal !== 'boolean' || typeof acakOpsi !== 'boolean') return null;
     return {
+        acakSoal, acakOpsi,
         profil: token === 'wajib' ? 'standar' : token === 'opsional' ? 'ulangan-harian' : 'latihan-kuis',
         tujuanRekap: rekap,
         hasilRilis: hasilOtomatis,

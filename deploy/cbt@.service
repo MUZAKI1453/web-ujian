@@ -1,0 +1,32 @@
+# /etc/systemd/system/cbt@.service
+# Satu salinan kode di /opt/cbt dijalankan sekali per sekolah, masing-masing dengan
+# berkas konfigurasi /etc/cbt/<nama>.env (database, secret, dan port sendiri).
+# Aktifkan: systemctl daemon-reload && systemctl enable --now cbt@smp cbt@sma
+[Unit]
+Description=CBT Web Ujian (%i)
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=cbt
+Group=cbt
+WorkingDirectory=/opt/cbt/backend
+EnvironmentFile=/etc/cbt/%i.env
+Environment=NODE_ENV=production
+# Gambar soal tiap sekolah disimpan di /var/lib/cbt/<nama>, di luar folder kode agar tidak hilang saat kode diperbarui.
+StateDirectory=cbt/%i
+Environment=UPLOAD_DIR=/var/lib/cbt/%i
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+# Batasi memori tiap sekolah agar tidak saling mengganggu dan tidak mengganggu layanan lain di server.
+MemoryMax=450M
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

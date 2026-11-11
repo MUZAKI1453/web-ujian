@@ -1,10 +1,16 @@
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
+}
+
+enum Role {
+  admin
+  guru
+  siswa
 }
 
 model Kelas {
@@ -23,7 +29,7 @@ model User {
   username String  @unique @db.VarChar(50)
   password String  @db.VarChar(255)
   sesiLogin String? @map("sesi_login")
-  role     String  @db.VarChar(20) // 'admin', 'guru', 'siswa'
+  role     Role
   nama     String? @db.VarChar(100)
   kelasId  Int?    @map("kelas_id")
 
@@ -35,7 +41,11 @@ model User {
   pesertaSusulan PesertaSusulan[]
   pesertaRemedial Ujian[] @relation("PesertaRemedial")
   pengerjaan PengerjaanUjian[]
+  kegiatan   KegiatanUjian[]
+  percobaanToken PercobaanToken[]
 
+  @@index([kelasId])
+  @@index([role])
   @@map("users")
 }
 
@@ -58,6 +68,8 @@ model GuruMapelKelas {
   mapel Mapel @relation(fields: [mapelId], references: [id], onDelete: Cascade)
   kelas Kelas @relation(fields: [kelasId], references: [id], onDelete: Cascade)
 
+  @@unique([mapelId, kelasId])
+  @@index([guruId])
   @@map("guru_mapel_kelas")
 }
 
@@ -96,6 +108,9 @@ model Ujian {
   hasilRilis   Boolean  @default(false) @map("hasil_rilis")
   bahasanRilis Boolean  @default(false) @map("bahasan_rilis")
   revisiNilai  Int      @default(0) @map("revisi_nilai")
+  // Urutan soal dan opsi diacak per pengerjaan; permutasinya disimpan di pengerjaan_ujian.urutan.
+  acakSoal     Boolean  @default(true) @map("acak_soal")
+  acakOpsi     Boolean  @default(true) @map("acak_opsi")
   kegiatan     KegiatanUjian[]
   notifikasi   NotifikasiUjian[]
   guru         User?    @relation(fields: [guruId], references: [id], onDelete: SetNull)
@@ -107,7 +122,11 @@ model Ujian {
   jawaban JawabanSiswa[]
   susulan SesiSusulan[]
   pengerjaan PengerjaanUjian[]
+  percobaanToken PercobaanToken[]
 
+  @@index([kelasId, draf])
+  @@index([mapelId])
+  @@index([guruId])
   @@map("ujian")
 }
 
@@ -125,6 +144,7 @@ model Soal {
 
   ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
 
+  @@index([ujianId])
   @@map("soal")
 }
 
@@ -143,6 +163,8 @@ model JawabanSiswa {
   siswa User  @relation(fields: [siswaId], references: [id], onDelete: Cascade)
   ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
 
+  @@unique([ujianId, siswaId])
+  @@index([siswaId])
   @@map("jawaban_siswa")
 }
 
@@ -187,6 +209,8 @@ model PengerjaanUjian {
   jawabanTersimpan Json?   @map("jawaban_tersimpan")
   kirimanOffline   Json?   @map("kiriman_offline")
   diterimaOffline  DateTime? @map("diterima_offline")
+  // { soal: number[], opsi: { [soalId]: number[] } } — posisi tampil ke indeks asli. Kosong = urutan asli.
+  urutan           Json?
 
   ujian       Ujian        @relation(fields: [ujianId], references: [id], onDelete: Cascade)
   siswa       User         @relation(fields: [siswaId], references: [id], onDelete: Cascade)
@@ -200,17 +224,20 @@ model PengerjaanUjian {
 model KegiatanUjian {
   id       Int      @id @default(autoincrement())
   ujianId  Int      @map("ujian_id")
-  pelakuId Int      @map("pelaku_id")
+  // Kosong bila akun pelaku sudah dihapus; riwayat ujian tetap disimpan.
+  pelakuId Int?     @map("pelaku_id")
   jenis    String
   alasan   String?
   status   String   @default("selesai")
   data     Json?
   waktu    DateTime @default(now())
 
-  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  ujian  Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+  pelaku User? @relation(fields: [pelakuId], references: [id], onDelete: SetNull)
 
   @@index([ujianId, id])
   @@index([status, id])
+  @@index([pelakuId])
   @@map("kegiatan_ujian")
 }
 
@@ -235,7 +262,11 @@ model PercobaanToken {
   salah Int @default(0)
   tungguSampai DateTime? @map("tunggu_sampai")
 
+  siswa User  @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  ujian Ujian @relation(fields: [ujianId], references: [id], onDelete: Cascade)
+
   @@id([siswaId, ujianId])
+  @@index([ujianId])
   @@map("percobaan_token")
 }
 
@@ -245,4 +276,23 @@ model NavbarSettings {
   logo  String? @db.Text
 
   @@map("navbar_settings")
+}
+
+// Jejak login dan tindakan admin/guru. Tanpa foreign key agar catatan bertahan setelah akun dihapus.
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  waktu     DateTime @default(now())
+  pelakuId  Int?     @map("pelaku_id")
+  pelaku    String?  @db.VarChar(50)
+  peran     String?  @db.VarChar(20)
+  aksi      String   @db.VarChar(120)
+  target    String?  @db.VarChar(191)
+  status    Int      @default(200)
+  ip        String?  @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+
+  @@index([waktu])
+  @@index([pelakuId, id])
+  @@index([aksi, id])
+  @@map("audit_log")
 }
