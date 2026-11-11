@@ -14,7 +14,7 @@ export type ReportRow = {
     rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }>;
     jawaban: Record<string, unknown>;
     penilaian?: Record<string, { benar: boolean; poin: string; maksimum: string }>;
-    essay: { id: number; pedoman?: string; maksimum: number; jawaban: string; nilai: number | null; catatan?: string }[];
+    essay: { id: number; maksimum: number; jawaban: string; nilai: number | null; catatan?: string }[];
 };
 export type EssayMark = { soalId: number; nilai: number; catatan: string };
 
@@ -88,12 +88,26 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
             <div className="w-full overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-left text-sm">
                     <caption className="sr-only">Rincian nilai per tipe soal</caption>
-                    <thead className="border-b bg-slate-100/70 text-xs text-slate-500"><tr><th scope="col" className="px-4 py-3">Tipe soal</th><th scope="col" className="px-4 py-3 text-right">Nilai</th><th scope="col" className="px-4 py-3 text-right">Maksimum</th></tr></thead>
+                    <thead className="border-b bg-slate-100/70 text-xs text-slate-500"><tr>
+                        <th scope="col" className="px-2 py-3 sm:px-4">Tipe soal</th>
+                        <th scope="col" className="px-2 py-3 text-right sm:px-4">Benar / total</th>
+                        <th scope="col" className="px-2 py-3 text-right sm:px-4">Poin</th>
+                        <th scope="col" className="px-2 py-3 text-right sm:px-4">Maksimum</th>
+                    </tr></thead>
                     <tbody className="divide-y divide-slate-100">{Object.keys(questionTypeLabels).filter(type => row.rincian[type]).map(type => {
                         const value = row.rincian[type];
-                        return <tr key={type}><th scope="row" className="px-4 py-3 font-normal text-slate-700">{questionTypeLabel(type)}</th><td className="px-4 py-3 text-right font-medium tabular-nums">{Number(value.poin)}</td><td className="px-4 py-3 text-right text-slate-500 tabular-nums">{Number(value.maksimum)}</td></tr>;
+                        return <tr key={type}>
+                            <th scope="row" className="px-2 py-3 font-normal text-slate-700 sm:px-4">{questionTypeLabel(type)}</th>
+                            <td className="whitespace-nowrap px-2 py-3 text-right tabular-nums sm:px-4">{type === 'ESSAY' ? '—' : `${value.benar}/${value.total}`}</td>
+                            <td className="px-2 py-3 text-right font-medium tabular-nums sm:px-4">{Number(value.poin)}</td>
+                            <td className="px-2 py-3 text-right tabular-nums text-slate-500 sm:px-4">{Number(value.maksimum)}</td>
+                        </tr>;
                     })}</tbody>
-                    <tfoot className="border-t bg-slate-50"><tr><th scope="row" className="px-4 py-3">Total</th><td className="px-4 py-3 text-right font-semibold tabular-nums">{Number(row.nilai)}</td><td className="px-4 py-3 text-right font-medium text-slate-500 tabular-nums">{Math.round(Object.values(row.rincian).reduce((total, value) => total + Number(value.maksimum), 0) * 10000) / 10000}</td></tr></tfoot>
+                    <tfoot className="border-t bg-slate-50"><tr>
+                        <th scope="row" colSpan={2} className="px-2 py-3 sm:px-4">Total</th>
+                        <td className="px-2 py-3 text-right font-semibold tabular-nums sm:px-4">{Number(row.nilai)}</td>
+                        <td className="px-2 py-3 text-right font-medium tabular-nums text-slate-500 sm:px-4">{Math.round(Object.values(row.rincian).reduce((total, value) => total + Number(value.maksimum), 0) * 10000) / 10000}</td>
+                    </tr></tfoot>
                 </table>
             </div>
         </header>

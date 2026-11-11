@@ -4,7 +4,7 @@ import api from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
 import { storeAttempt, violationLimit } from './attemptStore';
 import type { LocalAttempt, Value } from './attemptStore';
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock, ListOrdered, Send, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock, CloudAlert, CloudUpload, ListChecks, ListOrdered, RefreshCw, Send, ShieldAlert, ShieldCheck, WifiOff } from 'lucide-react';
 import useExamSecurity, { interruptsExam } from './useExamSecurity';
 import PortalDialog from '../../components/PortalDialog';
 import ActionDialog from '../../components/ActionDialog';
@@ -14,6 +14,16 @@ import ExamTypeBadge from '../../components/ExamTypeBadge';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 
 const button = 'ui-button ui-button-secondary';
+const savedTime = new Intl.DateTimeFormat('id-ID', { timeStyle: 'medium' });
+const saveIndicators = {
+    checking: { icon: RefreshCw, label: 'Memeriksa penyimpanan…', color: 'ui-button-soft' },
+    syncing: { icon: RefreshCw, label: 'Menyinkronkan…', color: 'ui-button-soft' },
+    pending: { icon: CloudUpload, label: 'Belum tersimpan di server', color: 'ui-button-warning' },
+    saved: { icon: CheckCircle2, label: 'Tersimpan di server', color: 'ui-button-success-soft' },
+    error: { icon: CloudAlert, label: 'Jawaban belum tersimpan.', color: 'ui-button-warning' },
+    offline: { icon: WifiOff, label: 'Koneksi terputus', color: 'ui-button-warning' }
+};
+type SaveState = 'checking' | 'syncing' | 'pending' | 'saved' | 'error';
 
 export default function KerjakanUjian({ initial, storageKey, examId, title, examType, onExit, securityPrepared = false }: {
     initial: LocalAttempt; storageKey: string; examId: number; title: string; examType: string; onExit: () => void; securityPrepared?: boolean;
@@ -23,7 +33,9 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     const [sheet, setSheet] = useState(false);
     const [result, setResult] = useState('');
     const [receipt, setReceipt] = useState<Receipt | null>(null);
-    const [saveState, setSaveState] = useState('');
+    const [saveState, setSaveState] = useState<SaveState>('checking');
+    const [saveError, setSaveError] = useState('');
+    const [saveDetails, setSaveDetails] = useState(false);
     const [offline, setOffline] = useState(!navigator.onLine);
     const [storageFailed, setStorageFailed] = useState(false);
     const [acknowledgedViolation, setAcknowledgedViolation] = useState<number | null>(null);
@@ -61,7 +73,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
         JSON.stringify(attempt.jawaban[id]) !== JSON.stringify(attempt.savedAnswers?.[id])).length;
 
     useEffect(() => {
-        if (!security.ready) { setSheet(false); setConfirmFinish(false); }
+        if (!security.ready) { setSheet(false); setSaveDetails(false); setConfirmFinish(false); }
     }, [security.ready]);
 
     useEffect(() => {
@@ -81,7 +93,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
             if (!force && !urgent && idle < (dirty ? 5000 : heartbeat)) return;
             sending.current = true;
             lastContact = Date.now();
-            if (dirty) setSaveState('Menyinkronkan…');
+            if (dirty) setSaveState('syncing');
             try {
                 const { data: response } = await api.put('/siswa/ujian/' + examId + '/jawaban', {
                     attemptId: data.attemptId, versi: data.versi, jawaban: data.jawaban,
@@ -100,7 +112,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                     update({ ...latest, versi: Math.max(latest.versi, response.versi), saved: response.versi,
                         savedAnswers: data.jawaban, lastSavedAt: dirty || !latest.lastSavedAt ? response.serverTime : latest.lastSavedAt,
                         security: { count: Math.max(latest.security?.count ?? 0, (response.securityCount ?? 0) + pending.filter(event => interruptsExam(event.reason)).length), pending, warning: latest.security?.warning } });
-                    setSaveState('Tersimpan di server');
+                    setSaveState(latest.versi > response.versi ? 'pending' : 'saved');
                 }
             } catch (err) {
                 if (!active) return;
@@ -110,10 +122,11 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                     if (code !== 'VERSI') await storeAttempt(storageKey, null).catch(() => {});
                     setResult(isAxiosError(err) ? err.response?.data?.message || 'Pengerjaan ditutup.' : 'Pengerjaan ditutup.');
                 } else if (isAxiosError(err) && err.response) {
-                    setSaveState(err.response.data?.message || 'Jawaban belum tersimpan.');
+                    setOffline(false);
+                    setSaveState('error');
+                    setSaveError(err.response.data?.message || '');
                 } else {
                     setOffline(true);
-                    setSaveState('Menunggu koneksi');
                 }
             } finally { sending.current = false; }
         }
@@ -151,7 +164,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
         if (locked || !security.ready || !question) return;
         const latest = current.current;
         update({ ...latest, jawaban: { ...latest.jawaban, [question.id]: value }, versi: latest.versi + 1 });
-        setSaveState('Belum tersimpan di server');
+        setSaveState('pending');
     }
     function toggleDoubt() {
         if (!question || locked) return;
@@ -185,7 +198,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
             <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><p className="text-amber-800">Pelanggaran: {violations}{limit > 0 && ' / ' + limit}</p><p className="text-blue-800">Sisa waktu: {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</p></div>
             <p className="text-sm text-slate-600">{limit > 0 ? `Pada pelanggaran ke-${limit}, jawaban dikumpulkan otomatis.` : 'Setiap pelanggaran dicatat dan ditinjau guru.'}</p>
             {!security.fullscreenSupported && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Layar penuh tidak tersedia. Perpindahan tab tetap dipantau.</p>}
-            {locked ? <p role="status" className="text-sm text-blue-800">{offline ? 'Menunggu koneksi. Tetap buka halaman agar jawaban dan catatan dapat dikirim.' : saveState || 'Mengirim jawaban ke server…'}</p> : <>
+            {locked ? <p role="status" className="text-sm text-blue-800">{offline ? 'Menunggu koneksi. Tetap buka halaman agar jawaban dan catatan dapat dikirim.' : saveState === 'error' && saveError || 'Mengirim jawaban ke server…'}</p> : <>
                 {attempt.security?.warning && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledgedViolation(e.target.checked ? violations : null)} />Saya memahami peringatan ini.</label>}
                 {security.error && <p role="alert" className="ui-notice ui-notice-error">{security.error}</p>}
                 <button type="button" disabled={security.activating || (!!attempt.security?.warning && !acknowledged)} className="ui-button ui-button-primary w-full" onClick={() => void security.activate()}>{security.activating ? 'Mengaktifkan…' : 'Masuk & Lanjutkan Ujian'}</button>
@@ -219,21 +232,26 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     const total = attempt.soal.length;
     const timer = [Math.floor(remain / 3600), Math.floor(remain % 3600 / 60), remain % 60]
         .map(unit => String(unit).padStart(2, '0')).join(':');
-    const saveLabel = offline ? 'Koneksi terputus' : saveState || 'Memeriksa penyimpanan…';
+    const saveIndicator = saveIndicators[offline ? 'offline' : storageFailed ? 'error' : saveState];
+    const SaveIcon = saveIndicator.icon;
+    const saveLabel = storageFailed && !offline ? 'Penyimpanan di perangkat gagal' : !offline && saveState === 'error' && saveError || saveIndicator.label;
+    const queueLabel = queuedAnswers > 0 ? `${queuedAnswers} jawaban menunggu sinkronisasi` : '';
+    const violationLabel = `Pelanggaran ${violations}${limit > 0 ? ' dari ' + limit : ''}`;
+    const SecurityIcon = violations ? ShieldAlert : ShieldCheck;
+    const offlineHelp = 'Jawaban disimpan di perangkat dan timer tetap berjalan. Tetap buka halaman agar sinkronisasi dilanjutkan saat koneksi kembali.';
 
     return <div className="fixed inset-0 z-[60] flex h-dvh flex-col bg-[var(--ui-canvas)]">
         <header className="shrink-0 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4">
-            <div className="ui-card mx-auto max-w-6xl space-y-2.5 overflow-hidden border-l-4 border-l-blue-600 px-3 py-3 sm:px-5">
+            <div className="ui-card mx-auto max-w-6xl space-y-1.5 border-l-4 border-l-blue-600 px-3 py-2 sm:px-5">
                 <div className="flex items-start justify-between gap-2 sm:gap-4">
                     <div className="min-w-0 flex-1">
-                        <p className="text-[0.6875rem] font-semibold uppercase tracking-widest text-blue-700">Pengerjaan ujian</p>
-                        <h1 className="mt-0.5 break-words text-lg font-bold leading-tight text-slate-900 sm:text-2xl">{title}</h1>
+                        <h1 className="text-lg font-bold leading-tight text-slate-900 [overflow-wrap:anywhere] sm:text-2xl">{title}</h1>
                         <div className="mt-1"><ExamTypeBadge label={examType} /></div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                        <div className={'rounded-xl px-2.5 py-1.5 ' + (remain < 300 ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-950')}>
-                            <p className="flex items-center gap-1 text-[0.6875rem] font-semibold"><Clock size={12} aria-hidden="true" />Sisa waktu</p>
-                            <strong role="timer" aria-label="Sisa waktu" className="block text-base leading-tight tabular-nums sm:text-lg">{timer}</strong>
+                        <div className={'flex min-h-11 items-center gap-1.5 rounded-xl px-2.5 ' + (remain < 300 ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-950')}>
+                            <Clock size={15} aria-hidden="true" />
+                            <strong role="timer" aria-label="Sisa waktu" className="text-sm leading-tight tabular-nums sm:text-lg">{timer}</strong>
                         </div>
                         <button type="button" aria-label="Buka daftar soal" aria-haspopup="dialog" aria-expanded={sheet} title="Daftar soal"
                             className="ui-button ui-button-soft ui-icon-button lg:hidden" onClick={() => setSheet(true)}>
@@ -241,20 +259,31 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                         </button>
                     </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-                    <span className="font-semibold text-slate-700">{answered}/{total} soal terjawab</span>
-                    <span className={offline || attempt.versi > attempt.saved ? 'text-amber-800' : 'text-slate-600'}>{saveLabel}{queuedAnswers > 0 && ' · ' + queuedAnswers + ' tertunda'}</span>
-                    <span className="text-slate-600">Pelanggaran {violations}{limit > 0 && '/' + limit}</span>
+                <div className="flex items-center gap-2 text-xs sm:gap-3">
+                    <span title={`${answered} dari ${total} soal terjawab`} className="flex shrink-0 items-center gap-1.5 font-semibold tabular-nums text-slate-700">
+                        <ListChecks size={16} aria-hidden="true" /><span aria-hidden="true">{answered}/{total}</span>
+                    </span>
+                    <progress aria-label="Jumlah soal terjawab" value={answered} max={total || 1} className="cbt-exam-progress h-1.5 min-w-0 flex-1" />
+                    <span role="img" aria-label={violationLabel} title={violationLabel}
+                        className={'flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 font-semibold tabular-nums ' + (violations ? 'bg-amber-50 text-amber-900' : 'text-slate-600')}>
+                        <SecurityIcon size={17} aria-hidden="true" /><span aria-hidden="true">{violations}{limit > 0 && '/' + limit}</span>
+                    </span>
+                    <button type="button" aria-label={'Status penyimpanan. ' + saveLabel + (queueLabel ? '. ' + queueLabel : '')}
+                        title={saveLabel} aria-haspopup="dialog" aria-expanded={saveDetails} aria-controls={saveDetails ? 'exam-save-details' : undefined}
+                        className={`ui-button ui-icon-button relative ${saveIndicator.color}`} onClick={() => setSaveDetails(true)}>
+                        <SaveIcon size={19} aria-hidden="true" className={!offline && saveState === 'syncing' ? 'motion-safe:animate-spin' : undefined} />
+                        {queuedAnswers > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 min-w-4 rounded-full bg-amber-700 px-1 text-center text-[0.625rem] leading-4 text-white">{queuedAnswers > 99 ? '99+' : queuedAnswers}</span>}
+                    </button>
+                    <span role="status" className="sr-only">{offline ? 'Koneksi terputus. ' + (storageFailed ? 'Penyimpanan di perangkat gagal.' : offlineHelp) : saveState === 'error' ? saveLabel : ''}</span>
                 </div>
-                <progress aria-label="Jumlah soal terjawab" value={answered} max={total || 1} className="cbt-exam-progress block h-1.5 w-full" />
             </div>
         </header>
         {backMessage && <div className="mx-auto mt-2 w-full max-w-6xl shrink-0 px-3 sm:px-4">{backMessage}</div>}
-        {(offline || storageFailed || locked) && <div className="mt-2 shrink-0 px-3 sm:px-4">
+        {(storageFailed || locked) && <div className="mt-2 shrink-0 px-3 sm:px-4">
             <p role="status" className="ui-notice ui-notice-warning mx-auto max-w-6xl">
             {storageFailed ? 'Penyimpanan di perangkat gagal. Tetap buka tab dan periksa koneksi.' : !remain
                 ? 'Waktu habis. Sambungkan kembali segera. Kiriman setelah batas waktu memerlukan tinjauan guru; setelah 5 menit server memakai jawaban terakhir yang tersimpan.'
-                : offline ? 'Koneksi terputus. Jawaban disimpan di perangkat dan timer tetap berjalan. Jangan tutup tab; sinkronisasi dilanjutkan saat koneksi kembali.'
+                : offline ? 'Jawaban sedang dikirim. Sambungkan kembali dan tetap buka halaman ini.'
                 : 'Jawaban sedang dikirim.'}
             </p>
         </div>}
@@ -329,7 +358,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                         const jawaban = { ...latest.jawaban };
                         delete jawaban[question.id];
                         update({ ...latest, jawaban, versi: latest.versi + 1 });
-                        setSaveState('Belum tersimpan di server');
+                        setSaveState('pending');
                     }}>Kosongkan jawaban</button>}
             </article> : <p className="text-center">Belum ada soal.</p>}
             <aside className="ui-card sticky top-0 hidden p-5 lg:block">
@@ -345,6 +374,20 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                     : question && <button type="button" className="ui-button ui-button-success min-w-0 px-2 text-xs sm:px-4 sm:text-sm" disabled={locked} onClick={() => setConfirmFinish(true)}><Send size={16} className="shrink-0" aria-hidden="true" />Kumpulkan Ujian</button>}
             </div>
         </footer>
+        {saveDetails && <PortalDialog titleId="exam-save-details-title" onClose={() => setSaveDetails(false)}>
+            <div id="exam-save-details" className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                    <h2 id="exam-save-details-title" className="font-bold">Status penyimpanan</h2>
+                    <button type="button" className={button} onClick={() => setSaveDetails(false)}>Tutup</button>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3 text-sm">
+                    <p role="status" className="font-semibold">{saveLabel}{queueLabel && ' · ' + queueLabel}</p>
+                    {attempt.lastSavedAt && <p className="mt-1 text-slate-600">Terakhir dikonfirmasi server {savedTime.format(attempt.lastSavedAt)}</p>}
+                    {offline && !storageFailed && <p className="mt-2 text-slate-600">{offlineHelp}</p>}
+                    {storageFailed && <p className="mt-2 text-amber-900">Penyimpanan di perangkat gagal. Tetap buka tab dan periksa koneksi.</p>}
+                </div>
+            </div>
+        </PortalDialog>}
         {sheet && <PortalDialog titleId="question-navigation" onClose={() => setSheet(false)}>
             <div className="mb-5 flex items-center justify-between gap-3"><div><h2 id="question-navigation" className="font-bold">Navigasi Soal</h2><p className="text-sm text-slate-500">{answered} dari {attempt.soal.length} soal terjawab</p></div><button className={button} onClick={() => setSheet(false)}>Tutup</button></div>
             {questionNumbers}

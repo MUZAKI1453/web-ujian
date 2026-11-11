@@ -1,7 +1,7 @@
 import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
-import ActionDialog from '../../components/ActionDialog';
+import ResetAccountPasswordDialog from '../../components/ResetAccountPasswordDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useRef, useState } from 'react';
@@ -32,7 +32,6 @@ export default function DataSiswa() {
     // State Modal Form (Tambah / Edit)
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [resetTarget, setResetTarget] = useState<Siswa | null>(null);
-    const [resetting, setResetting] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -110,14 +109,16 @@ export default function DataSiswa() {
         submitPending.current = true;
         setSaving(true);
         try {
+            let message = 'Data siswa baru berhasil ditambahkan.';
             if (isEdit && selectedId !== null) {
-                await api.put(`/admin/siswa/${selectedId}`, payload);
+                const { data } = await api.put<{ message: string }>(`/admin/siswa/${selectedId}`, payload);
+                message = data.message;
             } else {
                 await api.post('/admin/siswa', payload);
             }
             setShowModal(false);
             fetchData();
-            setSuccessMessage(isEdit ? 'Data siswa berhasil diperbarui.' : 'Data siswa baru berhasil ditambahkan.');
+            setSuccessMessage(message);
         } catch (err: any) {
             setErrorMessage(err.response?.data?.message || (isEdit ? 'Gagal memperbarui siswa' : 'Gagal menambah siswa'));
         } finally {
@@ -280,32 +281,8 @@ export default function DataSiswa() {
             </div>
 
             {/* Dialog Konfirmasi Reset Password */}
-            {resetTarget && (
-                <ActionDialog
-                    title="Reset Password Siswa?"
-                    message={`Password akun ${resetTarget.nama} akan dikembalikan ke NIS (${resetTarget.username}) dan sesi login aktifnya akan diakhiri.`}
-                    tone="warning"
-                    centered
-                    pending={resetting}
-                    confirmLabel={resetting ? 'Mereset...' : 'Reset Password'}
-                    cancelLabel="Batal"
-                    onClose={() => { if (!resetting) setResetTarget(null); }}
-                    onConfirm={async () => {
-                        if (resetting) return;
-                        setResetting(true);
-                        try {
-                            const res = await api.post(`/admin/siswa/${resetTarget.id}/reset-password`);
-                            setResetTarget(null);
-                            setSuccessMessage(res.data.message || 'Password siswa berhasil direset.');
-                        } catch (err: any) {
-                            setResetTarget(null);
-                            setErrorMessage(err.response?.data?.message || 'Gagal mereset password siswa.');
-                        } finally {
-                            setResetting(false);
-                        }
-                    }}
-                />
-            )}
+            {resetTarget && <ResetAccountPasswordDialog role="siswa" account={resetTarget}
+                onClose={() => setResetTarget(null)} onSuccess={setSuccessMessage} />}
 
             {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (
@@ -350,6 +327,9 @@ export default function DataSiswa() {
                                     onChange={(e) => setUsername(e.target.value.replace(/\D/g, ''))}
                                     className="ui-input w-full border focus:border-blue-600 font-mono"
                                 />
+                                {isEdit && username && username !== siswaList.find(item => item.id === selectedId)?.username && (
+                                    <p className="mt-1.5 text-sm text-slate-600">Menyimpan NIS baru akan mereset password ke NIS tersebut dan mengakhiri sesi aktif.</p>
+                                )}
                             </div>
                             <div>
                                 <label className="ui-label block mb-1">Nama Lengkap Siswa</label>

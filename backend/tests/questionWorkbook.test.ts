@@ -9,7 +9,7 @@ const examples: Record<string, (string | number)[]> = {
     'Pilihan Majemuk': [1, 'Pilih bilangan genap.', '2', '3', '4', '5', '', 'A,C'],
     'Benar atau Salah': [1, 'Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 ganjil.', 'Salah'],
     'Isian Singkat': [1, 'Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'],
-    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6, 'Beri poin untuk penjelasan dan contoh.']
+    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6]
 };
 
 function fillExample(book: XLSX.WorkBook, name: string) {
@@ -36,15 +36,17 @@ test('horizontal template has five named tables and imports all five question ty
     assert.throws(() => readQuestionWorkbook(buffer), /minimal satu soal/);
     const [pg, pm, bs, isian, essay] = book.worksheets;
     assert.equal(pg.getCell('I511').dataValidation.formulae[0], '"A,B,C,D,E"');
-    assert.equal(pm.getCell('I12').dataValidation.formulae[0], '$J$1:$J$26');
+    assert.equal(pm.getCell('I12').dataValidation.formulae[0], '$J$1:$J$31');
     assert.equal(pm.getColumn('J').hidden, true);
-    assert.equal(pm.getCell('J1').value, 'A,B');
+    assert.equal(pm.getCell('J1').value, 'A');
+    assert.equal(pm.getCell('J6').value, 'A,B');
     for (const address of ['E12', 'G12', 'I12', 'K12', 'M12']) {
         assert.equal(bs.getCell(address).dataValidation.formulae[0], '"Benar,Salah"');
     }
     assert.equal(isian.getCell('G12').dataValidation.formulae[0], '"Ya,Tidak"');
     assert.equal(essay.getCell('D12').dataValidation.type, 'whole');
     assert.deepEqual(essay.getCell('D12').dataValidation.formulae, [1, 100]);
+    assert.equal(essay.getCell('E11').value, null);
 
     const edited = await editedTemplate(file => file.SheetNames.forEach(name => fillExample(file, name)));
     const rows = readQuestionWorkbook(edited);
@@ -68,12 +70,28 @@ test('empty sheets are skipped, later rows are imported, and keys survive unused
     assert.deepEqual(rows[0].question.items, [{ teks: '1', benar: false }, { teks: '2', benar: true }]);
 });
 
+test('a single multiple-choice key imports from current and older templates', async () => {
+    for (const legacy of [false, true]) {
+        const buffer = await editedTemplate(book => {
+            const sheet = book.Sheets['Pilihan Majemuk'];
+            if (legacy) {
+                for (let row = 1; row <= 26; row++) sheet['J' + row] = sheet['J' + (row + 5)];
+                for (let row = 27; row <= 31; row++) delete sheet['J' + row];
+            }
+            fillExample(book, 'Pilihan Majemuk');
+            sheet.I12.v = 'C';
+        });
+        const [row] = readQuestionWorkbook(buffer);
+        assert.deepEqual(row.question.items.map(item => item.benar), [false, false, true, false]);
+    }
+});
+
 test('invalid answers report the sheet and row', async () => {
     const cases: [string, string, string | number, RegExp][] = [
         ['Pilihan Ganda', 'I12', 'A,C', /tepat satu/],
         ['Pilihan Ganda', 'I12', 'E', /opsi yang terisi/],
         ['Pilihan Majemuk', 'I12', 'A,A', /tanpa pengulangan/],
-        ['Pilihan Majemuk', 'I12', 'A', /minimal dua/],
+        ['Pilihan Majemuk', 'I12', '', /minimal satu/],
         ['Benar atau Salah', 'E12', '', /Benar atau Salah/],
         ['Isian Singkat', 'G12', 'mungkin', /Ya atau Tidak/],
         ['Esai', 'D12', 101, /1–100/],
@@ -100,10 +118,24 @@ test('legacy vertical workbooks still import', () => {
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
         ['bagian', 'isi', 'kunci'], ['tipe', 'PG'], ['soal', 'Satu ditambah satu?'],
-        ['opsi', '2', 'benar'], ['opsi', '3', 'salah']
+        ['opsi', '2', 'benar'], ['opsi', '3', 'salah'],
+        ['tipe', 'ESSAY'], ['soal', 'Jelaskan jawabanmu.'], ['poin', 6], ['pedoman', 'Panduan lama']
     ]), 'Soal');
     const rows = readQuestionWorkbook(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }));
-    assert.equal(rows.length, 1);
+    assert.equal(rows.length, 2);
     assert.equal(rows[0].question.tipeSoal, 'PG');
     assert.equal(rows[0].question.items[0].benar, true);
+    assert.equal(rows[1].question.poin, 6);
+    assert.equal('pedoman' in rows[1].question, false);
+});
+
+test('older horizontal essay templates import without their trailing guidance column', async () => {
+    const buffer = await editedTemplate(book => {
+        fillExample(book, 'Esai');
+        XLSX.utils.sheet_add_aoa(book.Sheets.Esai, [['Pedoman Penilaian'], ['Panduan lama'], ['Sisa panduan tanpa soal']], { origin: 'E11' });
+    });
+    const rows = readQuestionWorkbook(buffer);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].question.poin, 6);
+    assert.equal('pedoman' in rows[0].question, false);
 });

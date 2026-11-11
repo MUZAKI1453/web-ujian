@@ -1,11 +1,12 @@
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { isAxiosError } from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Clock, GraduationCap, History, LockKeyhole, Search } from 'lucide-react';
-import { PortalHeader } from '../../components/PortalHeader';
+import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Clock, GraduationCap, History, KeyRound, LockKeyhole, Search } from 'lucide-react';
+import { ExamListHeader, PortalHeader } from '../../components/PortalHeader';
 import PortalDialog from '../../components/PortalDialog';
 import api, { mediaUrl } from '../../services/api';
-import QuestionContent from '../guru/QuestionContent';
+import ExamQuestionReview, { ExamReviewHeader, optionLabel } from '../../components/ExamQuestionReview';
+import { questionTypeLabel } from '../guru/questionTypes';
 import KerjakanUjian from './KerjakanUjian';
 import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import { loadAttempt, storeAttempt } from './attemptStore';
@@ -14,14 +15,12 @@ import { errorMessage } from '../guru/QuestionEditor';
 import { isStudentHistory, prioritizeStudentExams } from './studentSections';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import Select from '../../components/ui/Select';
-import { gradeDestinationLabels } from '../guru/examProfiles';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 
 type Exam = {
     id: number; judul: string; mapel: string; mapelId: number; durasi: number; mulai: string; selesai: string;
     susulan: boolean; status: 'Berlangsung' | 'Terjadwal' | 'Selesai' | 'Draf'; masukBuka: boolean;
     perluToken: boolean;
-    tujuanRekap: string;
     attempt: number | null; submitted: boolean; hasil: boolean; nilai: string | null; pembahasan: boolean; offline: boolean; menungguKoreksi: boolean;
 };
 type Packet = {
@@ -30,14 +29,46 @@ type Packet = {
 };
 type AttemptLocation = Pick<Exam, 'id' | 'mapel' | 'judul'> & { attemptId: number };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
-type Discussion = { soal: { id: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
+type Discussion = { soal: { id: number; nomor: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
     jawabanSiswa: Value | null; penilaian: { poin: string; maksimum: string; status: string } | null; catatan: string | null; isi: {
-    gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[]; pedoman?: string;
+    gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[];
 } | null }[] };
 
-const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
 const resultDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' });
 const resultScore = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
+const questionScore = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 });
+
+function discussionAnswer(value: Value | null, type: string) {
+    if (value === null) return 'Belum dijawab';
+    if (typeof value === 'string') return value.trim() || 'Belum dijawab';
+    if (typeof value === 'number') return optionLabel(value);
+    if (!value.length) return 'Belum dijawab';
+    if (type === 'BS') {
+        return value.map((answer, index) => `${index + 1}. ${answer === null ? 'Kosong' : answer ? 'Benar' : 'Salah'}`).join(' · ');
+    }
+    return value.map(index => optionLabel(Number(index))).join(', ');
+}
+
+function StudentAnswerReview({ question }: { question: Discussion['soal'][number] }) {
+    return <div className="space-y-2 text-sm">
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="font-semibold text-slate-900">Jawabanmu</p>
+                {question.penilaian && <p className={'text-xs font-semibold ' + (question.penilaian.status === 'Salah' ? 'text-red-800' : 'text-slate-700')}>
+                    {question.penilaian.status}
+                </p>}
+            </div>
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{discussionAnswer(question.jawabanSiswa, question.tipeSoal)}</p>
+            {!question.penilaian && <p className="text-xs text-slate-600">Nilai belum dirilis atau menunggu koreksi.</p>}
+        </div>
+        {question.catatan && <div className="space-y-1 rounded-xl bg-amber-50 p-3">
+            <p className="font-semibold text-amber-950">Catatan guru</p>
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{question.catatan}</p>
+        </div>}
+    </div>;
+}
+
 function progress(exam: Exam) {
     if (exam.offline) return 'Menunggu tinjauan';
     if (exam.hasil) return 'Hasil tersedia';
@@ -62,7 +93,6 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     const [prepared, setPrepared] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [trendSubject, setTrendSubject] = useState('');
-    const [destination, setDestination] = useState('');
     const latestNavigation = useRef(navigationKey);
     latestNavigation.current = navigationKey;
     const resumeKey = 'cbt-active-attempt:' + username;
@@ -207,30 +237,57 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
     const displayed = view === 'dashboard' ? pending.slice(0, 2) : filtered;
 
     function renderExam(exam: Exam) {
-        const status = exam.status;
-        return <article key={exam.id} className="ui-card flex h-full min-w-0 flex-col p-5" data-status={status}>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                        <ExamTypeBadge label={exam.judul} />
-                        <span className={'cbt-badge ' + (status === 'Berlangsung' ? 'bg-emerald-100 text-emerald-800' : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600')}>{status === 'Terjadwal' ? 'Terjadwal' : progress(exam)}</span>
+        const { status } = exam;
+        const canEnter = !exam.submitted && !exam.offline && (exam.attempt !== null || (status === 'Berlangsung' && exam.masukBuka));
+        const available = status === 'Berlangsung' && canEnter;
+        const label = available && !exam.attempt ? 'Bisa dikerjakan'
+            : status === 'Terjadwal' || status === 'Draf' ? status : progress(exam);
+        const badgeStyle = available ? 'bg-emerald-100 text-emerald-800'
+            : status === 'Terjadwal' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700';
+
+        return <article key={exam.id} className="cbt-exam-card gap-3 sm:gap-4" data-status={status}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">{exam.mapel}</h3>
+                <span className={'ui-badge ' + badgeStyle}>{label}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+                <ExamTypeBadge label={exam.judul} />
+                {exam.susulan && <span className="ui-badge bg-slate-100 text-slate-700">Susulan</span>}
+            </div>
+            <dl className="grid gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm min-[440px]:grid-cols-2">
+                <div className="flex min-w-0 items-start gap-2">
+                    <CalendarDays size={16} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                    <div>
+                        <dt className="text-xs text-slate-500">Mulai</dt>
+                        <dd className="font-medium text-slate-800"><time dateTime={exam.mulai}>{schedule.format(new Date(exam.mulai))} WIB</time></dd>
                     </div>
-                    <h3 className="mb-3 mt-3 break-words text-lg font-semibold">{exam.mapel}</h3>
-                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-600"><CalendarDays size={16} />{schedule.format(new Date(exam.mulai))}</p>
-                    <p className="mb-2 flex items-center gap-2 text-sm text-slate-500"><Clock size={16} />{exam.durasi} menit{exam.susulan ? ' · Susulan' : ''}</p>
-                    <p className="mb-6 text-xs text-slate-500">Batas akhir: {schedule.format(new Date(exam.selesai))}</p>
-                    <div className="mt-auto flex flex-wrap gap-2">
-                        {(!exam.submitted && !exam.offline && (exam.attempt || (status === 'Berlangsung' && exam.masukBuka))) &&
-                            <button type="button" disabled={busy} className={primaryClass + ' flex w-full items-center justify-center gap-2 py-3'} onClick={() => {
-                                setOutput(null);
-                                setError('');
-                                if (adminMode) void enter(exam);
-                                else { setSelected(exam); setPrepared(null); }
-                            }}>
-                                {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'} <ArrowRight size={17} />
-                            </button>}
-                        {status === 'Berlangsung' && !exam.masukBuka && !exam.attempt && <span className="text-sm text-slate-600">Akses masuk ditutup</span>}
-                        {!exam.attempt && !exam.submitted && (status === 'Terjadwal' || status === 'Selesai' || status === 'Draf') && <button type="button" disabled className="ui-button ui-button-secondary flex items-center justify-center gap-2"><LockKeyhole size={17} />{status === 'Selesai' ? 'Waktu Habis' : 'Belum Dibuka'}</button>}
+                </div>
+                <div className="flex min-w-0 items-start gap-2">
+                    <Clock size={16} className="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+                    <div>
+                        <dt className="text-xs text-slate-500">Batas akhir</dt>
+                        <dd className="font-medium text-slate-800"><time dateTime={exam.selesai}>{schedule.format(new Date(exam.selesai))} WIB</time></dd>
                     </div>
-                </article>;
+                </div>
+            </dl>
+            <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-slate-600">
+                    <span className="inline-flex items-center gap-1.5"><Clock size={14} aria-hidden="true" />Durasi {exam.durasi} menit</span>
+                    {exam.perluToken && !exam.attempt && <span className="inline-flex items-center gap-1.5"><KeyRound size={14} aria-hidden="true" />Perlu token</span>}
+                </div>
+                {canEnter ? <button type="button" disabled={busy} className={primaryClass + ' w-full justify-between'} onClick={() => {
+                    setOutput(null);
+                    setError('');
+                    if (adminMode) void enter(exam);
+                    else { setSelected(exam); setPrepared(null); }
+                }}>
+                    {exam.attempt ? status === 'Selesai' ? 'Sinkronkan Jawaban' : 'Lanjutkan Ujian' : 'Kerjakan Ujian'}<ArrowRight size={17} aria-hidden="true" />
+                </button> : <p className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3 text-sm font-medium text-slate-600">
+                    <LockKeyhole size={16} aria-hidden="true" />
+                    {status === 'Selesai' ? 'Waktu habis' : status === 'Berlangsung' ? 'Akses masuk ditutup' : 'Belum dibuka'}
+                </p>}
+            </div>
+        </article>;
     }
 
     if (working) return <KerjakanUjian initial={working.attempt} storageKey={key(working.exam.id)} examId={working.exam.id}
@@ -240,41 +297,33 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             void refresh().catch(err => setError(errorMessage(err)));
         }} />;
 
-    if (output) return <section className="ui-card space-y-4 bg-white p-5">
-        <button type="button" className="ui-button ui-button-secondary" onClick={() => setOutput(null)}><ArrowLeft size={16} />Kembali ke Hasil Ujian</button>
-        <h1 className="ui-page-title break-words">{output.exam.mapel}</h1>
-        <ExamTypeBadge label={output.exam.judul} />
+    if (output) return <section className="cbt-portal cbt-student">
+        <ExamReviewHeader label={output.discussion ? 'Pembahasan Soal' : output.receipt ? 'Bukti Pengumpulan' : 'Rincian Nilai'}
+            title={output.exam.mapel} metadata={<ExamTypeBadge label={output.exam.judul} />}
+            actions={<button type="button" className="ui-button ui-button-soft" onClick={() => setOutput(null)}>
+                <ArrowLeft size={16} aria-hidden="true" />Kembali ke Hasil Ujian
+            </button>} />
         {output.receipt && <SubmissionReceipt receipt={output.receipt} />}
-        {output.result && <>
+        {output.result && <div className="ui-card min-w-0 space-y-4 p-4 sm:p-5">
             <p className="rounded-xl bg-blue-50 p-4 text-blue-900">Nilai akhir <strong className="ml-2 text-3xl">{output.result.nilai}</strong></p>
-            <table className="ui-table w-full text-left text-sm">
+            <div className="overflow-x-auto"><table className="ui-table w-full text-left text-sm">
                 <thead className="bg-slate-50"><tr>{['Tipe', 'Benar / total', 'Poin / maksimum'].map(label => <th scope="col" key={label} className="p-2">{label}</th>)}</tr></thead>
                 <tbody>{Object.entries(output.result.rincian).map(([type, stat]) => <tr key={type} className="border-t">
-                    <td className="p-2">{type}</td><td className="p-2">{stat.benar} / {stat.total}</td><td className="p-2">{stat.poin} / {stat.maksimum}</td>
+                    <td className="p-2">{questionTypeLabel(type)}</td><td className="p-2">{stat.benar} / {stat.total}</td><td className="p-2">{stat.poin} / {stat.maksimum}</td>
                 </tr>)}</tbody>
-            </table>
-        </>}
-        {output.discussion?.soal.map((q, index) => <article className="space-y-2 rounded-lg border p-4" key={q.id}>
-            <h2 className="font-semibold">Soal {index + 1} · {q.tipeSoal}</h2>
-            <QuestionContent text={q.pertanyaan} image={q.isi?.gambar} />
-            <div className="rounded-lg bg-blue-50 p-3 text-sm">
-                <p className="font-semibold">Jawabanmu</p>
-                <p className="whitespace-pre-wrap break-words">{q.jawabanSiswa === null ? 'Belum dijawab' : typeof q.jawabanSiswa === 'string' ? q.jawabanSiswa.trim() || 'Belum dijawab' : Array.isArray(q.jawabanSiswa) ? q.jawabanSiswa.length ? q.jawabanSiswa.map((value, i) => q.tipeSoal === 'BS' ? `${i + 1}. ${value === null ? 'Kosong' : value ? 'Benar' : 'Salah'}` : String.fromCharCode(65 + Number(value))).join(', ') : 'Belum dijawab' : String.fromCharCode(65 + q.jawabanSiswa)}</p>
-            </div>
-            <p className="text-sm font-semibold">{q.penilaian ? `${q.penilaian.status} · ${Number(q.penilaian.poin)} / ${Number(q.penilaian.maksimum)} poin` : 'Nilai belum dirilis atau menunggu koreksi.'}</p>
-            {q.catatan && <p className="whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm">Catatan guru · {q.catatan}</p>}
-            {q.semuaBenar && <p className="text-sm text-green-800">Semua jawaban diterima.</p>}
-            {q.isi?.items?.map((item, i) => <div className="rounded bg-slate-50 p-2 text-sm" key={i}>
-                <span className="font-semibold">{q.tipeSoal === 'BS' ? `${i + 1}. ` : `${String.fromCharCode(65 + i)}. `}</span><QuestionContent text={item.teks} image={item.gambar} /> {q.tipeSoal === 'BS' ? item.benar ? '· Benar' : '· Salah' : item.benar ? '· Kunci' : ''}
-            </div>)}
-            {q.isi?.jawaban && <p className="text-sm">Jawaban diterima · {q.isi.jawaban.join(' / ')}</p>}
-            {q.isi?.pedoman && <p className="text-sm">Pedoman · {q.isi.pedoman}</p>}
-        </article>)}
+            </table></div>
+        </div>}
+        {output.discussion && (output.discussion.soal.length
+            ? <ExamQuestionReview questions={output.discussion.soal}
+                points={question => question.penilaian
+                    ? `${questionScore.format(Number(question.penilaian.poin))} / ${questionScore.format(Number(question.penilaian.maksimum))} poin`
+                    : undefined}
+                details={question => <StudentAnswerReview question={question} />} />
+            : <p className="ui-card p-4 text-sm text-slate-600">Belum ada soal untuk dibahas.</p>)}
     </section>;
 
     if (view === 'hasil') {
-        const visibleResults = results.filter(exam => !destination || exam.tujuanRekap === destination);
-        const released = visibleResults.filter(exam => exam.hasil && exam.nilai !== null && (destination || exam.tujuanRekap === 'buku-nilai'));
+        const released = results.filter(exam => exam.hasil && exam.nilai !== null);
         const subjects = new Map(released.map(exam => [String(exam.mapelId), exam.mapel]));
         const subject = subjects.has(trendSubject) ? trendSubject : subjects.keys().next().value;
         const trend = released.filter(exam => String(exam.mapelId) === subject).slice(0, 10).reverse();
@@ -286,19 +335,11 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
             {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
             {loading && <p role="status" className="ui-card p-5 text-sm text-slate-500">Memuat hasil ujian…</p>}
             {!loading && !error && !results.length && <p className="ui-card p-5 text-sm text-slate-600">Belum ada ujian yang dikumpulkan.</p>}
-            {results.length > 0 && <div className="ui-card p-4">
-                <label htmlFor="student-result-destination" className="ui-label mr-3">Tujuan rekap</label>
-                <Select id="student-result-destination" value={destination} onValueChange={setDestination}>
-                    <option value="">Semua hasil</option>
-                    {Object.entries(gradeDestinationLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </Select>
-            </div>}
-            {results.length > 0 && !visibleResults.length && <p className="ui-card p-5 text-sm text-slate-600">Belum ada hasil untuk rekap ini.</p>}
             {!adminMode && released.length > 0 && <section className="ui-card space-y-3 p-5" aria-labelledby="student-score-trend">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 id="student-score-trend" className="font-semibold">Tren nilai per mata pelajaran</h2>
-                        <p className="mt-1 text-sm text-slate-600">{gradeDestinationLabels[destination || 'buku-nilai']} · Maksimal 10 nilai yang sudah dirilis, dari ujian terlama ke terbaru.</p>
+                        <p className="mt-1 text-sm text-slate-600">Maksimal 10 nilai yang sudah dirilis, dari ujian terlama ke terbaru.</p>
                     </div>
                     <Select aria-label="Mata pelajaran untuk tren nilai" value={subject} onValueChange={setTrendSubject}>
                         {[...subjects].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -316,15 +357,14 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                     </li>)}
                 </ol>
             </section>}
-            {visibleResults.length > 0 && <div className="ui-card overflow-x-auto">
+            {results.length > 0 && <div className="ui-card overflow-x-auto">
                 <table className="ui-table">
                     <caption className="sr-only">Ringkasan hasil ujian</caption>
                     <thead><tr><th scope="col" className="px-2 sm:px-4">Ujian</th><th scope="col" className="px-2 sm:px-4">Nilai</th><th scope="col" className="px-2 sm:px-4">Pembahasan</th></tr></thead>
-                    <tbody>{visibleResults.map(exam => <tr key={exam.id}>
+                    <tbody>{results.map(exam => <tr key={exam.id}>
                         <th scope="row" className="border-b border-slate-100 px-2 py-3 text-left font-normal sm:px-4">
                             <span className="block break-words font-semibold text-slate-900">{exam.mapel}</span>
                             <span className="mt-1 block break-words text-xs text-slate-600">{exam.judul}{exam.susulan ? ' · Susulan' : ''}</span>
-                            <span className="mt-1 block text-xs text-slate-500">{gradeDestinationLabels[exam.tujuanRekap]}</span>
                             <time dateTime={exam.mulai} className="mt-1 block text-xs text-slate-500">{resultDate.format(new Date(exam.mulai))}</time>
                             <button type="button" disabled={busy} className="min-h-11 text-left text-xs font-semibold text-blue-700 hover:underline"
                                 onClick={() => void show(exam, 'bukti')}>Bukti Pengumpulan</button>
@@ -359,9 +399,11 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                     <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">{stat.label}</p>
                 </div>)}
             </div>
-        </> : <header className="ui-card flex flex-wrap items-center justify-between gap-3 p-5 sm:p-8">
-            <h1 className="ui-page-title flex items-center gap-2.5"><ClipboardList size={28} className="text-blue-600" aria-hidden="true" />Ujian Saya</h1>
-        </header>}
+        </> : <ExamListHeader description="Cek jadwal, durasi, dan batas akhir ujianmu. Buka ujian dari daftar saat akses tersedia.">
+            <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-hasil')}>
+                <History size={17} aria-hidden="true" />Hasil Ujian
+            </button>
+        </ExamListHeader>}
         {error && <p role="alert" className="ui-notice ui-notice-error">{error}</p>}
         {selected && <PortalDialog titleId="exam-instructions" onClose={() => { if (!busy) { setSelected(null); setPrepared(null); } }}><form onSubmit={event => { event.preventDefault(); void enter(selected, new FormData(event.currentTarget).get('token')); }} className="space-y-5">
             <span className="inline-flex rounded-xl bg-blue-50 p-3 text-blue-600"><ClipboardList size={28} /></span>
@@ -385,12 +427,15 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
         </form></PortalDialog>}
         {loading && <p role="status">Memuat daftar ujian…</p>}
         <section className="space-y-3" aria-label="Daftar ujian">
-            <header className="flex flex-wrap items-center justify-between gap-3">
+            <header className={'flex flex-wrap items-center justify-between gap-3 ' + (view === 'ujian' ? 'ui-card p-4' : '')}>
                 {view === 'dashboard' ? <>
                     <h2 className="text-lg font-bold">Ujian untukmu</h2>
                     <button type="button" className="ui-button ui-button-secondary" onClick={() => onNavigate('siswa-ujian')}>Lihat semua<ArrowRight size={16} aria-hidden="true" /></button>
                 </> : <>
-                    <span className="text-sm text-slate-500">{loading ? '—' : filtered.length + ' ujian'}</span>
+                    <div>
+                        <h2 className="font-semibold text-slate-900">Daftar ujian</h2>
+                        {!loading && <p className="mt-0.5 text-xs text-slate-500">{filtered.length} ujian{keyword ? ' ditemukan' : ''}</p>}
+                    </div>
                     <div className="relative w-full sm:w-80">
                         <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input type="search" aria-label="Cari ujian atau mata pelajaran" className="ui-input w-full pl-10" placeholder="Cari ujian atau mapel…"
@@ -399,7 +444,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                 </>}
             </header>
             <div className="grid gap-4 md:grid-cols-2">{displayed.map(exam => renderExam(exam))}</div>
-            {!loading && !displayed.length && <div className="ui-card space-y-3 px-5 py-10 text-center">
+            {!loading && !error && !displayed.length && <div className="ui-card space-y-3 px-5 py-10 text-center">
                 <ClipboardList size={36} className="mx-auto text-slate-300" aria-hidden="true" />
                 <p className="text-sm text-slate-500">{search.trim() ? 'Ujian tidak ditemukan.' : 'Belum ada ujian yang perlu dikerjakan.'}</p>
                 {search.trim() ? <button type="button" className="ui-button ui-button-secondary" onClick={() => setSearch('')}>Hapus pencarian</button>

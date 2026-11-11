@@ -2,7 +2,7 @@ import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import ClassPicker from '../../components/ClassPicker';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
-import ActionDialog from '../../components/ActionDialog';
+import ResetAccountPasswordDialog from '../../components/ResetAccountPasswordDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useState } from 'react';
@@ -48,7 +48,6 @@ export default function DataGuru() {
     // State Modal Form (Tambah / Edit)
     const [deleteIds, setDeleteIds] = useState<number[]>([]);
     const [resetTarget, setResetTarget] = useState<Guru | null>(null);
-    const [resetting, setResetting] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -159,11 +158,11 @@ export default function DataGuru() {
         };
 
         if (isEdit && selectedId !== null) {
-            api.put(`/admin/guru/${selectedId}`, payload)
-                .then(() => {
+            api.put<{ message: string }>(`/admin/guru/${selectedId}`, payload)
+                .then(({ data }) => {
                     setShowModal(false);
                     fetchData();
-                    setSuccessMessage('Data guru berhasil diperbarui.');
+                    setSuccessMessage(data.message);
                 })
                 .catch((err) => {
                     const msg = err.response?.data?.message || 'Gagal memperbarui guru';
@@ -347,32 +346,8 @@ export default function DataGuru() {
             </div>
 
             {/* Dialog Konfirmasi Reset Password */}
-            {resetTarget && (
-                <ActionDialog
-                    title="Reset Password Guru?"
-                    message={`Password akun ${resetTarget.nama} akan dikembalikan ke NIP (${resetTarget.username}) dan sesi login aktifnya akan diakhiri.`}
-                    tone="warning"
-                    centered
-                    pending={resetting}
-                    confirmLabel={resetting ? 'Mereset...' : 'Reset Password'}
-                    cancelLabel="Batal"
-                    onClose={() => { if (!resetting) setResetTarget(null); }}
-                    onConfirm={async () => {
-                        if (resetting) return;
-                        setResetting(true);
-                        try {
-                            const res = await api.post(`/admin/guru/${resetTarget.id}/reset-password`);
-                            setResetTarget(null);
-                            setSuccessMessage(res.data.message || 'Password guru berhasil direset.');
-                        } catch (err: any) {
-                            setResetTarget(null);
-                            setErrorMessage(err.response?.data?.message || 'Gagal mereset password guru.');
-                        } finally {
-                            setResetting(false);
-                        }
-                    }}
-                />
-            )}
+            {resetTarget && <ResetAccountPasswordDialog role="guru" account={resetTarget}
+                onClose={() => setResetTarget(null)} onSuccess={setSuccessMessage} />}
 
             {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (
@@ -426,6 +401,9 @@ export default function DataGuru() {
                                     onChange={(e) => setUsername(e.target.value.replace(/\D/g, ''))}
                                     className="ui-input w-full border focus:border-blue-600 font-mono"
                                 />
+                                {isEdit && username && username !== guruList.find(item => item.id === selectedId)?.username && (
+                                    <p className="mt-1.5 text-sm text-slate-600">Menyimpan NIP baru akan mereset password ke NIP tersebut dan mengakhiri sesi aktif.</p>
+                                )}
                             </div>
                             <div>
                                 <label className="ui-label block mb-1">Nama Lengkap & Gelar</label>

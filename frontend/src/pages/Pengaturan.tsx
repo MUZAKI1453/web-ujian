@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { KeyRound, PanelsTopLeft, Settings } from 'lucide-react';
 import PengaturanNavbar, { type NavbarSettings } from './admin/PengaturanNavbar';
 import GantiPassword from './GantiPassword';
+import ResetPasswordSettings from './admin/ResetPasswordSettings';
 
 export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSaved, initialSection }: {
     isAdmin: boolean; navbar: NavbarSettings; navbarLoaded: boolean;
@@ -12,7 +13,7 @@ export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSave
     return <section className="mx-auto w-full max-w-3xl space-y-3 sm:space-y-4">
         <header className="space-y-1">
             <h1 className="ui-page-title flex items-center gap-3"><Settings className="shrink-0 text-blue-600" size={28} aria-hidden="true" />Pengaturan</h1>
-            <p className="text-sm leading-relaxed text-slate-600">{isAdmin ? 'Kelola identitas aplikasi dan keamanan akun Anda.' : 'Kelola keamanan akun Anda.'}</p>
+            <p className="text-sm leading-relaxed text-slate-600">{isAdmin ? 'Kelola identitas aplikasi dan keamanan akun.' : 'Kelola keamanan akun Anda.'}</p>
         </header>
         {isAdmin && <nav aria-label="Kategori pengaturan" className="flex gap-3 border-b border-slate-200 sm:gap-5">
                 <button type="button" aria-current={section === 'umum' ? 'true' : undefined} aria-controls="settings-panel"
@@ -30,7 +31,10 @@ export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSave
             {isAdmin && section === 'umum' ? navbarLoaded
                 ? <PengaturanNavbar settings={navbar} onSaved={onNavbarSaved} />
                 : <p role="status" className="ui-notice ui-notice-warning">Identitas aplikasi belum dapat dimuat. Muat ulang halaman untuk mencoba lagi. Anda tetap dapat membuka pengaturan Keamanan.</p>
-                : <GantiPassword />}
+                : <div className="space-y-3 sm:space-y-4">
+                    <GantiPassword />
+                    {isAdmin && <ResetPasswordSettings />}
+                </div>}
         </div>
     </section>;
 }

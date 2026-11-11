@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import ExcelJS from 'exceljs';
@@ -7,6 +5,7 @@ import * as XLSX from 'xlsx';
 import prisma from '../config/db';
 import { readNavbarSettings } from './navbarController';
 import { summarizeImportIssues, type ImportIssue } from './importIssueSummary';
+import { tableBorders, tableHeaderRow, writeSchoolLetterhead, writeSchoolTableHeader } from '../excel/schoolWorkbook';
 
 const formats = {
     siswa: ['No', 'NIS (Nomor Induk Siswa)', 'Nama Lengkap Siswa', 'Nama Kelas'],
@@ -19,58 +18,18 @@ export function downloadTemplate(role: Role) {
     return async (_req: Request, res: Response) => {
         try {
             const settings = await readNavbarSettings();
-            const isSmaip = settings?.logo === 'smaip';
             const headers = formats[role];
-            const lastColumn = role === 'siswa' ? 'E' : 'D';
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Format Import ' + (role === 'siswa' ? 'Siswa' : 'Guru'), {
                 views: [{ showGridLines: true }]
             });
-            const primaryColor = '1F4E78'; // Dark Navy Formal
-            const borderColor = 'BFBFBF';
             worksheet.getColumn('A').width = 4;
             worksheet.getColumn('B').width = 12;  // Kolom B diperlebar sedikit agar logo besar muat dengan sempurna di dalamnya
             worksheet.getColumn('C').width = 28;  // NIS (Nomor Induk Siswa)
             worksheet.getColumn('D').width = 38;  // Nama Lengkap Siswa
             worksheet.getColumn('E').width = 25;  // Nama Kelas
-            worksheet.mergeCells('B1:' + lastColumn + '1');
-            const titleCell1 = worksheet.getCell('B1');
-            titleCell1.value = 'YAYASAN PENDIDIKAN ISLAM BAITUSSALAM';
-            titleCell1.font = { name: 'Arial', size: 10, bold: true, color: { argb: '555555' } };
-            titleCell1.alignment = { horizontal: 'center', vertical: 'middle' };
-            worksheet.mergeCells('B2:' + lastColumn + '2');
-            const titleCell2 = worksheet.getCell('B2');
-            titleCell2.value = isSmaip ? 'SMA ISLAM PLUS BAITUSSALAM' : 'SMP ISLAM PLUS BAITUSSALAM';
-            titleCell2.font = { name: 'Arial', size: 14, bold: true, color: { argb: primaryColor } };
-            titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
-            worksheet.mergeCells('B3:' + lastColumn + '3');
-            const titleCell3 = worksheet.getCell('B3');
-            titleCell3.value = 'FORMAT TEMPLATE IMPORT DATA ' + role.toUpperCase() + ' TAHUN AJARAN 2026/2027';
-            titleCell3.font = { name: 'Arial', size: 9, bold: true, italic: true, color: { argb: '666666' } };
-            titleCell3.alignment = { horizontal: 'center', vertical: 'middle' };
-            worksheet.getRow(1).height = 22;
-            worksheet.getRow(2).height = 28;
-            worksheet.getRow(3).height = 20;
-            worksheet.getRow(4).height = 16; // Baris pembatas kop
-            const doubleBorder = {
-                bottom: { style: 'double' as const, color: { argb: primaryColor } }
-            };
-            ['B', 'C', 'D', 'E'].slice(0, headers.length).forEach(col => {
-                worksheet.getCell(`${col}4`).border = doubleBorder;
-            });
-            const logoPath = path.resolve(__dirname, '../../src/assets', isSmaip ? 'Logo_smaip.png' : 'logo_smpip.png');
-            if (fs.existsSync(logoPath)) {
-                const logoImageId = workbook.addImage({
-                    filename: logoPath,
-                    extension: 'png',
-                });
-                worksheet.addImage(logoImageId, {
-                    tl: { col: 1.15, row: 0.08 } as any,
-                    ext: { width: 92, height: 92 }
-                } as any);
-            } else {
-                console.warn(`[EXCEL WARNING] File logo tidak ditemukan di: ${logoPath}`);
-            }
+            writeSchoolLetterhead(worksheet, settings?.logo ?? 'smpip', headers.length + 1,
+                'FORMAT TEMPLATE IMPORT DATA ' + role.toUpperCase() + ' TAHUN AJARAN 2026/2027');
             worksheet.getCell('B6').value = 'PETUNJUK PENGISIAN FORMAT IMPORT:';
             worksheet.getCell('B6').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'C00000' } };
             const guidelines = role === 'siswa' ? [
@@ -87,27 +46,8 @@ export function downloadTemplate(role: Role) {
                 guideCell.value = guide;
                 guideCell.font = { name: 'Arial', size: 9, italic: true, color: { argb: '444444' } };
             });
-            const headerRowIndex = 11;
             worksheet.getColumn('C').numFmt = '@';
-            const headerRow = worksheet.getRow(headerRowIndex);
-            headerRow.height = 26;
-            headers.forEach((header, index) => {
-                const cell = headerRow.getCell(index + 2); // Mulai dari Kolom B (index 2)
-                cell.value = header;
-                cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: primaryColor }
-                };
-                cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-                cell.border = {
-                    top: { style: 'thin', color: { argb: borderColor } },
-                    left: { style: 'thin', color: { argb: borderColor } },
-                    bottom: { style: 'medium', color: { argb: primaryColor } },
-                    right: { style: 'thin', color: { argb: borderColor } }
-                };
-            });
+            writeSchoolTableHeader(worksheet, headers);
             const sampleData = role === 'siswa' ? [
                 [1, '12345', 'Ahmad Fauzi Al-Farizi', '7A'],
                 [2, '12346', 'Siti Aisyah Rahmawati', '7B']
@@ -116,18 +56,13 @@ export function downloadTemplate(role: Role) {
                 [2, '0012346', 'Siti Aisyah']
             ];
             sampleData.forEach((rowData, rowIndex) => {
-                const row = worksheet.getRow(headerRowIndex + 1 + rowIndex);
+                const row = worksheet.getRow(tableHeaderRow + 1 + rowIndex);
                 row.height = 22;
                 rowData.forEach((val, colIndex) => {
                     const cell = row.getCell(colIndex + 2); // Mulai dari Kolom B (index 2)
                     cell.value = val;
                     cell.font = { name: 'Arial', size: 10, color: { argb: '000000' } };
-                    cell.border = {
-                        top: { style: 'thin', color: { argb: borderColor } },
-                        left: { style: 'thin', color: { argb: borderColor } },
-                        bottom: { style: 'thin', color: { argb: borderColor } },
-                        right: { style: 'thin', color: { argb: borderColor } }
-                    };
+                    cell.border = tableBorders;
                     if (colIndex === 0 || colIndex === 3) {
                         cell.alignment = { horizontal: 'center', vertical: 'middle' };
                     } else {

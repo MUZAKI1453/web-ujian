@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Prisma } from '@prisma/client';
-import { grade } from '../src/routes/examGrading';
+import { grade, revise } from '../src/routes/examGrading';
 
 const short = (answers: string[], numeric = false) => ({ id: 1, tipeSoal: 'ISIAN', isi: { jawaban: answers, angka: numeric }, bobot: new Prisma.Decimal(10), dibatalkan: false, semuaBenar: false });
 
@@ -39,4 +39,12 @@ test('per-question results agree with totals for all automatic question types', 
     const incorrect = grade(questions, { 1: 1, 2: [0], 3: [true, true, true] }, {});
     assert.ok(Object.values(incorrect.penilaian).every(result => !result.benar));
     assert.equal(incorrect.values.totalNilai, '0.00');
+});
+
+test('a revised multiple-choice key can contain exactly one answer', () => {
+    const question = { ...short([]), tipeSoal: 'PM', isi: { items: [{ benar: true }, { benar: true }] } };
+    const revised = revise([question], question.id, 'ubah-kunci', [true, false], {});
+    assert.equal(grade(revised, { 1: [0] }, {}).rincian.PM.benar, 1);
+    assert.equal(grade(revised, { 1: [0, 1] }, {}).rincian.PM.benar, 0);
+    assert.throws(() => revise([question], question.id, 'ubah-kunci', [false, false], {}), /minimal satu kunci/);
 });

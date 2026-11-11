@@ -46,7 +46,8 @@ test('student API protects receipts and respects separate result/discussion rele
     const question = { id: 31, tipeSoal: 'ESSAY', pertanyaan: 'Jelaskan', isi: { pedoman: 'Pedoman guru' }, bobot: new Prisma.Decimal(10), dibatalkan: false, semuaBenar: false };
     const answer = { id: 81, siswaId: 9, waktuSubmit: new Date('2026-11-05T07:30:00Z'), totalNilai: new Prisma.Decimal(7), detailJawaban: { 31: 'Jawaban siswa' }, koreksiEssay: { 31: 7, catatan: { 31: 'Tambahkan contoh.' } } };
     const attempt = { id: 91, waktuKirim: answer.waktuSubmit, diterimaOffline: null as Date | null, kirimanOffline: { 31: 'Kiriman tertunda' } };
-    const exam = { id: 17, judul: 'PTS', mapel: { nama: 'IPA' }, hasilRilis: false, bahasanRilis: false, soal: [question], jawaban: [answer], pengerjaan: [attempt] };
+    const exam = { id: 17, judul: 'PTS', mapel: { nama: 'IPA' }, hasilRilis: false, bahasanRilis: false,
+        soal: [{ ...question, id: 30, tipeSoal: 'PG', dibatalkan: true }, question], jawaban: [answer], pengerjaan: [attempt] };
     let lastSessionEnd = 0;
     let role = 'siswa';
     db.user.findUnique = (async () => ({ id: 9, role, sesiLogin: 'student-session' })) as any;
@@ -69,7 +70,8 @@ test('student API protects receipts and respects separate result/discussion rele
                 { jawaban: { some: { siswaId: 9 } } }
             ]);
         }
-        return [{ ...exam, susulan: [], waktuMulai: new Date('2026-11-05T07:00:00Z'), waktuSelesai: new Date('2026-11-05T08:00:00Z') }];
+        assert.deepEqual(args.include.soal.where, { tipeSoal: 'ESSAY', dibatalkan: false });
+        return [{ ...exam, soal: [question], susulan: [], waktuMulai: new Date('2026-11-05T07:00:00Z'), waktuSelesai: new Date('2026-11-05T08:00:00Z') }];
     }) as any;
     const app = express();
     app.use('/api/siswa', exams);
@@ -108,8 +110,10 @@ test('student API protects receipts and respects separate result/discussion rele
         assert.equal((await get('17/pembahasan')).status, 404);
         lastSessionEnd = 0;
         const discussion = await get('17/pembahasan');
+        assert.deepEqual(discussion.data.soal.map((item: { nomor: number }) => item.nomor), [2]);
         assert.equal((await get('')).data.data[0].nilai, null);
         assert.equal(discussion.data.soal[0].jawabanSiswa, 'Jawaban siswa');
+        assert.equal('pedoman' in discussion.data.soal[0].isi, false);
         assert.equal(discussion.data.soal[0].penilaian, null);
         assert.equal(discussion.data.soal[0].catatan, null);
         exam.hasilRilis = true;

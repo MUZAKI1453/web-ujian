@@ -16,6 +16,14 @@ function validDeleteIds(ids: unknown): ids is number[] {
         ids.every(id => Number.isInteger(id) && id > 0 && id <= 2147483647);
 }
 
+async function defaultCredentials(username: string) {
+    return { password: await bcrypt.hash(username, 10), sesiLogin: randomUUID() };
+}
+
+function accountChanged(res: Response) {
+    return res.status(409).json({ status: 'WARNING', message: 'Data akun sudah berubah. Muat ulang data dan coba lagi.' });
+}
+
 // ==================== DASHBOARD STATS ====================
 export const getDashboardStats = async (req: Request, res: Response) => {
     try {
@@ -214,18 +222,23 @@ export const updateSiswa = async (req: Request, res: Response) => {
             }
         }
 
+        const passwordReset = !!username && username !== existingSiswa.username;
         const updatedSiswa = await prisma.user.update({
-            where: { id: Number(id) },
+            where: { id: Number(id), role: 'siswa', username: existingSiswa.username },
             data: {
-                username: username || existingSiswa.username,
+                ...(passwordReset ? { username, ...await defaultCredentials(username) } : {}),
                 nama: nama || existingSiswa.nama,
                 kelasId: Number(kelasId)
             },
             select: { id: true, username: true, nama: true, kelas: true }
         });
 
-        res.json({ status: 'SUCCESS', message: 'Data siswa berhasil diperbarui!', data: updatedSiswa });
+        const message = passwordReset
+            ? 'Data siswa berhasil diperbarui. Password direset ke NIS baru dan sesi aktif diakhiri.'
+            : 'Data siswa berhasil diperbarui!';
+        res.json({ status: 'SUCCESS', message, data: updatedSiswa });
     } catch (error: any) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return accountChanged(res);
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
         }
@@ -396,12 +409,14 @@ export const updateGuru = async (req: Request, res: Response) => {
             }
         }
 
+        const passwordReset = !!username && username !== existingGuru.username;
+        const credentials = passwordReset ? { username, ...await defaultCredentials(username) } : {};
         const updatedGuru = await prisma.$transaction(async tx => {
             await checkAssignmentConflicts(tx, assignments ?? [], guruIdNum);
             return tx.user.update({
-                where: { id: guruIdNum },
+                where: { id: guruIdNum, role: 'guru', username: existingGuru.username },
                 data: {
-                    username: username || existingGuru.username,
+                    ...credentials,
                     nama: nama || existingGuru.nama,
                     pengampu: assignments ? { deleteMany: {}, create: assignments } : undefined
                 },
@@ -412,9 +427,16 @@ export const updateGuru = async (req: Request, res: Response) => {
             });
         });
 
-        res.json({ status: 'SUCCESS', message: 'Data guru dan penugasannya berhasil diperbarui!', data: updatedGuru });
+        const message = passwordReset
+            ? 'Data guru berhasil diperbarui. Password direset ke NIP baru dan sesi aktif diakhiri.'
+            : 'Data guru dan penugasannya berhasil diperbarui!';
+        res.json({ status: 'SUCCESS', message, data: updatedGuru });
     } catch (error: any) {
         if (error instanceof AssignmentConflict) return res.status(409).json({ message: error.message });
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return accountChanged(res);
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return res.status(409).json({ status: 'WARNING', message: 'NIP sudah digunakan akun lain. Gunakan NIP yang berbeda.' });
+        }
         serverError(res, error);
     }
 };
@@ -619,13 +641,10 @@ export function resetAccountPassword(role: 'siswa' | 'guru') {
                 return res.status(404).json({ status: 'ERROR', message: 'Data ' + role + ' tidak ditemukan!' });
             }
 
-            const hashedPassword = await bcrypt.hash(existing.username, 10);
+            if (req.body?.username !== undefined && req.body.username !== existing.username) return accountChanged(res);
             await prisma.user.update({
-                where: { id: existing.id },
-                data: {
-                    password: hashedPassword,
-                    sesiLogin: randomUUID()
-                }
+                where: { id: existing.id, role, username: existing.username },
+                data: await defaultCredentials(existing.username)
             });
 
             const idLabel = role === 'siswa' ? 'NIS' : 'NIP';
@@ -634,6 +653,7 @@ export function resetAccountPassword(role: 'siswa' | 'guru') {
                 message: `Password ${existing.nama || existing.username} berhasil direset ke ${idLabel} (${existing.username}).`
             });
         } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return accountChanged(res);
             console.error('Gagal mereset password ' + role + ':', error);
             res.status(500).json({ status: 'ERROR', message: 'Gagal mereset password ' + role + '. Coba lagi.' });
         }

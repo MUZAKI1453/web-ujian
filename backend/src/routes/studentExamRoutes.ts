@@ -9,7 +9,7 @@ import { remedialAccess, studentClassScope } from './examClasses';
 import { defaultSecurityConfig, parseSecurityConfig, parseSecurityEvents, recordSecurity } from './examSecurity';
 import { studentReceipt } from './studentReceipt';
 import { answerSummary } from './answerSummary';
-import { examProfileSettings } from './examProfiles';
+import { examTokenMode } from './examProfiles';
 import { answersToDisplay, answersToOriginal, type ExamOrder, makeExamOrder, orderItems, orderQuestions, parseExamOrder } from './examOrder';
 
 const router = Router();
@@ -139,7 +139,7 @@ router.get('/ujian', respond(async (_req, res, user) => {
     res.json({ now, data: exams.map(item => {
         const exam = { ...item, soal: [] };
         const { session, sessionId, attempt } = sessionFor(exam, user.id);
-        const tokenMode = examProfileSettings(exam.profil).token;
+        const tokenMode = examTokenMode(exam.profil);
         const ends = attempt ? deadline(attempt, session) : +session.waktuSelesai;
         const answer = item.jawaban[0];
         const submitted = Boolean(attempt?.waktuKirim || answer);
@@ -147,7 +147,7 @@ router.get('/ujian', respond(async (_req, res, user) => {
         const menungguKoreksi = Boolean(answer && item.soal.some(q => typeof object(answer.koreksiEssay)[q.id] !== 'number'));
         const hasil = exam.hasilRilis && Boolean(answer) && !offline && !menungguKoreksi;
         return {
-            id: exam.id, judul: exam.judul, mapel: exam.mapel.nama, mapelId: exam.mapelId, durasi: exam.durasiMenit, tujuanRekap: exam.tujuanRekap,
+            id: exam.id, judul: exam.judul, mapel: exam.mapel.nama, mapelId: exam.mapelId, durasi: exam.durasiMenit,
             mulai: session.waktuMulai, selesai: session.waktuSelesai, susulan: sessionId !== null,
             status: exam.draf ? 'Draf' : submitted || ends <= now ? 'Selesai' : +session.waktuMulai > now ? 'Terjadwal' : 'Berlangsung',
             masukBuka: admin || (session.masukBuka && (tokenMode !== 'wajib' || Boolean(session.token))),
@@ -234,7 +234,7 @@ router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user)
             return { status: 200, data: packet(exam, attempt, session, security.securityCount) };
         }
         const admin = user.role === 'admin';
-        const tokenMode = examProfileSettings(exam.profil).token;
+        const tokenMode = examTokenMode(exam.profil);
         if (+session.waktuMulai > now || +session.waktuSelesai <= now || (!admin && (!session.masukBuka || (tokenMode === 'wajib' && !session.token)))) {
             return { status: 409, message: 'Akses masuk sesi belum dibuka atau sudah ditutup.' };
         }
