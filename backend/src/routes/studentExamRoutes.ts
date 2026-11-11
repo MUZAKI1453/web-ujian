@@ -6,8 +6,9 @@ import jwt from 'jsonwebtoken';
 import { createHmac } from 'node:crypto';
 import { grade, object } from './examGrading';
 import { remedialAccess, studentClassScope } from './examClasses';
-import { defaultSecurityWeights, MAX_VIOLATIONS, parseSecurityEvents, parseSecurityWeights, recordSecurity } from './examSecurity';
+import { defaultSecurityConfig, parseSecurityConfig, parseSecurityEvents, recordSecurity } from './examSecurity';
 import { studentReceipt } from './studentReceipt';
+import { answerSummary } from './answerSummary';
 import { examProfileSettings } from './examProfiles';
 import { answersToDisplay, answersToOriginal, type ExamOrder, makeExamOrder, orderItems, orderQuestions, parseExamOrder } from './examOrder';
 
@@ -80,6 +81,27 @@ async function questionShape(tx: Prisma.TransactionClient, ujianId: number): Pro
     return shape;
 }
 
+// revisiNilai menandai bahwa kumpulan jawaban ujian berubah (dipakai pratinjau perbaikan soal oleh guru).
+// Penambahannya dilakukan setelah transaksi pengumpulan selesai dan digabung per detik, karena mengubah baris ujian
+// di dalam transaksi membuat semua pengumpulan saling menunggu (atau deadlock saat menaikkan kunci baca).
+const pendingRevisions = new Map<number, number>();
+let revisionTimer: NodeJS.Timeout | null = null;
+
+export async function flushRevisions() {
+    revisionTimer = null;
+    const entries = [...pendingRevisions];
+    pendingRevisions.clear();
+    for (const [id, count] of entries) {
+        await prisma.ujian.updateMany({ where: { id }, data: { revisiNilai: { increment: count } } })
+            .catch(error => console.error('Revisi nilai ujian ' + id + ':', error));
+    }
+}
+
+function bumpRevision(id: number) {
+    pendingRevisions.set(id, (pendingRevisions.get(id) ?? 0) + 1);
+    revisionTimer ??= setTimeout(() => void flushRevisions(), 1000);
+}
+
 function respond(fn: (req: Request, res: Response, user: ExamUser) => Promise<unknown>) {
     return async (req: Request, res: Response) => {
         const user = res.locals.user;
@@ -140,14 +162,14 @@ router.get('/ujian', respond(async (_req, res, user) => {
 }));
 
 // light: autosave biasa. Tidak mengunci baris ujian dan tidak memuat isi soal.
-// write: transaksi bisa mengubah baris ujian (pengumpulan). Kunci tulis diambil sejak awal; bila dua pengumpulan
-// sama-sama memegang kunci baca lalu menaikkannya, database mendeteksi deadlock dan salah satunya gagal.
+// Transaksi siswa hanya memegang kunci baca pada baris ujian dan tidak pernah mengubah baris itu, sehingga
+// ratusan pengumpulan pada detik yang sama berjalan paralel alih-alih antre satu per satu.
 async function locked<T>(id: number, user: ExamUser, callback: (
     tx: Prisma.TransactionClient, exam: Exam
-) => Promise<T>, light = false, write = false): Promise<T | null> {
+) => Promise<T>, light = false): Promise<T | null> {
     for (let attempt = 1; ; attempt++) {
         try {
-            return await lockedOnce(id, user, callback, light, write);
+            return await lockedOnce(id, user, callback, light);
         } catch (error) {
             // P2034: konflik tulis atau deadlock. Aman diulang karena seluruh transaksi dibatalkan.
             if (attempt >= 3 || !(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2034') throw error;
@@ -158,11 +180,10 @@ async function locked<T>(id: number, user: ExamUser, callback: (
 
 async function lockedOnce<T>(id: number, user: ExamUser, callback: (
     tx: Prisma.TransactionClient, exam: Exam
-) => Promise<T>, light: boolean, write: boolean) {
+) => Promise<T>, light: boolean) {
     const userId = user.id;
     return prisma.$transaction(async tx => {
-        if (write) await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
-        else if (!light) {
+        if (!light) {
             await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} LOCK IN SHARE MODE`;
         }
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
@@ -186,16 +207,17 @@ async function lockedOnce<T>(id: number, user: ExamUser, callback: (
     }, { maxWait: 8000, timeout: 15000, isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
-function securityWeights(exam: Exam & { kegiatan?: { data: unknown }[] }) {
-    return parseSecurityWeights(exam.kegiatan?.[0]?.data) ?? defaultSecurityWeights;
+function securityConfig(exam: Exam & { kegiatan?: { data: unknown }[] }) {
+    return parseSecurityConfig(exam.kegiatan?.[0]?.data) ?? defaultSecurityConfig;
 }
 
 function packet(exam: Exam, attempt: Exam['pengerjaan'][number], session: { waktuSelesai: Date }, securityCount = 0) {
     const order = parseExamOrder(attempt.urutan);
+    const security = securityConfig(exam);
     return {
         attemptId: attempt.id, now: Date.now(), deadline: deadline(attempt, session), versi: attempt.versiJawaban,
         jawaban: answersToDisplay(object(attempt.jawabanTersimpan), order), soal: publicQuestions(exam, order),
-        securityCount, securityWeights: securityWeights(exam)
+        securityCount, securityWeights: security.weights, securityLimit: security.limit
     };
 }
 
@@ -287,7 +309,17 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
         return res.status(400).json({ message: 'Data pengerjaan tidak valid.' });
     }
     const light = kirim !== true && events.length === 0;
+    let submitted = false;
+    // Bukti kumpul disusun dari data yang sudah dimuat transaksi. Query terpisah setelahnya ikut antre di belakang
+    // semua pengumpulan lain yang menunggu koneksi database, sehingga respons tertahan sampai antrean habis.
+    let receiptNow: Awaited<ReturnType<typeof studentReceipt>> | undefined;
+    const receiptFor = (exam: Exam, attemptId: number, questions: Parameters<typeof answerSummary>[0], answers: unknown, now: number) => ({
+        id: `UJ-${id}-${user.id}-${attemptId}`, title: exam.judul, mapel: exam.mapel.nama,
+        receivedAt: new Date(now), state: 'submitted', ...answerSummary(questions, answers)
+    });
     const result = await locked(id, user, async (tx, exam) => {
+        submitted = false;
+        receiptNow = undefined;
         const { session, attempt } = sessionFor(exam, user.id);
         const now = Date.now();
         const shape = light ? await questionShape(tx, id) : shapeOf(exam.soal);
@@ -296,22 +328,24 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
         const jawaban = answersToOriginal(req.body.jawaban, parseExamOrder(attempt.urutan));
         if (attempt.diterimaOffline) return { status: 200, state: 'review', versi: attempt.versiJawaban };
         if (attempt.waktuKirim || exam.jawaban.length) return { status: 200, state: 'submitted', versi: attempt.versiJawaban, message: +session.waktuSelesai < +attempt.batasWaktu ? 'Sesi diakhiri guru. Jawaban yang tersimpan sudah dikumpulkan.' : undefined };
-        const security = await recordSecurity(tx, id, user.id, attempt.id, events, securityWeights(exam));
+        const config = securityConfig(exam);
+        const security = await recordSecurity(tx, id, user.id, attempt.id, events, config.weights, config.limit);
         const finish = deadline(attempt, session);
-        if (security.securityCount >= MAX_VIOLATIONS) {
+        if (config.limit > 0 && security.securityCount >= config.limit) {
             const input = validatedAnswers(shape, jawaban);
             const accepted = now < finish && versi > attempt.versiJawaban && input
                 ? input : object(attempt.jawabanTersimpan) as Prisma.InputJsonObject;
             const questions = light ? await tx.soal.findMany({ where: { ujianId: id, dibatalkan: false }, orderBy: { id: 'asc' } }) : exam.soal;
             const marks = grade(questions, accepted, null);
+            receiptNow = receiptFor(exam, attemptId, questions, accepted, now);
             await tx.pengerjaanUjian.update({ where: { id: attemptId }, data: {
                 waktuKirim: new Date(now), jawabanTersimpan: accepted, versiJawaban: Math.max(versi, attempt.versiJawaban)
             } });
             await tx.jawabanSiswa.create({ data: { ujianId: id, siswaId: user.id, detailJawaban: accepted, ...marks.values } });
-            await tx.ujian.update({ where: { id }, data: { revisiNilai: { increment: 1 } } });
+            submitted = true;
             if (exam.hasilRilis && !marks.pending) await tx.notifikasiUjian.create({ data: { ujianId: id, siswaId: user.id, jenis: 'hasil-dirilis' } });
             return { status: 200, state: 'submitted', versi: Math.max(versi, attempt.versiJawaban), ...security,
-                message: 'Ujian dikumpulkan otomatis setelah tiga pelanggaran. Jawaban yang diterima server sudah disimpan.' };
+                message: `Ujian dikumpulkan otomatis setelah ${config.limit} pelanggaran. Jawaban yang diterima server sudah disimpan.` };
         }
         if (versi < attempt.versiJawaban) return { status: 409, code: 'VERSI', message: 'Jawaban yang lebih baru sudah tersimpan. Buka ulang ujian.' };
         const data = validatedAnswers(shape, jawaban);
@@ -335,17 +369,19 @@ router.put('/ujian/:id/jawaban', respond(async (req, res, user) => {
         } });
         if (kirim === true) {
             const marks = grade(exam.soal, accepted, null);
+            receiptNow = receiptFor(exam, attemptId, exam.soal, accepted, now);
             await tx.jawabanSiswa.create({ data: { ujianId: id, siswaId: user.id, detailJawaban: accepted, ...marks.values } });
-            await tx.ujian.update({ where: { id }, data: { revisiNilai: { increment: 1 } } });
+            submitted = true;
             if (exam.hasilRilis && !marks.pending) await tx.notifikasiUjian.create({
                 data: { ujianId: id, siswaId: user.id, jenis: 'hasil-dirilis' }
             });
         }
         return { status: 200, state: kirim === true ? 'submitted' : 'saved', versi, ...security };
-    }, light, !light);
+    }, light);
+    if (submitted) bumpRevision(id);
     if (!result) return res.status(404).json({ message: 'Ujian tidak tersedia.' });
     const receipt = result.status === 200 && ['submitted', 'review'].includes(result.state ?? '')
-        ? await studentReceipt(id, user.id) : undefined;
+        ? receiptNow ?? await studentReceipt(id, user.id) : undefined;
     res.status(result.status).json({ ...result, serverTime: Date.now(), receipt });
 }));
 

@@ -4,7 +4,7 @@ import { randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { isBlankAnswer } from './answerSummary';
 import { examProfileSettings, parseDraftExamRules } from './examProfiles';
-import { defaultSecurityWeights, parseSecurityWeights, type SecurityEvent } from './examSecurity';
+import { DEFAULT_VIOLATION_LIMIT, defaultSecurityConfig, defaultSecurityWeights, parseSecurityConfig, parseSecurityLimit, parseSecurityWeights, type SecurityEvent } from './examSecurity';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { requireUser } from '../middleware/auth';
@@ -526,13 +526,15 @@ router.post('/ujian/:id/terbit', handle(async (req, res, actor) => {
 router.patch('/ujian/:id/keamanan', handle(async (req, res, actor) => {
     const id = Number(req.params.id);
     const weights = parseSecurityWeights(req.body?.weights);
-    if (!validId(id) || !weights) return res.status(400).json({ message: 'Isi bobot risiko antara 0 dan 10.' });
+    // Klien lama tidak mengirim batas; pakai bawaan agar tetap berfungsi.
+    const limit = req.body?.limit === undefined ? DEFAULT_VIOLATION_LIMIT : parseSecurityLimit(req.body.limit);
+    if (!validId(id) || !weights || limit === null) return res.status(400).json({ message: 'Isi bobot risiko dan batas pelanggaran antara 0 dan 10.' });
     const result = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
         const exam = await tx.ujian.findFirst({ where: { id, ...examScope(actor), draf: false }, select: scheduleLockFields });
         if (!exam) return 404;
         if (scheduleLocked(exam)) return 409;
-        await tx.kegiatanUjian.create({ data: { ujianId: id, pelakuId: actor.id, jenis: 'pengaturan-keamanan', data: weights } });
+        await tx.kegiatanUjian.create({ data: { ujianId: id, pelakuId: actor.id, jenis: 'pengaturan-keamanan', data: { ...weights, batas: limit } } });
         return 204;
     });
     if (result === 409) return res.status(409).json({ message: 'Pengaturan keamanan terkunci setelah pengerjaan dimulai atau ujian diarsipkan.' });
@@ -565,12 +567,13 @@ router.get('/ujian/:id/sesi', handle(async (req, res, actor) => {
         select: { id: true, pelakuId: true, alasan: true, data: true, waktu: true }
     });
     const { _count, diarsipkanPada, pesertaRemedial, kegiatan, ...session } = exam;
+    const security = parseSecurityConfig(kegiatan[0]?.data) ?? defaultSecurityConfig;
     const pesertaUjiCoba = exam.ujianAsalId === null
         ? await prisma.user.findMany({ where: { role: 'admin' }, select: siswa, orderBy: { nama: 'asc' } }) : [];
     res.json({ ...session, jadwalTerkunci: scheduleLocked({ _count, diarsipkanPada }),
         pesertaUjiCoba,
         kelas: { users: exam.ujianAsalId !== null ? pesertaRemedial : [...new Map([...exam.kelas.users, ...exam.kelasTujuan.flatMap(k => k.users)].map(s => [s.id, s])).values()] },
-        bobotKeamanan: parseSecurityWeights(kegiatan[0]?.data) ?? defaultSecurityWeights,
+        bobotKeamanan: security.weights, batasPelanggaran: security.limit,
         keamanan: securityLog.map(row => ({ id: row.id, siswaId: row.pelakuId, attemptId: object(row.data).attemptId, reason: row.alasan, waktu: row.waktu,
             bobot: object(row.data).weight ?? defaultSecurityWeights[row.alasan as SecurityEvent['reason']] ?? 0 }))
     });

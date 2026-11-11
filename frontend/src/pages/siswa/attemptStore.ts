@@ -11,6 +11,12 @@ export interface LocalAttempt {
     lastSavedAt?: number; savedAnswers?: Record<string, Value>;
     security?: { count: number; pending: SecurityEvent[]; warning?: string };
     securityWeights?: SecurityWeights;
+    securityLimit?: number;
+}
+
+// Batas pelanggaran ujian: 0 = hanya dicatat, n = kumpul otomatis pada pelanggaran ke-n. Pengerjaan lama di perangkat memakai 3.
+export function violationLimit(attempt: Pick<LocalAttempt, 'securityLimit'>) {
+    return attempt.securityLimit ?? 3;
 }
 
 let database: Promise<IDBDatabase> | undefined;

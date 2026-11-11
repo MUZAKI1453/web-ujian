@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { violationLimit } from './attemptStore';
 import type { LocalAttempt, SecurityEvent } from './attemptStore';
 
 export const violationLabels: Record<SecurityEvent['reason'], string> = {
@@ -37,14 +38,16 @@ export default function useExamSecurity(current: MutableRefObject<LocalAttempt>,
         const interrupt = interruptsExam(reason);
         if (!interrupt && (security.pending.length >= 13 || now - (lastPassive.current[reason] ?? 0) < 10_000)) return;
         lastPassive.current[reason] = now;
-        const count = interrupt ? Math.min(3, security.count + 1) : security.count;
+        const limit = violationLimit(latest);
+        const count = !interrupt ? security.count : limit ? Math.min(limit, security.count + 1) : security.count + 1;
+        const submit = limit > 0 && count >= limit;
         const event: SecurityEvent = { id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), reason };
         if (interrupt) {
             incident.current = true;
             armed.current = false;
             setReady(false);
         }
-        callback.current({ ...latest, send: count >= 3 || latest.send, versi: count >= 3 ? latest.versi + 1 : latest.versi,
+        callback.current({ ...latest, send: submit || latest.send, versi: submit ? latest.versi + 1 : latest.versi,
             security: { count, pending: [...security.pending, event], warning: interrupt ? violationLabels[reason] : security.warning } });
         window.dispatchEvent(new Event('cbt-security-report'));
         if (!interrupt) return;

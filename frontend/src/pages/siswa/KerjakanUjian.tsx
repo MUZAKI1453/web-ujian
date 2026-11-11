@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import api from '../../services/api';
 import QuestionContent from '../guru/QuestionContent';
-import { storeAttempt } from './attemptStore';
+import { storeAttempt, violationLimit } from './attemptStore';
 import type { LocalAttempt, Value } from './attemptStore';
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock, ListOrdered, Send, ShieldAlert, ShieldCheck } from 'lucide-react';
 import useExamSecurity, { interruptsExam } from './useExamSecurity';
@@ -33,6 +33,8 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     const main = useRef<HTMLElement>(null);
     const remain = Math.max(0, Math.ceil((attempt.deadline - time - attempt.offset) / 1000));
     const locked = !remain || attempt.send;
+    const limit = violationLimit(attempt);
+    const violations = attempt.security?.count ?? 0;
 
     function update(value: LocalAttempt) {
         current.current = value;
@@ -156,7 +158,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
         </div>
     </div>;
 
-    if (!security.ready || (attempt.security?.count ?? 0) >= 3) return <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[var(--ui-canvas)] p-4">
+    if (!security.ready || (limit > 0 && violations >= limit)) return <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[var(--ui-canvas)] p-4">
         <section className="ui-card my-auto w-full max-w-lg space-y-5 bg-white p-6" aria-labelledby="security-title">
             {attempt.security?.warning ? <ShieldAlert className="text-amber-600" size={48} /> : <ShieldCheck className="text-blue-600" size={48} />}
             <div><h1 id="security-title" className="ui-page-title">{locked ? 'Ujian sedang dikumpulkan' : attempt.security?.warning ? 'Peringatan keamanan ujian' : 'Aktifkan mode ujian'}</h1>
@@ -164,8 +166,8 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 <div className="mt-1"><ExamTypeBadge label={examType} /></div>
             </div>
             <p className="rounded-xl bg-slate-50 p-3 text-sm">{attempt.security?.warning || 'Tetap di halaman ujian dan gunakan layar penuh.'}</p>
-            <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><p className="text-amber-800">Pelanggaran: {attempt.security?.count ?? 0} / 3</p><p className="text-blue-800">Sisa waktu: {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</p></div>
-            <p className="text-sm text-slate-600">Pada pelanggaran ke-3, jawaban dikumpulkan otomatis.</p>
+            <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold"><p className="text-amber-800">Pelanggaran: {violations}{limit > 0 && ' / ' + limit}</p><p className="text-blue-800">Sisa waktu: {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</p></div>
+            <p className="text-sm text-slate-600">{limit > 0 ? `Pada pelanggaran ke-${limit}, jawaban dikumpulkan otomatis.` : 'Setiap pelanggaran dicatat dan ditinjau guru.'}</p>
             {!security.fullscreenSupported && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Layar penuh tidak tersedia. Perpindahan tab tetap dipantau.</p>}
             {locked ? <p role="status" className="text-sm text-blue-800">{offline ? 'Menunggu koneksi. Tetap buka halaman agar jawaban dan catatan dapat dikirim.' : saveState || 'Mengirim jawaban ke server…'}</p> : <>
                 {attempt.security?.warning && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />Saya memahami peringatan ini.</label>}
@@ -226,7 +228,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                     <span className="font-semibold text-slate-700">{answered}/{total} soal terjawab</span>
                     <span className={offline || attempt.versi > attempt.saved ? 'text-amber-800' : 'text-slate-600'}>{saveLabel}{queuedAnswers > 0 && ' · ' + queuedAnswers + ' tertunda'}</span>
-                    <span className="text-slate-600">Pelanggaran {attempt.security?.count ?? 0}/3</span>
+                    <span className="text-slate-600">Pelanggaran {violations}{limit > 0 && '/' + limit}</span>
                 </div>
                 <progress aria-label="Jumlah soal terjawab" value={answered} max={total || 1} className="cbt-exam-progress block h-1.5 w-full" />
             </div>

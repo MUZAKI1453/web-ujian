@@ -14,7 +14,8 @@ for DB in cbt_smp cbt_sma; do
 done
 # Gambar soal (file di luar database).
 if [ -d /var/lib/cbt ]; then
-    tar -czf "$DIR/cbt_gambar-$STAMP.tar.gz" -C /var/lib cbt
+    # /var/lib/cbt juga folder home user cbt; berkas tersembunyi (.npm, .cache, dst.) tidak ikut diarsipkan.
+    tar -czf "$DIR/cbt_gambar-$STAMP.tar.gz" -C /var/lib --exclude='cbt/.*' cbt
     echo "Cadangan tersimpan: $DIR/cbt_gambar-$STAMP.tar.gz"
 fi
 # Simpan 14 hari terakhir.

@@ -18,7 +18,7 @@ type Makeup = Window & { id: number; peserta: { siswaId: number; siswa: Student 
 type Attempt = { id: number; siswaId: number; sesiSusulanId: number | null; mulai: string; batasWaktu: string; waktuKirim: string | null; siswa: Student };
 type Answer = { siswaId: number; totalNilai: string; waktuSubmit: string; siswa: Student };
 type Sessions = Window & { profil: ExamProfile; durasiMenit: number; jadwalTerkunci: boolean; kelas: { users: Student[] }; pesertaUjiCoba: Student[]; susulan: Makeup[]; pengerjaan: Attempt[]; jawaban: Answer[];
-    bobotKeamanan: SecurityWeights;
+    bobotKeamanan: SecurityWeights; batasPelanggaran: number;
     keamanan?: { id: number; siswaId: number; attemptId: number; reason: keyof typeof violationLabels; waktu: string; bobot: number }[] };
 
 const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -132,18 +132,22 @@ export default function ExamSessions({ examId, archived = false, archiving, onAr
         <details className="ui-card space-y-3 p-4">
             <summary className="cursor-pointer font-semibold">Pengaturan risiko ujian</summary>
             <p className="text-sm text-slate-600">Bobot 0 menonaktifkan pencatatan kejadian. Skor risiko digunakan untuk tinjauan.</p>
+            <p className="text-sm text-slate-600">Batas pelanggaran menentukan kapan jawaban dikumpulkan otomatis. Isi 0 agar pelanggaran hanya dicatat, misalnya untuk ujian di HP yang sering terganggu notifikasi.</p>
             {data.jadwalTerkunci && <p className="text-sm text-slate-600">Pengaturan terkunci setelah pengerjaan dimulai atau ujian diarsipkan.</p>}
-            <form key={JSON.stringify(data.bobotKeamanan)} onSubmit={event => {
+            <form key={JSON.stringify([data.bobotKeamanan, data.batasPelanggaran])} onSubmit={event => {
                 event.preventDefault();
                 const fields = new FormData(event.currentTarget);
                 const weights = Object.fromEntries(Object.keys(data.bobotKeamanan).map(reason => [reason, Number(fields.get(reason))]));
-                void perform(() => api.patch(url + '/keamanan', { weights }));
+                void perform(() => api.patch(url + '/keamanan', { weights, limit: Number(fields.get('batas')) }));
             }}>
                 <fieldset disabled={busy || data.jadwalTerkunci} className="grid gap-3 sm:grid-cols-2">
                     {(Object.keys(violationLabels) as (keyof SecurityWeights)[]).map(reason => <label key={reason} className="ui-label flex items-center justify-between gap-3">
                         {violationLabels[reason]}<input name={reason} type="number" min="0" max="10" step="1" required defaultValue={data.bobotKeamanan[reason]} className="ui-input w-20" />
                     </label>)}
-                    <button type="submit" className={primaryClass}>Simpan bobot risiko</button>
+                    <label className="ui-label flex items-center justify-between gap-3 sm:col-span-2">
+                        Batas pelanggaran sebelum kumpul otomatis<input name="batas" type="number" min="0" max="10" step="1" required defaultValue={data.batasPelanggaran} className="ui-input w-20" />
+                    </label>
+                    <button type="submit" className={primaryClass}>Simpan pengaturan risiko</button>
                 </fieldset>
             </form>
         </details>

@@ -25,7 +25,7 @@ type Exam = {
 };
 type Packet = {
     attemptId: number; deadline: number; now: number; versi: number; jawaban: Record<string, Value>; soal: Question[]; securityCount: number;
-    securityWeights?: LocalAttempt['securityWeights'];
+    securityWeights?: LocalAttempt['securityWeights']; securityLimit?: number;
 };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
 type Discussion = { soal: { id: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
@@ -137,7 +137,7 @@ export default function BerandaSiswa({ username, adminMode, view = 'dashboard', 
                 lastSavedAt: same?.lastSavedAt, savedAnswers: packet.jawaban,
                 jawaban: queued ? same.jawaban : packet.jawaban, soal: packet.soal, ragu: same?.ragu ?? [],
                 index: Math.max(0, Math.min(same?.index ?? 0, packet.soal.length - 1)), send: same?.send ?? false,
-                securityWeights: packet.securityWeights,
+                securityWeights: packet.securityWeights, securityLimit: packet.securityLimit,
                 security: { count: Math.max(same?.security?.count ?? 0, packet.securityCount ?? 0), pending: same?.security?.pending ?? [], warning: same?.security?.warning }
             };
             await storeAttempt(key(exam.id), attempt).catch(() => {});
