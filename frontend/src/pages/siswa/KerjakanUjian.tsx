@@ -13,6 +13,8 @@ import SubmissionReceipt, { type Receipt } from './SubmissionReceipt';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import { nativeApp } from '../../services/nativeApp';
+import { questionTypeLabel } from '../guru/questionTypes';
+import MatchingBoard from '../../components/MatchingBoard';
 
 const button = 'ui-button ui-button-secondary';
 const savedTime = new Intl.DateTimeFormat('id-ID', { timeStyle: 'medium' });
@@ -209,6 +211,9 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
     </div>;
 
     const value = question ? attempt.jawaban[question.id] : undefined;
+    const matchingSelections = question?.tipeSoal === 'JODOH'
+        ? question.items.map((_, row) => Array.isArray(value) && typeof value[row] === 'number' ? Number(value[row]) : null)
+        : [];
     const answered = attempt.soal.filter(q => answerState(q, attempt.jawaban[q.id]) === 'Terjawab').length;
     const missing = attempt.soal.filter(q => answerState(q, attempt.jawaban[q.id]) === 'Kosong').length;
     const partial = attempt.soal.length - answered - missing;
@@ -292,14 +297,14 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
         <main ref={main} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             <div className="cbt-exam-layout">
             {question ? <article className="ui-card min-w-0 space-y-4 p-4 sm:space-y-6 sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="cbt-badge bg-blue-50 text-blue-800">Soal {attempt.index + 1}</span>
-                        <span className="cbt-badge bg-slate-100 text-slate-700">{{ PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', BS: 'Benar / Salah', ISIAN: 'Isian Singkat', ESSAY: 'Essay' }[question.tipeSoal] || question.tipeSoal}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 border-b border-slate-200 pb-3 sm:gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                        <span className="cbt-badge shrink-0 whitespace-nowrap bg-blue-50 px-2 text-blue-800 sm:px-3">Soal {attempt.index + 1}</span>
+                        <span className="cbt-badge min-w-0 bg-slate-100 px-2 text-slate-700 [overflow-wrap:anywhere] sm:px-3">{questionTypeLabel(question.tipeSoal)}</span>
                     </div>
-                    <label className={'flex min-h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold ' +
+                    <label className={'flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 text-xs font-semibold sm:gap-2 sm:px-3 ' +
                         (doubtful ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-slate-200 bg-white text-slate-700')}>
-                        <input type="checkbox" checked={doubtful} disabled={locked} onChange={toggleDoubt} className="size-4 accent-amber-600" />
+                        <input type="checkbox" checked={doubtful} disabled={locked} onChange={toggleDoubt} className="size-4 shrink-0 accent-amber-600" />
                         Ragu-ragu
                     </label>
                 </div>
@@ -313,14 +318,22 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                 </div>}
                 <fieldset disabled={locked} className="min-w-0 space-y-2">
                     <legend className="sr-only">Jawaban</legend>
+                    {question.tipeSoal === 'JODOH' && <MatchingBoard key={question.id} left={question.items.map(item => item.teks)}
+                        right={question.pilihanPasangan ?? []} value={matchingSelections} disabled={locked}
+                        description="Tarik titik dari kiri ke kanan, atau ketuk kedua kartu. Pilih pasangan yang sama untuk menghapus garisnya."
+                        onConnect={(source, option) => change(matchingSelections.map((entry, row) => {
+                            if (row === source) return entry === option ? null : option;
+                            return entry === option ? null : entry;
+                        }))} />}
                     {(question.tipeSoal === 'PG' || question.tipeSoal === 'PM') && question.items.map((item, i) => {
                         const choices = Array.isArray(value) ? value as number[] : [];
                         const multiple = question.tipeSoal === 'PM';
                         return <label key={i} className="cbt-option">
-                            <input className="mt-1 size-4 shrink-0" type={multiple ? 'checkbox' : 'radio'} name={'jawaban-' + question.id}
+                            <input className={multiple ? 'mt-1 size-4 shrink-0 accent-blue-600' : 'sr-only'}
+                                type={multiple ? 'checkbox' : 'radio'} name={'jawaban-' + question.id}
                                 checked={multiple ? choices.includes(i) : value === i} onChange={e => change(multiple
                                     ? e.target.checked ? [...choices, i] : choices.filter(choice => choice !== i) : i)} />
-                            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-slate-100 text-sm font-bold" aria-hidden="true">{String.fromCharCode(65 + i)}</span>
+                            {!multiple && <span className="grid size-7 shrink-0 place-items-center rounded-md bg-slate-100 text-sm font-bold" aria-hidden="true">{String.fromCharCode(65 + i)}</span>}
                             <span className="min-w-0 break-words leading-relaxed"><QuestionContent text={item.teks} image={item.gambar} /></span>
                         </label>;
                     })}
@@ -337,7 +350,7 @@ export default function KerjakanUjian({ initial, storageKey, examId, title, exam
                                     {[true, false].map(option => <label key={String(option)} className={'flex min-h-12 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-semibold transition focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 ' +
                                         (selected === option ? 'border-blue-600 bg-blue-50 text-blue-950' : 'border-slate-300 bg-white text-slate-700') +
                                         (locked ? ' cursor-not-allowed opacity-75' : ' cursor-pointer hover:border-blue-500')}>
-                                        <input type="radio" className="size-4 shrink-0 accent-blue-600" name={groupId} checked={selected === option}
+                                        <input type="radio" className="sr-only" name={groupId} checked={selected === option}
                                             onChange={() => {
                                                 const previous = current.current.jawaban[question.id];
                                                 change(question.items.map((_, index) => index === i ? option :

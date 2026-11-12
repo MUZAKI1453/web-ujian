@@ -9,7 +9,8 @@ const examples: Record<string, (string | number)[]> = {
     'Pilihan Majemuk': [1, 'Pilih bilangan genap.', '2', '3', '4', '5', '', 'A,C'],
     'Benar atau Salah': [1, 'Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 ganjil.', 'Salah'],
     'Isian Singkat': [1, 'Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'],
-    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6]
+    Esai: [1, 'Jelaskan perbedaan ganjil dan genap.', 6],
+    Menjodohkan: [1, 'Jodohkan negara dengan ibu kotanya.', 'Indonesia', 'Jakarta', 'Jepang', 'Tokyo']
 };
 
 function fillExample(book: XLSX.WorkBook, name: string) {
@@ -22,11 +23,11 @@ async function editedTemplate(edit: (book: XLSX.WorkBook) => void) {
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
 }
 
-test('horizontal template has five named tables and imports all five question types', async () => {
+test('horizontal template has named tables and imports all question types', async () => {
     const buffer = await questionTemplate();
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(buffer as any);
-    assert.deepEqual(book.worksheets.map(sheet => sheet.name), ['Pilihan Ganda', 'Pilihan Majemuk', 'Benar atau Salah', 'Isian Singkat', 'Esai']);
+    assert.deepEqual(book.worksheets.map(sheet => sheet.name), Object.keys(examples));
     for (const sheet of book.worksheets) {
         assert.equal(sheet.pageSetup.orientation, 'landscape');
         assert.equal(sheet.getCell('C11').value, 'Pertanyaan');
@@ -50,7 +51,7 @@ test('horizontal template has five named tables and imports all five question ty
 
     const edited = await editedTemplate(file => file.SheetNames.forEach(name => fillExample(file, name)));
     const rows = readQuestionWorkbook(edited);
-    assert.deepEqual(rows.map(row => row.question.tipeSoal), ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY']);
+    assert.deepEqual(rows.map(row => row.question.tipeSoal), ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY', 'JODOH']);
     assert.ok(rows.every(row => row.row === 12 && row.sheet));
     assert.deepEqual(rows[0].question.items.map(item => item.benar), [true, false, false, false]);
     assert.deepEqual(rows[1].question.items.map(item => item.benar), [true, false, true, false]);
@@ -58,6 +59,7 @@ test('horizontal template has five named tables and imports all five question ty
     assert.deepEqual(rows[3].question.jawaban, ['1,5', '1.5']);
     assert.equal(rows[3].question.angka, true);
     assert.equal(rows[4].question.poin, 6);
+    assert.deepEqual(rows[5].question.pasangan, [{ kiri: 'Indonesia', kanan: 'Jakarta' }, { kiri: 'Jepang', kanan: 'Tokyo' }]);
 });
 
 test('empty sheets are skipped, later rows are imported, and keys survive unused options', async () => {
@@ -94,6 +96,8 @@ test('invalid answers report the sheet and row', async () => {
         ['Pilihan Majemuk', 'I12', '', /minimal satu/],
         ['Benar atau Salah', 'E12', '', /Benar atau Salah/],
         ['Isian Singkat', 'G12', 'mungkin', /Ya atau Tidak/],
+        ['Menjodohkan', 'G12', '', /kolom kiri dan kanan/],
+        ['Menjodohkan', 'G12', 'Jakarta', /harus berbeda/],
         ['Esai', 'D12', 101, /1–100/],
         ['Esai', 'D12', 1.5, /1–100/],
         ['Pilihan Ganda', 'C12', '', /Pertanyaan wajib/]

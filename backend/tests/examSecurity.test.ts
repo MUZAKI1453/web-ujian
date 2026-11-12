@@ -141,7 +141,7 @@ test('API: no questions before the timer; retries and reload retain count; third
         import('express'), import('jsonwebtoken'), import('../src/routes/studentExamRoutes'), import('../src/config/db'), import('../src/middleware/auth')
     ]);
     const prefix = 'security-test-' + randomUUID();
-    let fixture: { studentId: number; classId: number; subjectId: number; examId: number; questionId: number; session: string } | undefined;
+    let fixture: { studentId: number; classId: number; subjectId: number; examId: number; questionId: number; matchingId: number; session: string } | undefined;
     const app = express(); app.use(express.json()); app.use('/api/siswa', router);
     const server = app.listen(0, '127.0.0.1');
     try {
@@ -154,9 +154,14 @@ test('API: no questions before the timer; retries and reload retain count; third
             const exam = await tx.ujian.create({ data: {
                 judul: prefix, kelasId: klass.id, mapelId: subject.id, draf: false, token: 'ABC123', masukBuka: true,
                 waktuMulai: new Date(Date.now() - 60000), waktuSelesai: new Date(Date.now() + 3600000), durasiMenit: 30,
-                soal: { create: { tipeSoal: 'PG', pertanyaan: '1 + 1?', bobot: 100, isi: { items: [{ teks: '2', benar: true }, { teks: '3', benar: false }] } } }
+                soal: { create: [
+                    { tipeSoal: 'PG', pertanyaan: '1 + 1?', bobot: 50, isi: { items: [{ teks: '2', benar: true }, { teks: '3', benar: false }] } },
+                    { tipeSoal: 'JODOH', pertanyaan: 'Jodohkan negara dan ibu kota.', bobot: 50,
+                        isi: { pasangan: [{ kiri: 'Indonesia', kanan: 'Jakarta' }, { kiri: 'Jepang', kanan: 'Tokyo' }] } }
+                ] }
             }, include: { soal: true } });
-            return { studentId: student.id, classId: klass.id, subjectId: subject.id, examId: exam.id, questionId: exam.soal[0].id, session };
+            return { studentId: student.id, classId: klass.id, subjectId: subject.id, examId: exam.id,
+                questionId: exam.soal.find(q => q.tipeSoal === 'PG')!.id, matchingId: exam.soal.find(q => q.tipeSoal === 'JODOH')!.id, session };
         });
         const address = server.address();
         assert.ok(address && typeof address !== 'string');
@@ -181,7 +186,18 @@ test('API: no questions before the timer; retries and reload retain count; third
         // Opsi diacak per pengerjaan: siswa memilih posisi tampil opsi "2"; server harus menyimpannya sebagai indeks asli 0.
         const shown = start.data.soal[0].items.map((item: { teks: string }) => item.teks);
         assert.deepEqual([...shown].sort(), ['2', '3']);
-        const payload = { attemptId: start.data.attemptId, versi: 1, jawaban: { [fixture.questionId]: shown.indexOf('2') }, kirim: false };
+        const matching = start.data.soal.find((q: { id: number }) => q.id === fixture.matchingId);
+        assert.deepEqual(matching.items, [{ teks: 'Indonesia' }, { teks: 'Jepang' }]);
+        assert.deepEqual([...matching.pilihanPasangan].sort(), ['Jakarta', 'Tokyo']);
+        assert.equal('pasangan' in matching || 'kunci' in matching, false);
+        const jakarta = matching.pilihanPasangan.indexOf('Jakarta');
+        const tokyo = matching.pilihanPasangan.indexOf('Tokyo');
+        const payload = { attemptId: start.data.attemptId, versi: 1, jawaban: {
+            [fixture.questionId]: shown.indexOf('2'), [fixture.matchingId]: [jakarta, null]
+        }, kirim: false };
+        const invalid = await request('/jawaban', 'PUT', { ...payload, jawaban: { [fixture.matchingId]: [jakarta, jakarta] } });
+        assert.equal(invalid.status, 400);
+        assert.equal((await request('/jawaban', 'PUT', payload)).status, 200);
         const first = { id: randomUUID(), reason: 'tab-hidden' };
         const save = await request('/jawaban', 'PUT', { ...payload, securityEvents: [first] });
         assert.equal(save.status, 200); assert.equal(save.data.securityCount, 1);
@@ -190,19 +206,22 @@ test('API: no questions before the timer; retries and reload retain count; third
         const resume = await request('/mulai', 'POST', {});
         assert.equal(resume.data.securityCount, 1);
         assert.deepEqual(resume.data.soal[0].items.map((item: { teks: string }) => item.teks), shown);
+        assert.deepEqual(resume.data.soal.find((q: { id: number }) => q.id === fixture.matchingId), matching);
         assert.deepEqual(resume.data.jawaban, payload.jawaban);
         const second = await request('/jawaban', 'PUT', { ...payload, versi: 2, securityEvents: [{ id: randomUUID(), reason: 'fullscreen-exit' }] });
         assert.equal(second.data.securityCount, 2); assert.equal(second.data.state, 'saved');
-        const third = await request('/jawaban', 'PUT', { ...payload, versi: 3, securityEvents: [{ id: randomUUID(), reason: 'window-blur' }] });
+        const third = await request('/jawaban', 'PUT', { ...payload, versi: 3,
+            jawaban: { ...payload.jawaban, [fixture.matchingId]: [jakarta, tokyo] },
+            securityEvents: [{ id: randomUUID(), reason: 'window-blur' }] });
         assert.equal(third.data.securityCount, 3); assert.equal(third.data.state, 'submitted');
         assert.match(third.data.message, /setelah 3 pelanggaran/);
-        assert.equal(third.data.receipt.answered, 1);
+        assert.equal(third.data.receipt.answered, 2);
         assert.equal(third.data.receipt.id, `UJ-${fixture.examId}-${fixture.studentId}-${start.data.attemptId}`);
         const change = await request('/jawaban', 'PUT', { ...payload, versi: 4, jawaban: { [fixture.questionId]: shown.indexOf('3') } });
         assert.equal(change.data.state, 'submitted');
         const answer = await db.jawabanSiswa.findFirstOrThrow({ where: { ujianId: fixture.examId, siswaId: fixture.studentId } });
         assert.equal(Number(answer.totalNilai), 100);
-        assert.deepEqual(answer.detailJawaban, { [fixture.questionId]: 0 });
+        assert.deepEqual(answer.detailJawaban, { [fixture.questionId]: 0, [fixture.matchingId]: [0, 1] });
         assert.equal(await db.jawabanSiswa.count({ where: { ujianId: fixture.examId } }), 1);
     } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

@@ -28,8 +28,8 @@ type Report = {
     rows: ReportRow[];
 };
 type Impact = { naik: number; turun: number; tetap: number; revisi: number };
-type Correction = { soalId: number; aksi: string; input?: boolean[] | string; alasan: string };
-const automaticTypes = ['PG', 'PM', 'BS', 'ISIAN'] as const;
+type Correction = { soalId: number; aksi: string; input: ReturnType<typeof correctionInput>; alasan: string };
+const automaticTypes = ['PG', 'PM', 'BS', 'ISIAN', 'JODOH'] as const;
 
 export default function ExamReport({ examId, questions, onQuestionsChanged, renderHeader, onOpenRemedial }: {
     examId: number; questions: Question[]; onQuestionsChanged: () => Promise<void>;
@@ -131,7 +131,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
         event.preventDefault();
         if (!question) return;
         const form = new FormData(event.currentTarget);
-        const input = correctionInput(question.tipeSoal, question.isi?.items?.length ?? 0, form);
+        const input = correctionInput(question.tipeSoal, question.isi?.pasangan?.length ?? question.isi?.items?.length ?? 0, form);
         const payload = { soalId: question.id, aksi: action, input, alasan: String(form.get('alasan') ?? '') };
         void perform(async () => {
             const { data } = await api.post<Impact>(url + '/perbaiki', payload);
@@ -237,7 +237,7 @@ export default function ExamReport({ examId, questions, onQuestionsChanged, rend
                                     const count = row.rincian[type];
                                     return count && <li key={type} title={questionTypeLabel(type)}
                                         className="whitespace-nowrap rounded-md bg-slate-100 px-2 py-1 text-xs font-medium tabular-nums text-slate-700">
-                                        {type === 'ISIAN' ? 'Isian' : type} <strong>{count.benar}/{count.total}</strong>
+                                        {type === 'ISIAN' ? 'Isian' : type === 'JODOH' ? questionTypeLabel(type) : type} <strong>{count.benar}/{count.total}</strong>
                                     </li>;
                                 })}
                             </ul> : '—'}

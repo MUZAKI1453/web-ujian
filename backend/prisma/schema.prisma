@@ -139,6 +139,7 @@ model Soal {
   id           Int     @id @default(autoincrement())
   ujianId      Int     @map("ujian_id")
   tipeSoal     String  @db.VarChar(20) // 'pg' atau 'essay'
+  urutan       Int?
   pertanyaan   String  @db.Text
   isi          Json?
   pilihanOpsi  Json?   @map("pilihan_opsi")

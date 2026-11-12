@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { errorMessage, type Question } from './QuestionEditor';
 import QuestionContent from './QuestionContent';
+import { matchingPairs } from './matchingPairs';
 
 type Difference = { soalId: number; nomor: number; lokal: unknown; server: unknown };
 
 function answerText(value: unknown, question?: Question) {
     if (value === null) return 'Kosong';
+    if (question?.tipeSoal === 'JODOH') {
+        return matchingPairs(question.isi, value).map(({ kiri, kanan }) => `${kiri} → ${kanan || 'Kosong'}`).join('\n');
+    }
     if (question?.tipeSoal === 'BS' && Array.isArray(value)) {
         return value.map((item, index) => `${index + 1}. ${item === null ? 'Kosong' : item ? 'Benar' : 'Salah'}`).join('\n');
     }

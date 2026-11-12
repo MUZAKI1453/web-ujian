@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { isMatchingAnswer, matchingKey } from './matching';
 
 export const object = (value: unknown): Record<string, unknown> =>
     value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -61,6 +62,9 @@ export function grade(questions: Question[], raw: unknown, essay: unknown) {
                 if (question.tipeSoal === 'BS' && Array.isArray(value)) {
                     correct = items.length > 0 && items.length === value.length && items.every((item, i) => value[i] === object(item).benar);
                 }
+                if (question.tipeSoal === 'JODOH' && Array.isArray(isi.pasangan) && isMatchingAnswer(value, isi.pasangan.length)) {
+                    correct = matchingKey(isi, isi.pasangan.length).every((index, row) => value[row] === index);
+                }
                 if (question.tipeSoal === 'ISIAN' && typeof value === 'string' && value.trim() && Array.isArray(isi.jawaban)) {
                     correct = isi.jawaban.some(answer => typeof answer === 'string' && normalized(answer, isi.angka === true) === normalized(value, isi.angka === true));
                 }
@@ -84,7 +88,7 @@ export function grade(questions: Question[], raw: unknown, essay: unknown) {
 export function revise(questions: Question[], id: number, action: unknown, input: unknown, special: unknown) {
     const rows = questions.map(question => ({ ...question }));
     const question = rows.find(item => item.id === id && !item.dibatalkan);
-    if (!question || !['PG', 'PM', 'BS', 'ISIAN'].includes(question.tipeSoal)) throw new Error('Pilih soal otomatis yang masih aktif.');
+    if (!question || !['PG', 'PM', 'BS', 'ISIAN', 'JODOH'].includes(question.tipeSoal)) throw new Error('Pilih soal otomatis yang masih aktif.');
     const isi = object(question.isi);
     if (action === 'terima-semua') question.semuaBenar = true;
     else if (action === 'tambah-jawaban' || (action === 'ubah-kunci' && question.tipeSoal === 'ISIAN')) {
@@ -92,6 +96,10 @@ export function revise(questions: Question[], id: number, action: unknown, input
         const values = input.split('\n').map(text => text.trim()).filter(Boolean);
         const old = action === 'tambah-jawaban' && Array.isArray(isi.jawaban) ? isi.jawaban.filter(value => typeof value === 'string') : [];
         question.isi = { ...isi, jawaban: [...new Set([...old, ...values])] } as Prisma.JsonObject;
+        question.semuaBenar = false;
+    } else if (action === 'ubah-kunci' && question.tipeSoal === 'JODOH') {
+        if (!Array.isArray(isi.pasangan) || !isMatchingAnswer(input, isi.pasangan.length)) throw new Error('Pilih satu jawaban berbeda untuk setiap pasangan.');
+        question.isi = { ...isi, kunci: input } as Prisma.JsonObject;
         question.semuaBenar = false;
     } else if (action === 'ubah-kunci') {
         const items = Array.isArray(isi.items) ? isi.items : [];

@@ -5,9 +5,10 @@ import { isAxiosError } from 'axios';
 import QuestionImageUpload from './QuestionImageUpload';
 import { fieldClass } from '../../components/ui/styles';
 import { questionTypeLabels as typeLabels } from './questionTypes';
+import { matchingPairs, type MatchingContent } from './matchingPairs';
 export { fieldClass, primaryClass } from '../../components/ui/styles';
 
-const types = ['PG', 'PM', 'BS', 'ISIAN', 'ESSAY'] as const;
+const types = ['PG', 'PM', 'BS', 'JODOH', 'ISIAN', 'ESSAY'] as const;
 const addRowClass = 'flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-500 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2';
 type QuestionType = typeof types[number];
 type Item = { teks: string; benar: boolean; gambar?: string };
@@ -17,7 +18,7 @@ export interface Question {
     pertanyaan: string;
     bobot: string;
     dibatalkan?: boolean;
-    isi: { gambar?: string; items?: Item[]; jawaban?: string[]; angka?: boolean } | null;
+    isi: ({ gambar?: string; items?: Item[]; jawaban?: string[]; angka?: boolean } & MatchingContent) | null;
 }
 
 export function errorMessage(error: unknown) {
@@ -34,17 +35,20 @@ function initialQuestion(question: Question | null, defaultType: QuestionType) {
         tipeSoal, pertanyaan: question?.pertanyaan ?? '', gambar: question?.isi?.gambar ?? '',
         items: question?.isi?.items ?? emptyItems(tipeSoal), jawaban: question?.isi?.jawaban ?? [''],
         angka: question?.isi?.angka ?? false,
-        poin: question?.tipeSoal === 'ESSAY' ? Number(question.bobot) : 1
+        poin: question?.tipeSoal === 'ESSAY' ? Number(question.bobot) : 1,
+        pasangan: tipeSoal === 'JODOH'
+            ? question ? matchingPairs(question.isi) : Array.from({ length: 2 }, () => ({ kiri: '', kanan: '' }))
+            : []
     };
 }
 
-export default function QuestionEditor({ question, number, onRemove, focus, defaultType = 'PG' }: {
+export default function QuestionEditor({ question, number, text, onTextChange, onRemove, focus, defaultType = 'PG' }: {
     question: Question | null; number: number; onRemove: () => void; focus?: boolean;
     defaultType?: QuestionType;
+    text: string; onTextChange: (text: string) => void;
 }) {
     const [initial] = useState(() => initialQuestion(question, defaultType));
     const type = initial.tipeSoal;
-    const [text, setText] = useState(initial.pertanyaan);
     const [image, setImage] = useState(initial.gambar);
     const [items, setItems] = useState(() => initial.items.map((item, editorKey) => ({ ...item, editorKey })));
     const nextItemKey = useRef(initial.items.length);
@@ -54,6 +58,8 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
     const [answers, setAnswers] = useState(() => (initial.jawaban.length ? initial.jawaban : ['']).map((value, key) => ({ value, key })));
     const nextAnswerKey = useRef(answers.length);
     const [points, setPoints] = useState(initial.poin);
+    const [pairs, setPairs] = useState(() => initial.pasangan.map((pair, key) => ({ ...pair, key })));
+    const nextPairKey = useRef(pairs.length);
     const [reading, setReading] = useState(0);
     useEffect(() => {
         multipleAnswerInput.current?.setCustomValidity(items.some(item => item.benar) ? '' : 'Pilih minimal satu opsi sebagai jawaban benar.');
@@ -62,7 +68,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
         setItems(current => current.map(item => item.editorKey === key ? { ...item, ...values } : item));
     };
     const onReadingChange = (delta: number) => setReading(current => current + delta);
-    const soal = { tipeSoal: type, pertanyaan: text, gambar: image, items: items.map(({ editorKey: _key, ...item }) => item), jawaban: answers.map(answer => answer.value), angka: initial.angka, poin: points };
+    const soal = { tipeSoal: type, pertanyaan: text, gambar: image, items: items.map(({ editorKey: _key, ...item }) => item), jawaban: answers.map(answer => answer.value), angka: initial.angka, poin: points, pasangan: pairs.map(({ key: _key, ...pair }) => pair) };
     const changed = !question || JSON.stringify(soal) !== JSON.stringify(initial);
 
     return (
@@ -79,7 +85,7 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
                     headerAction={<button type="button" aria-label={'Hapus soal ' + number} title="Hapus soal"
                         className="grid size-11 shrink-0 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
                         onClick={onRemove}><Trash2 size={18} aria-hidden="true" /></button>}>
-                    {inputId => <textarea id={inputId} className={fieldClass} autoFocus={focus} required maxLength={12000} rows={3} value={text} onChange={e => setText(e.target.value)} />}
+                    {inputId => <textarea id={inputId} className={fieldClass} autoFocus={focus} required maxLength={12000} rows={3} value={text} onChange={e => onTextChange(e.target.value)} />}
                 </QuestionImageUpload>
                 {(type === 'PG' || type === 'PM' || type === 'BS') && (
                     <fieldset aria-label={type === 'BS' ? 'Pernyataan soal' : 'Opsi jawaban soal'} className="space-y-3">
@@ -168,6 +174,33 @@ export default function QuestionEditor({ question, number, onRemove, focus, defa
                         </section>
                     </fieldset>
                 )}
+                {type === 'JODOH' && <fieldset className="space-y-3">
+                    <legend className="text-sm font-semibold text-slate-900">Kunci pasangan</legend>
+                    <p className="text-sm text-slate-600">Isi kedua kolom dengan pasangan yang benar. Setiap jawaban di kolom kanan harus berbeda. Urutannya akan diacak untuk siswa.</p>
+                    {pairs.map((pair, index) => <div key={pair.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-700">Pasangan {index + 1}</p>
+                            <button type="button" aria-label={'Hapus pasangan ' + (index + 1)} disabled={pairs.length <= 2}
+                                className="grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                                onClick={() => setPairs(current => current.filter(entry => entry.key !== pair.key))}><Trash2 size={17} aria-hidden="true" /></button>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {(['kiri', 'kanan'] as const).map(side => <label key={side} className="ui-label block">
+                                {side === 'kiri' ? 'Kolom kiri' : 'Pasangan di kolom kanan'}
+                                <input className={fieldClass} required maxLength={12000} value={pair[side]}
+                                    ref={input => {
+                                        const duplicate = side === 'kanan' && pair.kanan.trim() && pairs.some(other => other.key !== pair.key && other.kanan.trim() === pair.kanan.trim());
+                                        input?.setCustomValidity(duplicate ? 'Setiap jawaban di kolom kanan harus berbeda.' : '');
+                                    }}
+                                    onChange={event => setPairs(current => current.map(entry => entry.key === pair.key ? { ...entry, [side]: event.target.value } : entry))} />
+                            </label>)}
+                        </div>
+                    </div>)}
+                    <button type="button" className={addRowClass} disabled={pairs.length >= 20} onClick={() => {
+                        const key = nextPairKey.current++;
+                        setPairs(current => [...current, { key, kiri: '', kanan: '' }]);
+                    }}><Plus size={18} aria-hidden="true" /> Tambah Pasangan</button>
+                </fieldset>}
                 {type === 'ISIAN' && (
                     <section aria-labelledby={answerId + '-short-title'} className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                         <div className="flex items-start gap-3">

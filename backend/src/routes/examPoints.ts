@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 
-const types = ['PM', 'BS', 'ISIAN'] as const;
+const types = ['PM', 'BS', 'ISIAN', 'JODOH'] as const;
 type SpecialType = typeof types[number];
 
 export function calculatePoints(

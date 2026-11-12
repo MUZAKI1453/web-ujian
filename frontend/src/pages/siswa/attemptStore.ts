@@ -1,8 +1,9 @@
-export type Value = number | number[] | (boolean | null)[] | string;
+export type Value = number | (number | null)[] | (boolean | null)[] | string;
 export type SecurityEvent = { id: string; reason: 'tab-hidden' | 'window-blur' | 'fullscreen-exit' | 'split-screen' | 'copy' | 'paste' | 'context-menu' | 'print' };
 export type SecurityWeights = Record<SecurityEvent['reason'], number>;
 export interface Question {
     id: number; tipeSoal: string; pertanyaan: string; gambar?: string;
+    pilihanPasangan?: string[];
     items: { teks: string; gambar?: string; benar?: boolean }[];
 }
 export interface LocalAttempt {

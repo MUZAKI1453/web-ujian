@@ -11,6 +11,8 @@ import { studentReceipt } from './studentReceipt';
 import { answerSummary } from './answerSummary';
 import { examTokenMode } from './examProfiles';
 import { answersToDisplay, answersToOriginal, type ExamOrder, makeExamOrder, orderItems, orderQuestions, parseExamOrder } from './examOrder';
+import { isMatchingAnswer } from './matching';
+import { sortQuestions } from './questionOrder';
 
 const router = Router();
 router.use(requireUser);
@@ -36,10 +38,13 @@ function sessionFor(exam: Exam, siswaId: number) {
 function publicQuestions(exam: Exam, order: ExamOrder | null) {
     return orderQuestions(exam.soal, order).map(question => {
         const content = object(question.isi);
+        const pairs = Array.isArray(content.pasangan) ? content.pasangan.map(object) : [];
+        const matching = question.tipeSoal === 'JODOH';
         return {
             id: question.id, tipeSoal: question.tipeSoal.toUpperCase(), pertanyaan: question.pertanyaan,
             gambar: typeof content.gambar === 'string' ? content.gambar : undefined,
-            items: orderItems(question.id, Array.isArray(content.items) ? content.items : [], order).map(item => {
+            ...(matching && { pilihanPasangan: orderItems(question.id, pairs.map(pair => String(pair.kanan ?? '')), order) }),
+            items: matching ? pairs.map(pair => ({ teks: String(pair.kiri ?? '') })) : orderItems(question.id, Array.isArray(content.items) ? content.items : [], order).map(item => {
                 const entry = object(item);
                 return { teks: typeof entry.teks === 'string' ? entry.teks : '', gambar: typeof entry.gambar === 'string' ? entry.gambar : undefined };
             })
@@ -58,7 +63,8 @@ type QuestionShape = { id: string; tipeSoal: string; items: number };
 
 function shapeOf(questions: Exam['soal']): QuestionShape[] {
     return questions.map(question => {
-        const items = object(question.isi).items;
+        const content = object(question.isi);
+        const items = question.tipeSoal === 'JODOH' ? content.pasangan : content.items;
         return { id: String(question.id), tipeSoal: question.tipeSoal.toUpperCase(), items: Array.isArray(items) ? items.length : 0 };
     });
 }
@@ -73,7 +79,7 @@ async function questionShape(tx: Prisma.TransactionClient, ujianId: number): Pro
     const cached = shapeCache.get(ujianId);
     if (cached && cached.expires > now) return cached.rows;
     const rows = await tx.$queryRaw<{ id: number; tipeSoal: string; items: bigint | number | null }[]>`
-        SELECT id, tipeSoal, JSON_LENGTH(isi, '$.items') AS items
+        SELECT id, tipeSoal, CASE WHEN tipeSoal = 'JODOH' THEN JSON_LENGTH(isi, '$.pasangan') ELSE JSON_LENGTH(isi, '$.items') END AS items
         FROM soal WHERE ujian_id = ${ujianId} AND dibatalkan = 0`;
     const shape = rows.map(row => ({ id: String(row.id), tipeSoal: row.tipeSoal.toUpperCase(), items: Number(row.items ?? 0) }));
     if (shapeCache.size > 500) shapeCache.clear();
@@ -256,9 +262,11 @@ router.post('/ujian/:id/:langkah(siapkan|mulai)', respond(async (req, res, user)
                     return { status: 409, message: 'Persiapan kedaluwarsa atau token berubah. Siapkan soal lagi.' };
                 }
             }
+            const questions = sortQuestions(exam.soal);
             const created = await tx.pengerjaanUjian.create({ data: {
                 ujianId: id, siswaId: user.id, sesiSusulanId: sessionId,
-                urutan: makeExamOrder(exam.soal, exam.acakSoal, exam.acakOpsi) ?? Prisma.DbNull,
+                urutan: makeExamOrder(questions, exam.acakSoal, exam.acakOpsi)
+                    ?? { soal: questions.map(question => question.id), opsi: {} },
                 batasWaktu: admin ? session.waktuSelesai : new Date(Math.min(now + exam.durasiMenit * 60000, +session.waktuSelesai))
             } });
             return { status: 200, data: packet(exam, created, session) };
@@ -298,6 +306,7 @@ function validatedAnswers(shape: QuestionShape[], input: unknown): Prisma.InputJ
         if (q.tipeSoal === 'PG' && option(value)) out[id] = value;
         else if (q.tipeSoal === 'PM' && Array.isArray(value) && value.every(option) && new Set(value).size === value.length) out[id] = value;
         else if (q.tipeSoal === 'BS' && Array.isArray(value) && value.length === q.items && value.every(v => v === null || typeof v === 'boolean')) out[id] = value;
+        else if (q.tipeSoal === 'JODOH' && isMatchingAnswer(value, q.items, true)) out[id] = value;
         else if (['ISIAN', 'ESSAY'].includes(q.tipeSoal) && typeof value === 'string' && value.length <= 12000) out[id] = value;
         else return null;
     }

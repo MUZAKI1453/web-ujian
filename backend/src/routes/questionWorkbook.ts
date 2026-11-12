@@ -3,19 +3,19 @@ import * as XLSX from 'xlsx';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const questionTypeLabels = { PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', BS: 'Benar atau Salah', ISIAN: 'Isian Singkat', ESSAY: 'Esai' };
+export const questionTypeLabels = { PG: 'Pilihan Ganda', PM: 'Pilihan Majemuk', BS: 'Benar atau Salah', ISIAN: 'Isian Singkat', ESSAY: 'Esai', JODOH: 'Menjodohkan' };
 
 const header = ['bagian', 'isi', 'kunci'];
 const fields = {
     PG: ['opsi'], PM: ['opsi'], BS: ['pernyataan'],
-    ISIAN: ['jawaban', 'angka'], ESSAY: ['poin']
+    ISIAN: ['jawaban', 'angka'], ESSAY: ['poin'], JODOH: ['pasangan']
 } as const;
 
 type Kind = keyof typeof fields;
 type Item = { teks: string; benar: boolean };
 type Question = {
     tipeSoal: Kind; pertanyaan?: string; items: Item[]; jawaban: string[];
-    angka?: boolean; poin?: number;
+    angka?: boolean; poin?: number; pasangan?: { kiri: string; kanan: string }[];
 };
 
 const optionHeaders = ['Opsi A', 'Opsi B', 'Opsi C', 'Opsi D', 'Opsi E', 'Kunci Jawaban'];
@@ -29,7 +29,12 @@ const formats: Record<Kind, { columns: string[]; example: (string | number)[]; g
     PM: { columns: optionHeaders, example: ['Pilih semua bilangan genap.', '2', '3', '4', '5', '', 'A,C'], guide: 'Isi satu atau beberapa kunci. Pisahkan dengan koma jika lebih dari satu, contoh: A,C.' },
     BS: { columns: Array.from({ length: 5 }, (_, i) => ['Pernyataan ' + (i + 1), 'Kunci ' + (i + 1)]).flat(), example: ['Tentukan benar atau salah.', '5 lebih besar dari 3.', 'Benar', '2 adalah bilangan ganjil.', 'Salah'], guide: 'Isi setiap pasangan pernyataan dan kunci dengan Benar atau Salah. Pasangan yang tidak digunakan boleh kosong.' },
     ISIAN: { columns: ['Jawaban 1', 'Jawaban 2', 'Jawaban 3', 'Isian Angka'], example: ['Berapa hasil 3 dibagi 2?', '1,5', '1.5', '', 'Ya'], guide: 'Isi satu atau beberapa alternatif jawaban. Isi Isian Angka dengan Ya atau Tidak; kosong berarti Tidak.' },
-    ESSAY: { columns: ['Poin Maksimum'], example: ['Jelaskan perbedaan bilangan ganjil dan genap.', 6], guide: 'Isi Poin Maksimum dengan bilangan bulat 1–100.' }
+    ESSAY: { columns: ['Poin Maksimum'], example: ['Jelaskan perbedaan bilangan ganjil dan genap.', 6], guide: 'Isi Poin Maksimum dengan bilangan bulat 1–100.' },
+    JODOH: {
+        columns: Array.from({ length: 5 }, (_, i) => ['Kiri ' + (i + 1), 'Kanan ' + (i + 1)]).flat(),
+        example: ['Jodohkan negara dengan ibu kotanya.', 'Indonesia', 'Jakarta', 'Jepang', 'Tokyo'],
+        guide: 'Isi 2–5 pasangan yang benar. Isi kedua kolom pada setiap pasangan dan gunakan jawaban kanan yang berbeda.'
+    }
 };
 
 export async function questionTemplate(logo: 'smaip' | 'smpip' = 'smpip') {
@@ -178,6 +183,17 @@ function readHorizontalWorkbook(workbook: XLSX.WorkBook) {
                     question.items.push({ teks: text, benar: key === 'benar' });
                 }
                 if (!question.items.length) fail('Isi minimal satu pernyataan beserta kuncinya.');
+            } else if (type === 'JODOH') {
+                const pairs = [];
+                for (let i = 1; i < values.length; i += 2) {
+                    const kiri = values[i] ?? '', kanan = values[i + 1] ?? '';
+                    if (!kiri && !kanan) continue;
+                    if (!kiri || !kanan) fail('Lengkapi kolom kiri dan kanan pada setiap pasangan.');
+                    pairs.push({ kiri, kanan });
+                }
+                if (pairs.length < 2) fail('Isi minimal dua pasangan.');
+                if (new Set(pairs.map(pair => pair.kanan)).size !== pairs.length) fail('Jawaban di kolom kanan harus berbeda.');
+                question.pasangan = pairs;
             } else if (type === 'ISIAN') {
                 question.jawaban = values.slice(1, 4).filter(Boolean);
                 if (!question.jawaban.length) fail('Isi minimal satu jawaban yang diterima.');
@@ -241,7 +257,12 @@ export function readQuestionWorkbook(buffer: Buffer): { row: number; sheet?: str
             current.items.push({ teks: value, benar: key === 'benar' });
             continue;
         }
-        if (key) fail('Kolom kunci hanya diisi untuk opsi atau pernyataan.');
+        if (field === 'pasangan') {
+            if (!rawKey) fail('Isi kolom kunci dengan jawaban pasangan.');
+            (current.pasangan ??= []).push({ kiri: value, kanan: rawKey });
+            continue;
+        }
+        if (key) fail('Kolom kunci hanya diisi untuk opsi, pernyataan, atau pasangan.');
         if (field === 'jawaban') {
             current.jawaban.push(value);
             continue;

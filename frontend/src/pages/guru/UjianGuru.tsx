@@ -10,6 +10,7 @@ import ImportSoal from './ImportSoal';
 import EditUjian from './EditUjian';
 import ExamQuestionReview, { ExamReviewHeader } from '../../components/ExamQuestionReview';
 import PublishExam, { specialPointTypes, type PointSettings } from './PublishExam';
+import { questionTypeRank } from './questionTypes';
 import ExamSessions from './ExamSessions';
 import ExamReport from './ExamReport';
 import DraftExamForm from './DraftExamForm';
@@ -198,7 +199,7 @@ export default function UjianGuru({ view = 'dashboard', onNavigate }: {
 
     function updateQuestions(soal: Question[]) {
         if (!exam) return;
-        setExam({ ...exam, soal });
+        setExam({ ...exam, soal: [...soal].sort((a, b) => questionTypeRank(a.tipeSoal) - questionTypeRank(b.tipeSoal)) });
         setExams(current => current.map(item => item.id === exam.id ? { ...item, _count: { soal: soal.length } } : item));
     }
 

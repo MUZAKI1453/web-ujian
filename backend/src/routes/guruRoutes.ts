@@ -18,6 +18,7 @@ import { essayLimit, grade, object, questionContent, revise } from './examGradin
 import { examClassIds, parseClassIds } from './examClasses';
 import { sortByName } from '../controllers/displayOrder';
 import { isDataImage, isMediaPath, storeQuestionImages } from './questionImages';
+import { sortQuestions } from './questionOrder';
 import { collectQuestionStats, createQuestionStats, summarizeQuestionStats } from './questionAnalytics';
 
 const router = Router();
@@ -133,6 +134,7 @@ function copyQuestions(questions: Prisma.SoalGetPayload<{}>[], draf: boolean) {
     const essayOnly = questions.every(question => question.tipeSoal === 'ESSAY');
     return questions.map(question => ({
         tipeSoal: question.tipeSoal, pertanyaan: question.pertanyaan,
+        urutan: question.urutan,
         isi: questionContent(question) ?? Prisma.DbNull, pilihanOpsi: question.pilihanOpsi ?? Prisma.DbNull,
         kunciJawaban: question.kunciJawaban,
         bobot: !draf && essayOnly ? essayLimit(question) : question.bobot
@@ -268,7 +270,7 @@ router.get('/ujian/:id', handle(async (req, res, actor) => {
         where: { id, ...examScope(actor) }, select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
     });
     if (!exam) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
-    res.json({ ...exam, soal: exam.soal.map(questionForResponse) });
+    res.json({ ...exam, soal: sortQuestions(exam.soal).map(questionForResponse) });
 }));
 
 const allowedImageHosts = (process.env.GAMBAR_HOST_DIIZINKAN ?? '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean);
@@ -306,6 +308,12 @@ function parseQuestion(input: unknown) {
         const keys = items.filter(item => item.benar).length;
         if ((tipeSoal === 'PG' && keys !== 1) || (tipeSoal === 'PM' && keys === 0)) return null;
         isi = { items };
+    } else if (tipeSoal === 'JODOH') {
+        if (!Array.isArray(body.pasangan) || body.pasangan.length < 2 || body.pasangan.length > 20) return null;
+        const pasangan = body.pasangan.map(pair => ({ kiri: text(pair?.kiri), kanan: text(pair?.kanan) }));
+        if (pasangan.some(({ kiri, kanan }) => !kiri || !kanan || kiri.length > 12000 || kanan.length > 12000) ||
+            new Set(pasangan.map(pair => pair.kanan)).size !== pasangan.length) return null;
+        isi = { pasangan };
     } else if (tipeSoal === 'ISIAN') {
         if (!Array.isArray(body.jawaban)) return null;
         const jawaban = [...new Set(body.jawaban.map(text).filter(Boolean))];
@@ -327,7 +335,7 @@ router.get('/soal/template', handle(async (_req, res) => {
 router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
     const id = Number(req.params.id);
     if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
-    const { perubahan, soalAwal, hapus, jenisUjianId, rilisHasilOtomatis, aturanDraf } = req.body ?? {};
+    const { perubahan, soalAwal, hapus, jenisUjianId, rilisHasilOtomatis, aturanDraf, urutanSoal } = req.body ?? {};
     const rules = parseDraftExamRules(aturanDraf);
     if (aturanDraf !== undefined && !rules) return res.status(400).json({ message: 'Aturan draf ujian tidak valid.' });
     if (rilisHasilOtomatis !== undefined && typeof rilisHasilOtomatis !== 'boolean') {
@@ -342,23 +350,40 @@ router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
 
     const existing = new Set<number>(soalAwal);
     const edited = new Set<number>(hapus);
-    if (hapus.some(questionId => !existing.has(questionId))) return res.status(400).json({ message: 'Daftar soal tidak valid.' });
-    const updates: { id: number; data: NonNullable<ReturnType<typeof parseQuestion>> }[] = [];
+    if (hapus.some(questionId => !existing.has(questionId)) || edited.size !== hapus.length) return res.status(400).json({ message: 'Daftar soal tidak valid.' });
+    const positions = new Map<number, number>();
+    const newPositions: number[] = [];
+    if (urutanSoal !== undefined) {
+        if (!Array.isArray(urutanSoal)) return res.status(400).json({ message: 'Urutan soal tidak valid.' });
+        for (const [index, key] of urutanSoal.entries()) {
+            if (key === null) newPositions.push(index + 1);
+            else {
+                if (!validId(key) || !existing.has(key) || edited.has(key) || positions.has(key)) {
+                    return res.status(400).json({ message: 'Urutan soal tidak valid.' });
+                }
+                positions.set(key, index + 1);
+            }
+        }
+        if (positions.size !== existing.size - edited.size || newPositions.length !== perubahan.filter(change => change?.id === null).length) {
+            return res.status(400).json({ message: 'Urutan soal tidak lengkap.' });
+        }
+    }
+    const updates = new Map<number, NonNullable<ReturnType<typeof parseQuestion>>>();
     const additions: Prisma.SoalCreateManyInput[] = [];
     for (const change of perubahan) {
         const data = parseQuestion(change?.soal);
         if (!data) {
             const label = validId(change?.nomor) ? 'Soal nomor ' + change.nomor : 'Soal';
-            return res.status(400).json({ message: label + ' belum lengkap. Periksa teks, opsi, kunci, atau poin.' });
+            return res.status(400).json({ message: label + ' belum valid. Periksa teks, opsi, pasangan, kunci, atau poin.' });
         }
         if (change.id === null) {
-            additions.push({ ujianId: id, ...data, isi: await storeQuestionImages(data.isi) });
+            additions.push({ ujianId: id, ...data, urutan: newPositions[additions.length], isi: await storeQuestionImages(data.isi) });
         } else {
             if (!validId(change.id) || !existing.has(change.id) || edited.has(change.id)) {
                 return res.status(400).json({ message: 'Daftar soal tidak valid.' });
             }
             edited.add(change.id);
-            updates.push({ id: change.id, data: { ...data, isi: await storeQuestionImages(data.isi) } });
+            updates.set(change.id, { ...data, isi: await storeQuestionImages(data.isi) });
         }
     }
 
@@ -366,17 +391,23 @@ router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
         await tx.$queryRaw`SELECT id FROM ujian WHERE id = ${id} FOR UPDATE`;
         const exam = await tx.ujian.findFirst({
             where: { id, ...examScope(actor) },
-            select: { draf: true, ujianAsalId: true, soal: { select: { id: true } } }
+            select: { draf: true, ujianAsalId: true, soal: { select: { id: true, tipeSoal: true, urutan: true } } }
         });
         if (!exam) return { status: 404, message: 'Ujian tidak ditemukan.' };
-        if (!exam.draf || exam.soal.length !== existing.size || exam.soal.some(question => !existing.has(question.id))) {
+        if (!exam.draf || exam.soal.length !== existing.size || exam.soal.some(question => !existing.has(question.id)) ||
+            (urutanSoal !== undefined && sortQuestions(exam.soal).some((question, index) => question.id !== soalAwal[index]))) {
             return { status: 409, message: 'Draf berubah atau sudah terbit. Buka ulang ujian sebelum menyimpan lagi.' };
         }
         const jenis = await tx.jenisUjian.findUnique({ where: { id: jenisUjianId } });
         if (!jenis) return { status: 400, message: 'Jenis ujian tidak tersedia. Muat ulang daftar ujian.' };
         if (hapus.length) await tx.soal.deleteMany({ where: { ujianId: id, id: { in: hapus } } });
-        for (const update of updates) {
-            await tx.soal.update({ where: { id: update.id }, data: update.data });
+        for (const question of exam.soal) {
+            const data = updates.get(question.id);
+            const urutan = positions.get(question.id);
+            const orderChanged = urutan !== undefined && question.urutan !== urutan;
+            if (data || orderChanged) {
+                await tx.soal.update({ where: { id: question.id }, data: { ...data, ...(orderChanged && { urutan }) } });
+            }
         }
         if (additions.length) await tx.soal.createMany({ data: additions });
         const data = await tx.ujian.update({
@@ -384,7 +415,7 @@ router.put('/ujian/:id/draf', handle(async (req, res, actor) => {
                 ...(rules ?? { hasilRilis: rilisHasilOtomatis }) },
             select: { ...examFields, soal: { orderBy: { id: 'asc' } } }
         });
-        return { status: 200, data: { ...data, soal: data.soal.map(questionForResponse) } };
+        return { status: 200, data: { ...data, soal: sortQuestions(data.soal).map(questionForResponse) } };
     }, { timeout: 20000 });
 
     if (result.status !== 200) return res.status(result.status).json({ message: result.message });
@@ -485,11 +516,11 @@ router.post('/ujian/:id/poin', handle(async (req, res, actor) => {
     if (!validId(id)) return res.status(404).json({ message: 'Ujian tidak ditemukan.' });
     const exam = await prisma.ujian.findFirst({
         where: { id, ...examScope(actor), draf: true },
-        select: { soal: { orderBy: { id: 'asc' }, select: { id: true, tipeSoal: true, bobot: true } } }
+        select: { soal: { select: { id: true, tipeSoal: true, bobot: true, urutan: true } } }
     });
     if (!exam) return res.status(404).json({ message: 'Draf tidak ditemukan.' });
     try {
-        res.json(calculatePoints(exam.soal, req.body.poinKhusus));
+        res.json(calculatePoints(sortQuestions(exam.soal), req.body.poinKhusus));
     } catch (error) {
         res.status(400).json({ message: (error as Error).message });
     }
@@ -507,7 +538,7 @@ router.post('/ujian/:id/terbit', handle(async (req, res, actor) => {
         if (!exam) return { status: 404, message: 'Draf tidak ditemukan.' };
         if (+exam.waktuSelesai <= Date.now()) return { status: 400, message: 'Jadwal ujian sudah berakhir.' };
         let plan;
-        try { plan = calculatePoints(exam.soal, req.body.poinKhusus); }
+        try { plan = calculatePoints(sortQuestions(exam.soal), req.body.poinKhusus); }
         catch (error) { return { status: 400, message: (error as Error).message }; }
         if (JSON.stringify(req.body.pratinjau) !== JSON.stringify(plan.rows)) {
             return { status: 409, message: 'Soal atau poin berubah. Buat pratinjau poin lagi.' };
@@ -526,7 +557,7 @@ router.post('/ujian/:id/terbit', handle(async (req, res, actor) => {
         return { status: 200, updated };
     });
     if ('message' in result) return res.status(result.status).json({ message: result.message });
-    res.json(result.updated);
+    res.json({ ...result.updated, soal: sortQuestions(result.updated.soal) });
 }));
 
 router.patch('/ujian/:id/keamanan', handle(async (req, res, actor) => {
@@ -762,7 +793,7 @@ router.get('/ujian/:id/analitik', handle(async (req, res, actor) => {
 
     const offline = new Map(exam.pengerjaan.filter(row => row.diterimaOffline).map(row => [row.siswaId, row.siswa]));
     const participants = new Map([...offline].map(([siswaId, siswa]) => [siswaId, { siswa, nilai: null as number | null, status: 'Menunggu tinjauan' }]));
-    const questionStats = createQuestionStats(exam.soal);
+    const questionStats = createQuestionStats(sortQuestions(exam.soal));
     let jumlahKiriman = 0;
     let totalSquares = 0;
     for (const answer of exam.jawaban) {
@@ -1077,7 +1108,7 @@ router.get('/ujian/:id/offline/:attemptId', handle(async (req, res, actor) => {
     const exam = await prisma.ujian.findFirst({
         where: { id, ...examScope(actor), draf: false },
         select: {
-            soal: { orderBy: { id: 'asc' }, select: { id: true, tipeSoal: true } },
+            soal: { select: { id: true, tipeSoal: true, urutan: true } },
             pengerjaan: { where: { id: attemptId, diterimaOffline: { not: null } },
                 select: { kirimanOffline: true, jawabanTersimpan: true } }
         }
@@ -1085,7 +1116,7 @@ router.get('/ujian/:id/offline/:attemptId', handle(async (req, res, actor) => {
     const attempt = exam?.pengerjaan[0];
     if (!exam || !attempt) return res.status(404).json({ message: 'Kiriman offline tidak ditemukan atau sudah ditinjau.' });
     const local = object(attempt.kirimanOffline), server = object(attempt.jawabanTersimpan);
-    const perbedaan = exam.soal.flatMap((q, index) => {
+    const perbedaan = sortQuestions(exam.soal).flatMap((q, index) => {
         const lokal = comparableAnswer(local[q.id], q.tipeSoal);
         const tersimpan = comparableAnswer(server[q.id], q.tipeSoal);
         return isDeepStrictEqual(lokal, tersimpan) ? [] : [{ soalId: q.id, nomor: index + 1, lokal, server: tersimpan }];

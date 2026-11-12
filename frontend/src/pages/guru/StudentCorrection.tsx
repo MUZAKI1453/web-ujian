@@ -5,6 +5,8 @@ import { ArrowLeft, Check, KeyRound, Save, X } from 'lucide-react';
 import QuestionContent from './QuestionContent';
 import type { Question } from './QuestionEditor';
 import { essayMarks } from './correctionForm';
+import MatchingPairList from '../../components/MatchingPairList';
+import { matchingPairs } from './matchingPairs';
 
 export type ReportRow = {
     id: number;
@@ -23,7 +25,8 @@ function AutomaticAnswer({ question, value, result }: { question: Question; valu
     const selected = items.flatMap((_, index) => (Array.isArray(value) ? value.includes(index) : value === index) ? [String.fromCharCode(65 + index)] : []);
     const answered = typeof value === 'string' && !!value.trim();
     return <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-        {question.tipeSoal === 'BS' ? <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        {question.tipeSoal === 'JODOH' ? <MatchingPairList pairs={matchingPairs(question.isi)} answers={matchingPairs(question.isi, value ?? null)} />
+        : question.tipeSoal === 'BS' ? <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <table className="w-full table-fixed text-left text-xs">
                 <thead className="border-b bg-slate-100/70 text-slate-500"><tr><th scope="col" className="px-3 py-3">Pernyataan</th><th scope="col" className="w-16 px-1 py-3 text-center sm:w-20">Siswa</th><th scope="col" className="w-16 px-1 py-3 text-center sm:w-20">Kunci</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">{items.map((item, index) => {
@@ -111,7 +114,7 @@ export default function StudentCorrection({ row, questions, busy, onBack, onSave
                 </table>
             </div>
         </header>
-        <nav aria-label="Tipe soal untuk koreksi" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 lg:grid-cols-5">
+        <nav aria-label="Tipe soal untuk koreksi" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 sm:grid-cols-3 xl:grid-cols-6">
             {Object.entries(questionTypeLabels).map(([type, label]) => <button key={type} type="button" disabled={busy} aria-pressed={activeType === type}
                 onClick={() => setActiveType(type)} className={'flex items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-sm font-semibold ' + (activeType === type ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100')}>
                 {label}<span className={'rounded-full px-2 py-0.5 text-xs ' + (activeType === type ? 'bg-white/20' : 'bg-slate-100')}>{visible.filter(question => question.tipeSoal === type).length}</span>

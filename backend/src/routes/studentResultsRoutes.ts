@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../config/db';
 import { requireUser } from '../middleware/auth';
 import { grade, object, questionContent } from './examGrading';
+import { sortQuestions } from './questionOrder';
 import { studentReceipt } from './studentReceipt';
 
 const router = Router();
@@ -59,7 +60,7 @@ router.get('/ujian/:id/:jenis(hasil|pembahasan)', async (req, res, next) => {
         if (!exam || !(result ? exam.hasilRilis : exam.bahasanRilis)) return res.status(404).json({ message: 'Hasil belum tersedia.' });
         const answer = exam.jawaban[0];
         const pendingOffline = await prisma.pengerjaanUjian.count({ where: { ujianId: id, siswaId, diterimaOffline: { not: null } } });
-        if (!result) return res.json({ soal: exam.soal.flatMap((q, index) => {
+        if (!result) return res.json({ soal: sortQuestions(exam.soal).flatMap((q, index) => {
             if (q.dibatalkan) return [];
             // Pembahasan may be released independently of marks. Keep marks and notes behind hasilRilis.
             const mark = grade([q], answer.detailJawaban, answer.koreksiEssay);

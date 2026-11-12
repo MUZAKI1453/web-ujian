@@ -3,7 +3,7 @@ import { isBlankAnswer } from './answerSummary';
 import { essayLimit, grade, object } from './examGrading';
 
 type QuestionStats = ReturnType<typeof questionStats>;
-const objectiveTypes = ['PG', 'PM', 'BS', 'ISIAN'];
+const objectiveTypes = ['PG', 'PM', 'BS', 'ISIAN', 'JODOH'];
 
 function isObjective(row: Pick<QuestionStats, 'status' | 'tipe'>) {
     return row.status === 'aktif' && objectiveTypes.includes(row.tipe);

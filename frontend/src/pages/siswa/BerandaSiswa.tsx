@@ -18,6 +18,7 @@ import ExamTypeBadge from '../../components/ExamTypeBadge';
 import Select from '../../components/ui/Select';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import { fullscreenAvailable, nativeApp } from '../../services/nativeApp';
+import type { MatchingContent } from '../guru/matchingPairs';
 
 type Exam = {
     id: number; judul: string; mapel: string; mapelId: number; durasi: number; mulai: string; selesai: string;
@@ -32,9 +33,9 @@ type Packet = {
 type AttemptLocation = Pick<Exam, 'id' | 'mapel' | 'judul'> & { attemptId: number };
 type Result = { nilai: string; rincian: Record<string, { benar: number; total: number; poin: string; maksimum: string }> };
 type Discussion = { soal: { id: number; nomor: number; pertanyaan: string; tipeSoal: string; semuaBenar: boolean;
-    jawabanSiswa: Value | null; penilaian: { poin: string; maksimum: string; status: string } | null; catatan: string | null; isi: {
+    jawabanSiswa: Value | null; penilaian: { poin: string; maksimum: string; status: string } | null; catatan: string | null; isi: ({
     gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[];
-} | null }[] };
+} & MatchingContent) | null }[] };
 
 const schedule = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
 const resultDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' });
@@ -61,7 +62,7 @@ function StudentAnswerReview({ question }: { question: Discussion['soal'][number
                     {question.penilaian.status}
                 </p>}
             </div>
-            <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{discussionAnswer(question.jawabanSiswa, question.tipeSoal)}</p>
+            {question.tipeSoal !== 'JODOH' && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{discussionAnswer(question.jawabanSiswa, question.tipeSoal)}</p>}
             {!question.penilaian && <p className="text-xs text-slate-600">Nilai belum dirilis atau menunggu koreksi.</p>}
         </div>
         {question.catatan && <div className="space-y-1 rounded-xl bg-amber-50 p-3">

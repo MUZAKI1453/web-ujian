@@ -3,6 +3,59 @@ import { test } from 'node:test';
 import { PrismaClient } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
+test('draft save preserves existing IDs, orders inserted questions and rejects stale order', async t => {
+    t.mock.method(PrismaClient.prototype, '$connect', async () => {});
+    const [{ default: db }, { default: router }] = await Promise.all([
+        import('../src/config/db'), import('../src/routes/guruRoutes')
+    ]);
+    const rows = [
+        { id: 11, tipeSoal: 'PG', urutan: null as number | null },
+        { id: 12, tipeSoal: 'PG', urutan: null as number | null },
+        { id: 13, tipeSoal: 'ESSAY', urutan: null as number | null }
+    ];
+    const transaction = db.$transaction;
+    db.$transaction = (async run => run({
+        $queryRaw: async () => {},
+        jenisUjian: { findUnique: async () => ({ nama: 'Sumatif' }) },
+        ujian: {
+            findFirst: async () => ({ draf: true, ujianAsalId: null, soal: rows }),
+            update: async () => ({ soal: rows })
+        },
+        soal: {
+            update: async ({ where, data }: { where: { id: number }; data: { urutan: number } }) => {
+                Object.assign(rows.find(row => row.id === where.id)!, data);
+            },
+            createMany: async ({ data }: { data: { tipeSoal: string; urutan: number }[] }) => {
+                rows.push(...data.map((row, index) => ({ ...row, id: 14 + index })));
+            }
+        }
+    })) as typeof transaction;
+
+    async function save(soalAwal: number[], urutanSoal: (number | null)[], perubahan: object[] = []) {
+        const handler = router.stack.find(layer => layer.route?.path === '/ujian/:id/draf')!.route.stack[0].handle;
+        let status = 200;
+        let data: { soal?: { id: number }[] } = {};
+        const res = { locals: { user: { id: 3, role: 'admin' } },
+            status(code: number) { status = code; return this; }, json(body: typeof data) { data = body; } };
+        await handler({ params: { id: '7' }, body: {
+            soalAwal, urutanSoal, perubahan, hapus: [], jenisUjianId: 5, durasiMenit: 60,
+            waktuMulai: '2099-05-01T01:00:00.000Z', waktuSelesai: '2099-05-01T03:00:00.000Z'
+        } }, res);
+        return { status, ids: data.soal?.map(row => row.id) };
+    }
+
+    try {
+        assert.equal((await save([11, 12, 13], [12, 12, 13])).status, 400);
+        const addition = { id: null, soal: {
+            tipeSoal: 'PG', pertanyaan: 'Soal baru', items: [{ teks: 'Benar', benar: true }, { teks: 'Salah', benar: false }]
+        } };
+        assert.deepEqual(await save([11, 12, 13], [12, null, 11, 13], [addition]), { status: 200, ids: [12, 14, 11, 13] });
+        assert.equal((await save([11, 12, 14, 13], [11, 12, 14, 13])).status, 409);
+    } finally {
+        db.$transaction = transaction;
+    }
+});
+
 test('teacher can duplicate an authorized exam and reschedule only before anyone starts', async t => {
     t.mock.method(PrismaClient.prototype, '$connect', async () => {});
     const [{ default: db }, { default: router }] = await Promise.all([

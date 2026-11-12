@@ -24,24 +24,29 @@ function permutation(value: unknown, length?: number): value is number[] {
 
 export function makeExamOrder(questions: OrderQuestion[], acakSoal: boolean, acakOpsi: boolean,
     random: (max: number) => number = randomInt): ExamOrder | null {
-    if (!acakSoal && !acakOpsi) return null;
     const soal = questions.map(question => question.id);
     if (acakSoal) {
-        // Soal ditukar hanya dengan soal bertipe sama, sehingga susunan bagian (mis. PG lalu esai) tetap seperti buatan guru.
-        for (const type of new Set(questions.map(question => question.tipeSoal.toUpperCase()))) {
-            const slots = questions.flatMap((question, index) => question.tipeSoal.toUpperCase() === type ? [index] : []);
+        const slotsByType = new Map<string, number[]>();
+        questions.forEach((question, index) => {
+            const type = question.tipeSoal.toUpperCase();
+            const slots = slotsByType.get(type) ?? [];
+            slots.push(index);
+            slotsByType.set(type, slots);
+        });
+        for (const slots of slotsByType.values()) {
             const ids = shuffled(slots.map(index => questions[index].id), random);
             slots.forEach((slot, index) => { soal[slot] = ids[index]; });
         }
     }
     const opsi: ExamOrder['opsi'] = {};
-    if (acakOpsi) {
-        for (const question of questions) {
-            const items = object(question.isi).items;
-            if (!['PG', 'PM'].includes(question.tipeSoal.toUpperCase()) || !Array.isArray(items) || items.length < 2) continue;
-            opsi[question.id] = shuffled(items.map((_, index) => index), random);
-        }
+    for (const question of questions) {
+        const type = question.tipeSoal.toUpperCase();
+        const content = object(question.isi);
+        const items = type === 'JODOH' ? content.pasangan : acakOpsi && ['PG', 'PM'].includes(type) ? content.items : null;
+        if (!Array.isArray(items) || items.length < 2) continue;
+        opsi[question.id] = shuffled(items.map((_, index) => index), random);
     }
+    if (!acakSoal && !acakOpsi && !Object.keys(opsi).length) return null;
     return { soal, opsi };
 }
 

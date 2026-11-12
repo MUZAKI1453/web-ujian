@@ -1,6 +1,7 @@
 type Fields = Pick<FormData, 'get' | 'getAll'>;
 
-export function correctionInput(type: string, itemCount: number, form: Fields): string | boolean[] {
+export function correctionInput(type: string, itemCount: number, form: Fields): string | boolean[] | number[] {
+    if (type === 'JODOH') return Array.from({ length: itemCount }, (_, index) => Number(form.get('pasangan-' + index) ?? -1));
     return type === 'ISIAN'
         ? form.getAll('jawaban').map(value => String(value).trim()).filter(Boolean).join('\n')
         : Array.from({ length: itemCount }, (_, index) => form.get('item-' + index) === 'true');

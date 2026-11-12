@@ -1,7 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Check, CheckCheck, CircleDot, ClipboardList, FilePenLine, ListChecks, TextCursorInput, X } from 'lucide-react';
+import { Check, CheckCheck, CircleDot, ClipboardList, FilePenLine, Link2, ListChecks, TextCursorInput, X } from 'lucide-react';
 import QuestionContent from '../pages/guru/QuestionContent';
 import { questionTypeLabels } from '../pages/guru/questionTypes';
+import { matchingPairs, type MatchingContent } from '../pages/guru/matchingPairs';
+import MatchingPairList from './MatchingPairList';
 
 type ReviewQuestion = {
     id: number;
@@ -10,10 +12,11 @@ type ReviewQuestion = {
     pertanyaan: string;
     dibatalkan?: boolean;
     semuaBenar?: boolean;
-    isi: { gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[] } | null;
+    jawabanSiswa?: unknown;
+    isi: ({ gambar?: string; items?: { teks: string; gambar?: string; benar: boolean }[]; jawaban?: string[] } & MatchingContent) | null;
 };
 
-const groupIcons = { PG: CircleDot, PM: ListChecks, BS: CheckCheck, ISIAN: TextCursorInput, ESSAY: FilePenLine };
+const groupIcons = { PG: CircleDot, PM: ListChecks, BS: CheckCheck, JODOH: Link2, ISIAN: TextCursorInput, ESSAY: FilePenLine };
 const groups = [...Object.entries(questionTypeLabels), ['lainnya', 'Soal Lainnya']];
 
 export function optionLabel(index: number): string {
@@ -106,6 +109,10 @@ export default function ExamQuestionReview<T extends ReviewQuestion>({ questions
                             <ul className="mt-2 flex flex-wrap gap-2">
                                 {question.isi.jawaban.map((answer, index) => <li key={index} className="max-w-full whitespace-pre-wrap rounded-lg border border-blue-200 bg-white px-3 py-1.5 [overflow-wrap:anywhere]">{answer}</li>)}
                             </ul>
+                        </div>}
+                        {type === 'JODOH' && <div className="rounded-xl bg-blue-50 p-3 text-blue-950">
+                            <MatchingPairList pairs={matchingPairs(question.isi)} answers={question.jawabanSiswa === undefined
+                                ? undefined : matchingPairs(question.isi, question.jawabanSiswa)} />
                         </div>}
                         {question.semuaBenar && <p className="text-sm font-medium text-green-800">Semua jawaban diterima.</p>}
                         {details?.(question)}

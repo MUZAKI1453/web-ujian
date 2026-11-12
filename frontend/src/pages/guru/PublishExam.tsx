@@ -8,7 +8,7 @@ import { questionTypeLabel } from './questionTypes';
 import Select from '../../components/ui/Select';
 import { Calculator, Send, X } from 'lucide-react';
 
-export const specialPointTypes = ['PM', 'BS', 'ISIAN'] as const;
+export const specialPointTypes = ['PM', 'BS', 'ISIAN', 'JODOH'] as const;
 export type PointSettings = Partial<Record<typeof specialPointTypes[number], string>>;
 interface PointRow { id: number; tipeSoal: string; source: string; poin: string }
 

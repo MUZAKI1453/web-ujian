@@ -77,7 +77,8 @@ test('teacher analytics scopes the exam and separates final scores from pending 
         assert.equal(byId.get(3)?.nilai, null);
         assert.equal(body.jumlahKiriman, 3);
         assert.equal(body.menungguTinjauan, 1);
-        const [essay, objective] = body.analisisSoal;
+        const [objective, essay] = body.analisisSoal;
+        assert.deepEqual([objective.id, objective.nomor, essay.id, essay.nomor], [2, 1, 1, 2]);
         assert.deepEqual([essay.dikoreksi, essay.rataPoin, essay.poinMaksimum], [2, 4, 10]);
         assert.deepEqual([objective.benar, objective.salah, objective.kosong], [1, 1, 1]);
         assert.deepEqual(objective.opsi.map((option: { dipilih: number }) => option.dipilih), [1, 1]);

@@ -4,7 +4,8 @@ import api from '../../services/api';
 import QuestionEditor, { errorMessage, type Question } from './QuestionEditor';
 import type { ExamDetail, ExamType } from './UjianGuru';
 import { examClassNames } from './UjianGuru';
-import { questionTypeLabels } from './questionTypes';
+import { questionTypeLabels, questionTypeRank } from './questionTypes';
+import QuestionOrderList from './QuestionOrderList';
 import { Plus } from 'lucide-react';
 import ExamTypeBadge from '../../components/ExamTypeBadge';
 import DraftExamSettings, { readDraftRules } from './DraftExamSettings';
@@ -19,21 +20,37 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
     const nextKey = useRef(-1);
     const formRef = useRef<HTMLFormElement>(null);
     const [activeType, setActiveType] = useState<QuestionType>(() => exam.soal.find(question => question.id === focusId)?.tipeSoal ?? exam.soal[0]?.tipeSoal ?? 'PG');
-    const [rows, setRows] = useState(() => {
-        const existing = exam.soal.map(question => ({ key: question.id, question: question as Question | null, type: question.tipeSoal }));
-        return existing;
-    });
+    const [rows, setRows] = useState(() => exam.soal.map(question => ({
+        key: question.id, question: question as Question | null, type: question.tipeSoal, text: question.pertanyaan
+    })));
     const [saving, setSaving] = useState(false);
     const [typeId, setTypeId] = useState(String(exam.jenisUjianId ?? ''));
     const [error, setError] = useState('');
+    const ordered = [...rows].sort((a, b) => questionTypeRank(a.type) - questionTypeRank(b.type));
+    const visible = ordered.flatMap((row, index) => row.type === activeType ? [{ ...row, number: index + 1 }] : []);
+
+    function openQuestion(key: number) {
+        const editor = formRef.current?.querySelector<HTMLElement>('[data-editor-key="' + key + '"]');
+        editor?.scrollIntoView({ block: 'start' });
+        editor?.querySelector('textarea')?.focus({ preventScroll: true });
+    }
 
     function addQuestion() {
         const key = nextKey.current--;
-        setRows(current => [...current, { key, question: null, type: activeType }]);
-        requestAnimationFrame(() => {
-            const editor = formRef.current?.querySelector<HTMLElement>('[data-editor-key="' + key + '"]');
-            editor?.scrollIntoView({ block: 'start' });
-            editor?.querySelector('textarea')?.focus({ preventScroll: true });
+        setRows(current => [...current, { key, question: null, type: activeType, text: '' }]);
+        requestAnimationFrame(() => openQuestion(key));
+    }
+
+    function moveQuestion(source: number, target: number) {
+        if (source === target) return;
+        setRows(current => {
+            const from = current.findIndex(row => row.key === source);
+            const to = current.findIndex(row => row.key === target);
+            if (from < 0 || to < 0 || current[from].type !== current[to].type) return current;
+            const next = [...current];
+            const [moved] = next.splice(from, 1);
+            next.splice(to, 0, moved);
+            return next;
         });
     }
 
@@ -52,6 +69,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
         const changes = form.getAll('perubahan');
         const currentIds = new Set(form.getAll('soalAktif').map(Number));
         const initialIds = exam.soal.map(question => question.id);
+        const order = ordered.map(row => row.question?.id ?? null);
         setError('');
         if (form.has('gambarDiproses')) {
             setError('Tunggu sampai gambar selesai dibaca, lalu simpan kembali.');
@@ -76,6 +94,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
             waktuSelesai: end.toISOString(),
             soalAwal: initialIds,
             hapus: initialIds.filter(id => !currentIds.has(id)),
+            urutanSoal: order.length !== initialIds.length || order.some((id, index) => id !== initialIds[index]) ? order : undefined,
             perubahan: changes.map(change => JSON.parse(String(change)))
         });
         if (new Blob([payload]).size > 8 * 1024 * 1024) {
@@ -130,7 +149,7 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
                     <div className="sm:col-span-2"><DraftExamSettings exam={exam} /></div>
                 </section>
                 {!examTypes.length && <p role="status" className="ui-notice">Belum ada jenis ujian. Hubungi admin untuk menambahkannya melalui Data Master → Jenis Ujian.</p>}
-                <nav aria-label="Tipe soal" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 lg:grid-cols-5">
+                <nav aria-label="Tipe soal" className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-2 sm:grid-cols-3 xl:grid-cols-6">
                     {questionTypes.map(type => <button key={type} type="button" aria-pressed={activeType === type}
                         className={'flex items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-sm font-semibold transition-colors ' + (activeType === type ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100')}
                         onClick={() => setActiveType(type)}>
@@ -141,9 +160,11 @@ export default function EditUjian({ exam, examTypes, focusId, onCancel, onSave }
                 {!rows.some(row => row.type === activeType) && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
                     Belum ada soal {questionTypeLabels[activeType]}. Gunakan tombol Tambah Soal untuk mulai mengisi.
                 </div>}
-                {rows.map((row, index) => (
+                {visible.length > 1 && <QuestionOrderList key={activeType} rows={visible} onMove={moveQuestion} onOpen={openQuestion} />}
+                {ordered.map((row, index) => (
                     <div key={row.key} hidden={row.type !== activeType} data-question-type={row.type} data-editor-key={row.key} className="scroll-mt-6">
                         <QuestionEditor number={index + 1} question={row.question} defaultType={row.type} focus={row.key === focusId}
+                            text={row.text} onTextChange={text => setRows(current => current.map(item => item.key === row.key ? { ...item, text } : item))}
                             onRemove={() => setRows(current => current.filter(item => item.key !== row.key))} />
                     </div>
                 ))}

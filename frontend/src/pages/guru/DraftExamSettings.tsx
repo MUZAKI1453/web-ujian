@@ -23,7 +23,7 @@ export default function DraftExamSettings({ exam }: { exam?: ExamDetail }) {
         { name: 'rilisPembahasanOtomatis', label: 'Buka pembahasan otomatis', description: 'Pembahasan tersedia setelah sesi utama dan semua susulan selesai.', checked: exam?.draf && exam.bahasanRilis }
     ];
     const shuffleOptions = [
-        { name: 'acakSoal', label: 'Acak urutan soal', description: 'Tiap siswa mendapat urutan berbeda. Soal hanya bertukar dengan soal bertipe sama.', checked: exam?.acakSoal ?? true },
+        { name: 'acakSoal', label: 'Acak soal per tipe', description: 'Untuk tiap siswa, posisi soal diacak di antara soal bertipe sama. Urutan bagian mengikuti susunan guru.', checked: exam?.acakSoal ?? true },
         { name: 'acakOpsi', label: 'Acak urutan opsi', description: 'Berlaku untuk pilihan ganda dan pilihan majemuk. Matikan bila ada opsi seperti "Semua benar" atau "A dan B benar".', checked: exam?.acakOpsi ?? true }
     ];
     return <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3 sm:p-4">

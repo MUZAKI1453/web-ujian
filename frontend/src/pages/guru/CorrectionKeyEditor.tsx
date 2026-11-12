@@ -4,6 +4,7 @@ import Select from '../../components/ui/Select';
 import { fieldClass } from '../../components/ui/styles';
 import QuestionContent from './QuestionContent';
 import type { Question } from './QuestionEditor';
+import MatchingBoard from '../../components/MatchingBoard';
 
 export default function CorrectionKeyEditor({ question, append, onChange }: {
     question: Question; append: boolean; onChange: () => void;
@@ -14,6 +15,8 @@ export default function CorrectionKeyEditor({ question, append, onChange }: {
     const nextKey = useRef(answers.length);
     const firstCheckbox = useRef<HTMLInputElement>(null);
     const items = question.isi?.items ?? [];
+    const pairs = question.isi?.pasangan ?? [];
+    const [pairKeys, setPairKeys] = useState(() => question.isi?.kunci ?? pairs.map((_, index) => index));
     useEffect(() => {
         firstCheckbox.current?.setCustomValidity(keys.some(Boolean) ? '' : 'Pilih minimal satu jawaban benar.');
     }, [keys]);
@@ -61,6 +64,18 @@ export default function CorrectionKeyEditor({ question, append, onChange }: {
                     </td>)}
                 </tr>)}</tbody>
             </table>
+        </div>}
+        {question.tipeSoal === 'JODOH' && <div className="space-y-3">
+            {pairKeys.map((key, index) => <input type="hidden" key={index} name={'pasangan-' + index} value={key} />)}
+            <MatchingBoard left={pairs.map(pair => pair.kiri)} right={pairs.map(pair => pair.kanan)} value={pairKeys}
+                description="Tarik titik dari kiri ke kanan, atau ketuk kedua kartu. Memilih jawaban yang sudah terpakai akan menukar kedua pasangan."
+                onConnect={(source, option) => {
+                    setPairKeys(current => current.map((key, row) => {
+                        if (row === source) return option;
+                        return key === option ? current[source] : key;
+                    }));
+                    onChange();
+                }} />
         </div>}
         {question.tipeSoal === 'ISIAN' && <div className="space-y-3">
             {answers.map((answer, index) => <div key={answer.key} className="flex items-end gap-2">

@@ -1,0 +1,1 @@
+ALTER TABLE `soal` ADD COLUMN `urutan` INTEGER NULL;
