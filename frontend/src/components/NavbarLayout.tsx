@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, BookOpen, ChevronDown, ClipboardList, GraduationCap, History, Layers, LayoutDashboard, LogOut, Menu, MonitorCheck, PanelLeftClose, PanelLeftOpen, Repeat2, ScrollText, Settings, ShieldCheck, Users, X, type LucideIcon, Eye } from 'lucide-react';
+import { BarChart3, BookOpen, KeyRound, ChevronDown, ClipboardList, GraduationCap, History, Layers, LayoutDashboard, LogOut, Menu, MonitorCheck, PanelLeftClose, PanelLeftOpen, Repeat2, ScrollText, Settings, ShieldCheck, Users, X, type LucideIcon, Eye } from 'lucide-react';
 import { useDialogFocus } from './ui/useDialogFocus';
 
 const viewLabels = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa' } as const;
@@ -9,6 +9,7 @@ type MenuItem = { page: string; label: string; icon: LucideIcon };
 const masterMenus: MenuItem[] = [
     { page: 'guru', label: 'Data Guru', icon: GraduationCap },
     { page: 'siswa', label: 'Data Siswa', icon: Users },
+    { page: 'akun-siswa', label: 'Password Siswa', icon: KeyRound },
     { page: 'kelas', label: 'Daftar Kelas', icon: Layers },
     { page: 'mapel', label: 'Mata Pelajaran', icon: BookOpen },
     { page: 'jenis-ujian', label: 'Jenis Ujian', icon: ClipboardList }
@@ -17,7 +18,8 @@ const teacherMenus: MenuItem[] = [
     { page: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { page: 'guru-ujian', label: 'Ujian Saya', icon: ClipboardList },
     { page: 'guru-analitik', label: 'Analitik Ujian', icon: BarChart3 },
-    { page: 'guru-pengawasan', label: 'Pengawasan', icon: Eye }
+    { page: 'guru-pengawasan', label: 'Pengawasan', icon: Eye },
+    { page: 'guru-akun-siswa', label: 'Password Siswa', icon: KeyRound }
 ];
 const studentMenus: MenuItem[] = [
     { page: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CalendarDays, Eye, KeyRound, LockKeyhole, NotebookPen, Search, ShieldAlert, UnlockKeyhole, Wifi, WifiOff } from 'lucide-react';
 import api from '../../services/api';
 import ModalOverlay from '../../components/ModalOverlay';
+import StudentPasswordDialog from '../../components/StudentPasswordDialog';
 import { fieldClass, primaryClass } from '../../components/ui/styles';
 import { backLayer, useBackHandler } from '../../components/ui/useBackHandler';
 import { errorMessage } from './QuestionEditor';
@@ -45,6 +46,7 @@ export default function PengawasUjian() {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('semua');
     const [cancelling, setCancelling] = useState<{ id: number; label: string; student: string } | null>(null);
+    const [passwordOf, setPasswordOf] = useState<Participant | null>(null);
 
     useBackHandler(selected !== null, () => setSelected(null), backLayer.detail);
 
@@ -173,6 +175,8 @@ export default function PengawasUjian() {
                                     <p className="text-xs text-slate-500">NIS {student.username} · {student.kelas}</p></div>
                                 {badge(state)}
                             </div>
+                            <button type="button" className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 underline" onClick={() => setPasswordOf(student)}>
+                                <KeyRound size={13} aria-hidden="true" />Lupa password?</button>
                             {student.attemptId !== null && <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                                 <span>Terisi {student.terisi}/{panel.jumlahSoal}</span>
                                 {state === 'Mengerjakan' && <span className={'flex items-center gap-1 font-semibold ' + (online ? 'text-emerald-700' : 'text-amber-800')}>
@@ -213,6 +217,8 @@ export default function PengawasUjian() {
                 </li>)}</ul>}
             </div>
         </>}
+        {passwordOf && panel && <StudentPasswordDialog path={'/pengawas/ujian/' + panel.id + '/siswa/' + passwordOf.id + '/sandi'}
+            name={passwordOf.nama || passwordOf.username} nis={passwordOf.username} onClose={() => setPasswordOf(null)} />}
         {cancelling && panel && <ModalOverlay label="Batalkan pelanggaran" onClose={() => { if (!busy) setCancelling(null); }}>
             <form className="ui-dialog-panel max-w-lg space-y-4" onSubmit={event => {
                 event.preventDefault();

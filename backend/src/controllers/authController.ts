@@ -6,6 +6,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { jwtSecret } from '../middleware/auth';
 import { writeAudit } from '../middleware/audit';
+import { normalizeStudentPassword } from '../routes/studentPassword';
 
 const loginWindow = 60_000;
 const attempts = new Map<string, { count: number; expires: number }>();
@@ -83,7 +84,9 @@ export const loginUser = async (req: Request, res: Response) => {
         }
 
         // 2. Cek kecocokan password menggunakan bcrypt.compare
-        const match = await bcrypt.compare(password, user.password);
+        // Password siswa buatan sekolah selalu huruf besar; terima juga ketikan huruf kecil atau berspasi.
+        const typed = user.role === 'siswa' && user.sandiSiswa ? normalizeStudentPassword(password) : password;
+        const match = await bcrypt.compare(typed, user.password);
 
         if (!match) {
             writeAudit(req, { aksi: 'login-gagal', status: 401, pelakuId: user.id, pelaku: user.username, peran: user.role });
@@ -108,7 +111,9 @@ export const loginUser = async (req: Request, res: Response) => {
             if (!current?.sesiLogin) return res.status(401).json({ message: 'NIS / NIP atau password salah!' });
             sesiLogin = current.sesiLogin;
         }
-        const passwordBawaan = isDefaultPassword(user, password);
+        // Siswa dengan password buatan sekolah tidak diminta mengganti password.
+        const passwordSekolah = user.role === 'siswa' && user.sandiSiswa !== null;
+        const passwordBawaan = !passwordSekolah && isDefaultPassword(user, password);
         const token = signToken(user, sesiLogin, passwordBawaan);
         writeAudit(req, { aksi: 'login', status: 200, pelakuId: user.id, pelaku: user.username, peran: user.role });
 
@@ -122,6 +127,7 @@ export const loginUser = async (req: Request, res: Response) => {
                 nama: user.nama,
                 role: user.role,
                 passwordBawaan,
+                passwordSekolah,
                 kelas: user.kelas ? user.kelas.namaKelas : null
             }
         });
@@ -138,6 +144,9 @@ export const changePassword = async (req: Request, res: Response) => {
     }
     try {
         const user = await prisma.user.findUnique({ where: { id: res.locals.user.id } });
+        if (user?.role === 'siswa' && user.sandiSiswa !== null) {
+            return res.status(403).json({ message: 'Password siswa diatur sekolah. Hubungi guru atau pengawas bila perlu diganti.' });
+        }
         if (!user || Buffer.byteLength(passwordLama) > 72 || !(await bcrypt.compare(passwordLama, user.password))) {
             return res.status(400).json({ message: 'Password lama salah.' });
         }

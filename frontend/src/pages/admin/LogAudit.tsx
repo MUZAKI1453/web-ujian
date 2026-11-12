@@ -11,7 +11,7 @@ type Page = { total: number; halaman: number; ukuran: number; data: Row[] };
 
 const timeFormat = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'medium' });
 const filters = [{ value: '', label: 'Semua' }, { value: 'login', label: 'Login' }, { value: 'gagal', label: 'Gagal / ditolak' }];
-const labels: Record<string, string> = { login: 'Login', 'login-gagal': 'Login gagal', logout: 'Keluar', 'ganti-password': 'Ganti password' };
+const labels: Record<string, string> = { login: 'Login', 'login-gagal': 'Login gagal', logout: 'Keluar', 'ganti-password': 'Ganti password', 'lihat-sandi-siswa': 'Lihat password siswa' };
 
 export default function LogAudit() {
     const [page, setPage] = useState<Page | null>(null);

@@ -24,7 +24,7 @@ Untuk menjalankan mode produksi terpadu (Frontend + Backend disajikan bersama da
 
 Untuk membuka aplikasi dari perangkat lain, sambungkan perangkat ke jaringan yang sama lalu buka alamat pada baris **Network** di terminal. Jika Windows Firewall memblokir koneksi, izinkan port frontend yang tercetak di terminal (biasanya 5173) dan port backend 5000 pada jaringan privat.
 
-Password awal siswa adalah NIS, password awal guru adalah NIP, dan akun admin hasil seed memakai username `admin` dengan password `admin123`. Saat login dengan password bawaan, pengguna wajib mengganti password sebelum dapat membuka fitur lain; server menolak permintaan lain sampai password diganti. Gunakan HTTPS untuk frontend dan API saat diakses dari perangkat siswa.
+Password siswa dibuat oleh sistem (6 karakter) saat siswa ditambahkan atau diimpor, tidak diganti oleh siswa, dan dapat dilihat serta dicetak sebagai daftar kelas atau kartu peserta di menu **Password Siswa** (admin: semua kelas; guru: kelas yang diajar). Pengawas dapat melihat atau mengganti password peserta kelas yang diawasinya dari panel pengawas, sejak satu jam sebelum ujian sampai ujian berakhir. Setiap pembukaan password tercatat di Log Audit. Siswa lama yang belum dibuatkan password tetap memakai password lamanya sampai admin menekan tombol buat password di kelasnya. Password awal guru adalah NIP, dan akun admin hasil seed memakai username `admin` dengan password `admin123`; keduanya wajib diganti saat login pertama, dan server menolak permintaan lain sampai password diganti. Gunakan HTTPS untuk frontend dan API saat diakses dari perangkat siswa.
 
 `npm run build` memeriksa TypeScript dan membuat build frontend/backend.
 

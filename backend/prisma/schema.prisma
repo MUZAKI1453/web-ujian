@@ -30,6 +30,8 @@ model User {
   username String  @unique @db.VarChar(50)
   password String  @db.VarChar(255)
   sesiLogin String? @map("sesi_login")
+  // Password siswa buatan sistem, terenkripsi agar bisa dicetak ulang. Kosong untuk guru/admin dan siswa yang belum dibuatkan.
+  sandiSiswa String? @map("sandi_siswa") @db.VarChar(255)
   role     Role
   nama     String? @db.VarChar(100)
   kelasId  Int?    @map("kelas_id")

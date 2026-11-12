@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import prisma from '../config/db';
 import { readNavbarSettings } from './navbarController';
 import { summarizeImportIssues, type ImportIssue } from './importIssueSummary';
+import { newStudentCredentials } from '../routes/studentAccounts';
 import { tableBorders, tableHeaderRow, writeSchoolLetterhead, writeSchoolTableHeader } from '../excel/schoolWorkbook';
 
 const formats = {
@@ -139,7 +140,8 @@ export function importUsers(role: Role) {
                     continue;
                 }
 
-                records.push({ username, nama, role, kelasId, password: await bcrypt.hash(username, 10) });
+                const credentials = role === 'siswa' ? (await newStudentCredentials()).data : { password: await bcrypt.hash(username, 10) };
+                records.push({ username, nama, role, kelasId, ...credentials });
                 seen.add(username);
             }
             const count = records.length ? (await prisma.user.createMany({ data: records, skipDuplicates: true })).count : 0;

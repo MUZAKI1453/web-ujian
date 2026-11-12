@@ -7,6 +7,8 @@ import { examClassIds } from './examClasses';
 import { cancelViolation, defaultSecurityConfig, parseCancelReason, parseSecurityConfig } from './examSecurity';
 import { parseProctorNote, proctorPanel } from './proctoring';
 import { lastContact } from './studentExamRoutes';
+import { proctorAccessOpen } from './studentPassword';
+import { readStudentPassword, regenerateStudentPassword } from './studentAccounts';
 
 // Panel pengawas: guru yang ditugaskan mengawasi sebuah ujian melihat peserta kelasnya, tanpa soal, kunci, jawaban, dan nilai.
 // Admin diperlakukan sebagai pengawas semua kelas agar bisa memeriksa tampilan ini.
@@ -162,6 +164,43 @@ router.post('/ujian/:id/catatan', handle(async (req, res, actor) => {
     if (!await supervisedClasses(prisma, actor, id)) return res.status(404).json({ message: 'Ujian tidak ditemukan atau Anda bukan pengawasnya.' });
     await prisma.kegiatanUjian.create({ data: { ujianId: id, pelakuId: actor.id, jenis: 'catatan-pengawas', data: { teks: note } } });
     res.sendStatus(204);
+}));
+
+// Pengawas membantu siswa yang lupa password: hanya peserta kelas yang diawasinya, dan hanya di sekitar waktu ujian.
+async function supervisedStudent(actor: Actor, ujianId: number, siswaId: number) {
+    if (!validId(ujianId) || !validId(siswaId)) return null;
+    const classIds = await supervisedClasses(prisma, actor, ujianId);
+    if (!classIds) return null;
+    const [exam, student] = await Promise.all([
+        prisma.ujian.findUniqueOrThrow({ where: { id: ujianId }, select: {
+            ujianAsalId: true, waktuMulai: true, waktuSelesai: true, susulan: { select: { waktuMulai: true, waktuSelesai: true } },
+            pesertaRemedial: { where: { id: siswaId }, select: { id: true } }
+        } }),
+        prisma.user.findFirst({ where: { id: siswaId, role: 'siswa', kelasId: { in: classIds } }, select: { id: true, username: true, sandiSiswa: true } })
+    ]);
+    // Ujian remedial hanya diikuti peserta remedialnya, bukan seluruh kelas.
+    if (!student || (exam.ujianAsalId !== null && !exam.pesertaRemedial.length)) return null;
+    return { student, classIds, open: proctorAccessOpen([exam, ...exam.susulan], Date.now()) };
+}
+
+const outsideWindow = 'Password siswa hanya bisa dibuka pengawas sejak satu jam sebelum ujian sampai ujian berakhir.';
+
+router.get('/ujian/:id/siswa/:siswaId/sandi', handle(async (req, res, actor) => {
+    const found = await supervisedStudent(actor, Number(req.params.id), Number(req.params.siswaId));
+    if (!found) return res.status(404).json({ message: 'Siswa tidak ditemukan di kelas yang Anda awasi.' });
+    if (!found.open) return res.status(403).json({ message: outsideWindow });
+    writeAudit(req, { aksi: 'lihat-sandi-siswa', status: 200, pelakuId: actor.id, pelaku: actor.username, peran: 'pengawas',
+        target: `ujian ${req.params.id} · siswa ${found.student.username}` });
+    res.json({ password: readStudentPassword(found.student.sandiSiswa), adaSandi: found.student.sandiSiswa !== null });
+}));
+
+router.post('/ujian/:id/siswa/:siswaId/sandi', handle(async (req, res, actor) => {
+    const found = await supervisedStudent(actor, Number(req.params.id), Number(req.params.siswaId));
+    if (!found) return res.status(404).json({ message: 'Siswa tidak ditemukan di kelas yang Anda awasi.' });
+    if (!found.open) return res.status(403).json({ message: outsideWindow });
+    const password = await regenerateStudentPassword(found.student.id, found.classIds);
+    if (!password) return res.status(404).json({ message: 'Siswa tidak ditemukan di kelas yang Anda awasi.' });
+    res.json({ password, adaSandi: true });
 }));
 
 export default router;

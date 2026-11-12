@@ -1,7 +1,7 @@
 import Select from '../../components/ui/Select';
 import ModalOverlay from '../../components/ModalOverlay';
 import DeleteAccountDialog from '../../components/DeleteAccountDialog';
-import ResetAccountPasswordDialog from '../../components/ResetAccountPasswordDialog';
+import StudentPasswordDialog from '../../components/StudentPasswordDialog';
 import SuccessDialog from '../../components/SuccessDialog';
 import AlertDialog from '../../components/AlertDialog';
 import React, { useEffect, useRef, useState } from 'react';
@@ -109,7 +109,7 @@ export default function DataSiswa() {
         submitPending.current = true;
         setSaving(true);
         try {
-            let message = 'Data siswa baru berhasil ditambahkan.';
+            let message = 'Data siswa baru berhasil ditambahkan. Password-nya dibuat otomatis; lihat lewat tombol kunci atau menu Password Siswa.';
             if (isEdit && selectedId !== null) {
                 const { data } = await api.put<{ message: string }>(`/admin/siswa/${selectedId}`, payload);
                 message = data.message;
@@ -172,7 +172,7 @@ export default function DataSiswa() {
                         <Users className="text-blue-600" size={28} /> Kelola Data Siswa
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Daftar akun siswa beserta penempatan kelas.
+                        Daftar akun siswa beserta penempatan kelas. Password dibuat sistem; cetak daftar dan kartu di menu Password Siswa.
                     </p>
                 </div>
 
@@ -257,8 +257,8 @@ export default function DataSiswa() {
                                             <button
                                                 onClick={() => setResetTarget(item)}
                                                 className="ui-button ui-button-secondary ui-icon-button"
-                                                title="Reset Password ke NIS"
-                                                aria-label={'Reset password ' + item.nama}
+                                                title="Lihat atau Ganti Password"
+                                                aria-label={'Password ' + item.nama}
                                             >
                                                 <KeyRound size={16} />
                                             </button>
@@ -280,9 +280,9 @@ export default function DataSiswa() {
                 </div>
             </div>
 
-            {/* Dialog Konfirmasi Reset Password */}
-            {resetTarget && <ResetAccountPasswordDialog role="siswa" account={resetTarget}
-                onClose={() => setResetTarget(null)} onSuccess={setSuccessMessage} />}
+            {/* Dialog lihat / ganti password siswa */}
+            {resetTarget && <StudentPasswordDialog path={'/akun-siswa/siswa/' + resetTarget.id} name={resetTarget.nama || resetTarget.username}
+                nis={resetTarget.username} onClose={() => setResetTarget(null)} />}
 
             {/* Dialog Konfirmasi Hapus */}
             {deleteIds.length > 0 && (
@@ -328,7 +328,7 @@ export default function DataSiswa() {
                                     className="ui-input w-full border focus:border-blue-600 font-mono"
                                 />
                                 {isEdit && username && username !== siswaList.find(item => item.id === selectedId)?.username && (
-                                    <p className="mt-1.5 text-sm text-slate-600">Menyimpan NIS baru akan mereset password ke NIS tersebut dan mengakhiri sesi aktif.</p>
+                                    <p className="mt-1.5 text-sm text-slate-600">Menyimpan NIS baru akan membuat password baru dan mengakhiri sesi aktif. Kartu lama siswa ini tidak berlaku lagi.</p>
                                 )}
                             </div>
                             <div>

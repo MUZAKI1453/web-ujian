@@ -63,7 +63,6 @@ router.post('/siswa/import', uploadExcel.single('file'), importUsers('siswa'));
 router.get('/siswa', getSiswa);
 router.post('/siswa', createSiswa);
 router.put('/siswa/:id', updateSiswa);
-router.post('/siswa/:id/reset-password', resetAccountPassword('siswa'));
 router.post('/siswa/hapus-terpilih', deleteAccounts('siswa'));
 router.delete('/siswa/:id', deleteSiswa);
 

@@ -82,7 +82,7 @@ test('an existing account prevents student creation before a write', async () =>
     }
 });
 
-test('a new NIS still creates a student with a hashed password', async () => {
+test('a new NIS creates a student with a generated password that staff can read back', async () => {
     const lookup = stub('findUnique', async () => null);
     const student = { id: 3, username: '12345', nama: 'Siswa Uji', kelas: { id: 1 } };
     const write = stub('create', async () => student);
@@ -94,8 +94,11 @@ test('a new NIS still creates a student with a hashed password', async () => {
         const data = (write.mock.calls[0].arguments as any[])[0].data;
         assert.equal(data.username, '12345');
         assert.equal(data.role, 'siswa');
-        const bcrypt = await import('bcrypt');
-        assert.equal(await bcrypt.compare('12345', data.password), true);
+        const { readStudentPassword } = await import('../src/routes/studentAccounts');
+        const password = readStudentPassword(data.sandiSiswa);
+        assert.match(String(password), /^[A-HJKMNP-Z2-9]{6}$/);
+        assert.equal(await bcrypt.compare(password!, data.password), true);
+        assert.equal(await bcrypt.compare('12345', data.password), false);
     } finally {
         lookup.mock.restore(); write.mock.restore();
     }
@@ -116,11 +119,11 @@ test('unrelated database errors remain server errors without exposing Prisma det
 });
 
 test('resetAccountPassword resets password to username and rotates sesiLogin', async () => {
-    const lookup = stub('findUnique', async () => ({ id: 1, username: '12345', nama: 'Siswa Uji', role: 'siswa' }));
+    const lookup = stub('findUnique', async () => ({ id: 1, username: '12345', nama: 'Guru Uji', role: 'guru' }));
     const write = stub('update', async () => ({ id: 1 }));
     try {
         const { res, result } = response();
-        await controllers.resetAccountPassword('siswa')(request, res);
+        await controllers.resetAccountPassword('guru')(request, res);
         assert.equal(result.code, 200);
         assert.equal(result.body.status, 'SUCCESS');
         assert.equal(write.mock.callCount(), 1);
@@ -154,9 +157,17 @@ for (const role of ['siswa', 'guru'] as const) {
                 assert.equal(where.username, previousUsername);
                 if (usernameChanged) {
                     assert.equal(data.username, username);
-                    assert.equal(await bcrypt.compare(username, data.password), true);
                     assert.match(data.sesiLogin, /^[a-f0-9-]{36}$/);
-                    assert.match(String(result.body.message), /Password direset/);
+                    if (role === 'siswa') {
+                        // Password siswa tidak lagi mengikuti NIS; NIS baru mendapat password buatan sistem.
+                        const { readStudentPassword } = await import('../src/routes/studentAccounts');
+                        assert.equal(await bcrypt.compare(readStudentPassword(data.sandiSiswa)!, data.password), true);
+                        assert.equal(await bcrypt.compare(username, data.password), false);
+                        assert.match(String(result.body.message), /Password baru dibuat/);
+                    } else {
+                        assert.equal(await bcrypt.compare(username, data.password), true);
+                        assert.match(String(result.body.message), /Password direset/);
+                    }
                 } else {
                     assert.equal(data.password, undefined);
                     assert.equal(data.sesiLogin, undefined);

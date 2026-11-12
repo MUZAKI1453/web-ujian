@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import prisma from '../config/db';
 import bcrypt from 'bcrypt';
 import { compareNames, sortByName } from './displayOrder';
+import { newStudentCredentials } from '../routes/studentAccounts';
 
 // Rincian kesalahan hanya dicatat di server; klien menerima pesan umum.
 function serverError(res: Response, error: unknown) {
@@ -142,10 +143,10 @@ export const getSiswa = async (req: Request, res: Response) => {
     try {
         const siswaList = await prisma.user.findMany({
             where: { role: 'siswa' },
-            select: { id: true, username: true, nama: true, kelas: true },
+            select: { id: true, username: true, nama: true, kelas: true, sandiSiswa: true },
             orderBy: { id: 'asc' }
         });
-        res.json({ status: 'SUCCESS', data: sortByName(siswaList, item => item.nama) });
+        res.json({ status: 'SUCCESS', data: sortByName(siswaList, item => item.nama).map(({ sandiSiswa, ...item }) => ({ ...item, adaSandi: sandiSiswa !== null })) });
     } catch (error: any) {
         serverError(res, error);
     }
@@ -170,11 +171,10 @@ export const createSiswa = async (req: Request, res: Response) => {
             return res.status(409).json({ status: 'WARNING', message: 'NIS sudah digunakan akun lain. Gunakan NIS yang berbeda.' });
         }
 
-        const hashedPassword = await bcrypt.hash(username, 10);
         const newSiswa = await prisma.user.create({
             data: {
                 username,
-                password: hashedPassword,
+                ...(await newStudentCredentials()).data,
                 role: 'siswa',
                 nama,
                 kelasId: Number(kelasId)
@@ -226,7 +226,7 @@ export const updateSiswa = async (req: Request, res: Response) => {
         const updatedSiswa = await prisma.user.update({
             where: { id: Number(id), role: 'siswa', username: existingSiswa.username },
             data: {
-                ...(passwordReset ? { username, ...await defaultCredentials(username) } : {}),
+                ...(passwordReset ? { username, ...(await newStudentCredentials()).data } : {}),
                 nama: nama || existingSiswa.nama,
                 kelasId: Number(kelasId)
             },
@@ -234,7 +234,7 @@ export const updateSiswa = async (req: Request, res: Response) => {
         });
 
         const message = passwordReset
-            ? 'Data siswa berhasil diperbarui. Password direset ke NIS baru dan sesi aktif diakhiri.'
+            ? 'Data siswa berhasil diperbarui. Password baru dibuat untuk NIS baru dan sesi aktif diakhiri. Lihat di menu Password Siswa.'
             : 'Data siswa berhasil diperbarui!';
         res.json({ status: 'SUCCESS', message, data: updatedSiswa });
     } catch (error: any) {
@@ -625,7 +625,8 @@ export function deleteAccounts(role: 'siswa' | 'guru') {
     };
 }
 
-export function resetAccountPassword(role: 'siswa' | 'guru') {
+// Hanya untuk guru: password siswa dibuat sistem dan dikelola lewat rute akun-siswa.
+export function resetAccountPassword(role: 'guru') {
     return async (req: Request, res: Response) => {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
@@ -647,10 +648,9 @@ export function resetAccountPassword(role: 'siswa' | 'guru') {
                 data: await defaultCredentials(existing.username)
             });
 
-            const idLabel = role === 'siswa' ? 'NIS' : 'NIP';
             res.json({
                 status: 'SUCCESS',
-                message: `Password ${existing.nama || existing.username} berhasil direset ke ${idLabel} (${existing.username}).`
+                message: `Password ${existing.nama || existing.username} berhasil direset ke NIP (${existing.username}).`
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return accountChanged(res);

@@ -4,8 +4,8 @@ import PengaturanNavbar, { type NavbarSettings } from './admin/PengaturanNavbar'
 import GantiPassword from './GantiPassword';
 import ResetPasswordSettings from './admin/ResetPasswordSettings';
 
-export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSaved, initialSection }: {
-    isAdmin: boolean; navbar: NavbarSettings; navbarLoaded: boolean;
+export default function Pengaturan({ isAdmin, schoolPassword = false, navbar, navbarLoaded, onNavbarSaved, initialSection }: {
+    isAdmin: boolean; schoolPassword?: boolean; navbar: NavbarSettings; navbarLoaded: boolean;
     onNavbarSaved: (settings: NavbarSettings) => void;
     initialSection?: 'umum' | 'keamanan';
 }) {
@@ -32,7 +32,9 @@ export default function Pengaturan({ isAdmin, navbar, navbarLoaded, onNavbarSave
                 ? <PengaturanNavbar settings={navbar} onSaved={onNavbarSaved} />
                 : <p role="status" className="ui-notice ui-notice-warning">Identitas aplikasi belum dapat dimuat. Muat ulang halaman untuk mencoba lagi. Anda tetap dapat membuka pengaturan Keamanan.</p>
                 : <div className="space-y-3 sm:space-y-4">
-                    <GantiPassword />
+                    {schoolPassword
+                        ? <p className="ui-card p-4 text-sm leading-relaxed text-slate-600 sm:p-5">Password akun Anda dibuat oleh sekolah dan tertera di kartu peserta. Bila lupa atau diketahui orang lain, hubungi guru atau pengawas.</p>
+                        : <GantiPassword />}
                     {isAdmin && <ResetPasswordSettings />}
                 </div>}
         </div>
